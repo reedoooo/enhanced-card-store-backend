@@ -1,0 +1,42 @@
+{
+  "name": "enhanced-card-store-backend",
+  "version": "1.0.0",
+  "description": "backend to the enhanced card store fronted",
+  "main": "server.js",
+    "dependencies": {
+    "axios": "^1.4.0",
+    "bcrypt": "^5.1.0",
+    "cors": "^2.8.5",
+    "crypto-js": "^4.1.1",
+    "dotenv": "^16.3.1",
+    "eslint": "^8.45.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^6.8.0",
+    "jsonwebtoken": "^9.0.1",
+    "logger": "^0.0.1",
+    "mongoose": "^7.4.0",
+    "morgan": "^1.10.0",
+    "rate-limit-redis": "^3.0.2",
+    "redis": "^4.6.7",
+    "stripe": "^12.14.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reedoooo/enhanced-card-store-backend.git"
+  },
+  "keywords": [
+    "node",
+    "express",
+    "server",
+    "enhanced-card-store"
+  ],
+  "author": "Reed Vogt",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/reedoooo/enhanced-card-store-backend/issues"
+  },
+  "homepage": "https://github.com/reedoooo/enhanced-card-store-backend#readme"
+}
