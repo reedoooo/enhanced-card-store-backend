@@ -2,6 +2,7 @@ const express = require('express');
 const logger = require('morgan');
 const path = require('path');
 const cors = require('cors');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 module.exports = function applyCustomMiddleware(app) {
   app.use(logger('dev'));
@@ -17,9 +18,6 @@ module.exports = function applyCustomMiddleware(app) {
 
   // Error handling middleware
   app.use((err, req, res, next) => {
-    // console.error(err.stack); // Log the stack trace of the error
-
-    // Customize the status code and message depending on the type of the error
     let status = 500;
     let message = 'An unexpected error occurred';
 
@@ -33,4 +31,43 @@ module.exports = function applyCustomMiddleware(app) {
 
     res.status(status).json({ message });
   });
+
+  // Use express middleware to parse the payload from Stripe
+  app.use(
+    '/webhook',
+    express.raw({ type: 'application/json' }),
+    async (req, res) => {
+      const sig = req.headers['stripe-signature'];
+
+      let event;
+
+      try {
+        event = stripe.webhooks.constructEvent(
+          req.body,
+          sig,
+          process.env.STRIPE_WEBHOOK_SECRET,
+        );
+      } catch (err) {
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+      }
+
+      // Handle the checkout.session.completed event
+      switch (event.type) {
+      case 'payment_intent.succeeded':
+        // Payment was successful
+        console.log('Payment succeeded!');
+        break;
+      case 'payment_intent.payment_failed':
+        // Payment failed
+        console.log('Payment failed!');
+        break;
+      default:
+        // Unexpected event type
+        return res.status(400).end();
+      }
+
+      // Return a response to acknowledge receipt of the event
+      res.json({ received: true });
+    },
+  );
 };
