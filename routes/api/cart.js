@@ -5,7 +5,7 @@ const router = express.Router();
 
 router.get('/:cartId', cartController.getCart); // Route changed to /:cartId
 router.get('/userCart/:userId', cartController.getUserCart);
-router.put('/:cartId', cartController.updateCart); 
+router.put('/:cartId', cartController.updateCart);
 router.put('/:cartId/decrease', cartController.decreaseItemQuantity); // new route for decreasing item quantity
 router.delete('/user/:userId/cart/:cartId', cartController.deleteItemFromCart); // Changed :id to :cartId for consistency
 router.get('/', cartController.getAllCarts);

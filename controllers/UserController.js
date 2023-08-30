@@ -22,14 +22,20 @@ exports.signup = async (req, res, next) => {
   const { name } = basic_info;
 
   if (!name || !email || !username || !password) {
-    return res.status(400).json({ message: 'Basic_info, username, email, and password fields are required' });
+    return res.status(400).json({
+      message: 'Basic_info, username, email, and password fields are required',
+    });
   }
 
-  const existingUser = await User.findOne({ 'login_data.username': username.trim() });
-  
+  const existingUser = await User.findOne({
+    'login_data.username': username.trim(),
+  });
+
   console.log('existingUser:', existingUser);
   if (existingUser) {
-    return res.status(409).json({ message: `Username ${username} already exists`});
+    return res
+      .status(409)
+      .json({ message: `Username ${username} already exists` });
   }
 
   const hashedPassword = await bcrypt.hash(password.trim(), 10);
@@ -73,7 +79,6 @@ exports.signup = async (req, res, next) => {
     next(error);
   }
 };
-
 
 exports.signin = async (req, res, next) => {
   // console.log('signin', req.body);

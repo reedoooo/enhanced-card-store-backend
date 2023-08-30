@@ -107,9 +107,7 @@ exports.decreaseItemQuantity = async (req, res) => {
       if (existingDeckItem && existingDeckItem.quantity > 0) {
         existingDeckItem.quantity -= 1;
         if (existingDeckItem.quantity === 0) {
-          deck.deck = deck.deck.filter(
-            (item) => item.id.toString() !== cardId,
-          );
+          deck.deck = deck.deck.filter((item) => item.id.toString() !== cardId);
         }
       }
 

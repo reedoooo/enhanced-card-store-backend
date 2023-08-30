@@ -3,21 +3,23 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
-
-// Configure dotenv
-dotenv.config();
+const cookieParser = require('cookie-parser');
+const cors = require('cors');
 
 // Import custom middleware and routes
 const applyCustomMiddleware = require('./middleware');
 const routes = require('./routes');
 
+// Configure dotenv
+dotenv.config();
+
 // Prepare the express app with singleton
 const app = express();
-const port = process.env.PORT || 3002;
+const port = process.env.PORT || 3001;
 
 //MongoDb connection
 mongoose
-  .connect(process.env.MONGODB_URL)
+  .connect(process.env.MONGO_URI)
   .then(() => {
     console.log('Connected to MongoDB');
   })
@@ -25,8 +27,9 @@ mongoose
     console.log(err);
   });
 
-// Apply middleware
+app.use(cors()); // add this line if you haven't already
 applyCustomMiddleware(app);
+app.use(cookieParser());
 
 // HANDLE ROUTES
 app.use(
@@ -35,7 +38,7 @@ app.use(
     // console.log(`Received request on API route: ${req.method} ${req.originalUrl}`);
     next();
   },
-  routes,
+  routes
 );
 
 app.get('/', (req, res) => {

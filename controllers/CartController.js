@@ -115,9 +115,7 @@ exports.decreaseItemQuantity = async (req, res) => {
       if (existingCartItem && existingCartItem.quantity > 0) {
         existingCartItem.quantity -= 1;
         if (existingCartItem.quantity === 0) {
-          cart.cart = cart.cart.filter(
-            (item) => item.id.toString() !== cardId,
-          );
+          cart.cart = cart.cart.filter((item) => item.id.toString() !== cardId);
         }
       }
 

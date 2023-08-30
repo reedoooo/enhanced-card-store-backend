@@ -129,7 +129,7 @@ const products = [
   {
     _id: '18',
     category: 'Games',
-    name: 'Assassin\'s Creed Valhalla - Xbox Series X',
+    name: "Assassin's Creed Valhalla - Xbox Series X",
     price: 59.99,
     inStock: 25,
   },
