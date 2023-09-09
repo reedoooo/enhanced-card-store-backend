@@ -32,7 +32,7 @@ const getCardDetailsFromTCGPlayerAPI = async (cardName, headers) => {
 exports.scrapeGetHandler = async (req, res) => {
   console.log('Request', req.body);
   const cardName = req.cardName || 'Dark Magician';
-
+  const bearerToken = req.cookies.AWSALB; // Adjust the cookie name accordingly if it's different
   const defaultHeaders = {
     Authorization: `Bearer ${bearerToken}`,
     'Content-Type': 'application/json',

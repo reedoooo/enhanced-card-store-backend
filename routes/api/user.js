@@ -18,14 +18,17 @@ router.get('/profile', verifyToken, asyncHandler(UserController.getProfile));
 router.put(
   '/profile/:id',
   verifyToken,
-  asyncHandler(UserController.updateProfile)
+  asyncHandler(UserController.updateProfile),
 );
 router.delete(
   '/profile/:id',
   verifyToken,
-  asyncHandler(UserController.deleteProfile)
+  asyncHandler(UserController.deleteProfile),
 );
 router.get('/:id', asyncHandler(UserController.getUserById));
+router.get('/:userId/decks', asyncHandler(UserController.getAllDecksForUser));
+router.put('/:userId/:deckId', asyncHandler(UserController.updateAndSyncDeck));
+router.post('/:userId/newDeck', asyncHandler(UserController.createNewDeck));
 
 router.use((error, req, res, next) => {
   console.error('Middleware error:', error); // Logging the error can be useful for debugging

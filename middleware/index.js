@@ -17,7 +17,7 @@ const handleStripeWebhook = async (req, res) => {
     event = stripe.webhooks.constructEvent(
       req.body,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET
+      process.env.STRIPE_WEBHOOK_SECRET,
     );
   } catch (err) {
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -89,7 +89,7 @@ module.exports = function applyCustomMiddleware(app) {
         'User-Agent',
         'application/json',
       ],
-    })
+    }),
   );
 
   // Error handling
@@ -99,6 +99,6 @@ module.exports = function applyCustomMiddleware(app) {
   app.use(
     '/webhook',
     express.raw({ type: 'application/json' }),
-    handleStripeWebhook
+    handleStripeWebhook,
   );
 };

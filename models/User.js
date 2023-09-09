@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Deck = require('./Deck');
 const { Schema } = mongoose;
 // const cartInfo = require('./Cart.js');
 
@@ -28,6 +29,7 @@ const UserSchema = new Schema(
     basic_info: { type: baseInfo, required: false },
     // activity_data: { type: cartInfo, required: false },
     login_data: { type: securityInfo, required: true },
+    allDecks: [Deck.schema], // add this line
   },
   { timestamps: true },
 );

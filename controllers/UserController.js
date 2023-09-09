@@ -7,8 +7,10 @@ const {
   createToken,
 } = require('../services/auth.js');
 const mongoose = require('mongoose');
+const Deck = require('../models/Deck');
 
 const SECRET_KEY = process.env.SECRET_KEY;
+console.log('Debug SECRET_KEY in [UserController]: ', process.env.SECRET_KEY);
 
 exports.signup = async (req, res, next) => {
   // console.log('signup', req.body);
@@ -156,3 +158,108 @@ exports.getUserById = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.getAllDecksForUser = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Assuming user model has a field called 'allDecks' that stores an array of deck IDs
+    let decks = await Deck.find({
+      _id: { $in: user.allDecks },
+    });
+
+    // If no decks are found, create a new default deck for the user
+    if (!decks || decks.length === 0) {
+      const newDeck = new Deck({
+        userId: user._id,
+        name: 'Default Deck',
+        description: 'This is your default deck.',
+        cards: [],
+      });
+
+      await newDeck.save();
+
+      // Add this new deck to the user's allDecks array (if you have such a field)
+      user.allDecks.push(newDeck._id);
+      await user.save();
+
+      // We should set decks to the newDeck wrapped in an array to prevent the loop
+      decks = [newDeck];
+    }
+
+    console.log('DECKS IN USERS:', decks);
+    res.json(decks);
+  } catch (error) {
+    console.error('Error fetching all decks for user:', error);
+    next(error);
+  }
+};
+
+// Update existing deck
+exports.updateAndSyncDeck = async (req, res, next) => {
+  const { userId } = req.params;
+  const { cards, deckId, description, name } = req.body;
+
+  console.log('UPDATING userId:', userId);
+  console.log('UPDATING deckId:', deckId);
+  console.log('UPDATING cards:', cards);
+  console.log('UPDATING description:', description);
+  console.log('UPDATING name:', name);
+  // console.log('req.body:', req.body);
+
+  try {
+    // Find deck by ID and update
+    const updatedDeck = await Deck.findOneAndUpdate(
+      { _id: deckId, userId },
+      { $set: { cards, name, description } },
+      { new: true },
+    );
+
+    if (!updatedDeck) {
+      return res.status(404).send({ error: 'Deck not found' });
+    }
+
+    console.log('Updated Deck Data:', updatedDeck); // NEW LINE
+    console.log('Updated Name:', updatedDeck.name); // NEW LINE
+    console.log('Updated Description:', updatedDeck.description); // NEW LINE
+
+    res.send(updatedDeck);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'Failed to update deck' });
+  }
+};
+
+exports.createNewDeck = async (req, res, next) => {
+  const { userId } = req.params;
+  const { name, description, cards } = req.body;
+
+  try {
+    const newDeck = new Deck({ userId, name, description, cards });
+    await newDeck.save();
+
+    console.log('New Deck Created:', newDeck); // NEW LINE
+    console.log('New Deck Name:', newDeck.name); // NEW LINE
+    console.log('New Deck Description:', newDeck.description); // NEW LINE
+
+    res.send(newDeck);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'Failed to create new deck' });
+  }
+};
+
+// // Get all decks for a user
+// router.get('/api/users/:userId/decks', async (req, res) => {
+//   const { userId } = req.params;
+//   try {
+//     const decks = await Deck.find({ userId });
+//     res.send(decks);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).send({ error: 'Failed to fetch decks' });
+//   }
+// });

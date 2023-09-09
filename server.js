@@ -13,6 +13,8 @@ const routes = require('./routes');
 // Configure dotenv
 dotenv.config();
 
+console.log('SECRET_KEY is: ', process.env.SECRET_KEY);
+
 // Prepare the express app with singleton
 const app = express();
 const port = process.env.PORT || 3001;
@@ -38,7 +40,7 @@ app.use(
     // console.log(`Received request on API route: ${req.method} ${req.originalUrl}`);
     next();
   },
-  routes
+  routes,
 );
 
 app.get('/', (req, res) => {
