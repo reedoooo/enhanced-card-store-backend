@@ -41,6 +41,7 @@ const CardInCollectionSchema = new Schema({
   card_prices: [CardPriceSchema],
   quantity: {
     type: Number,
+    required: true,
   },
 });
 
@@ -49,6 +50,12 @@ const collectionSchema = new mongoose.Schema({
   name: String,
   description: String,
   cards: [CardInCollectionSchema],
+  totalPrice: {
+    type: Number,
+  },
+  allCardPrices: {
+    type: Array,
+  },
 });
 
 module.exports = mongoose.model('Collection', collectionSchema);

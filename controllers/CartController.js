@@ -35,6 +35,7 @@ exports.getAllCarts = async (req, res) => {
 
 exports.updateCart = async (req, res) => {
   const cart = req.body;
+
   // console.log('cart', cart);
 
   if (!Array.isArray(cart)) {
@@ -108,9 +109,7 @@ exports.decreaseItemQuantity = async (req, res) => {
     let cart = await Cart.findOne({ _id: id });
     console.log('cart', cart);
     if (cart) {
-      let existingCartItem = cart.cart.find(
-        (item) => item.id.toString() === cardId,
-      );
+      let existingCartItem = cart.cart.find((item) => item.id.toString() === cardId);
 
       if (existingCartItem && existingCartItem.quantity > 0) {
         existingCartItem.quantity -= 1;

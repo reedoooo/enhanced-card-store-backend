@@ -13,10 +13,7 @@ router.get('/:userId', collectionController.getAllCollectionsForUser);
 router.put('/:collectionId', collectionController.updateCollection);
 
 // POST create a new empty deck for a specific user
-router.post(
-  '/newCollection/:userId',
-  collectionController.createEmptyCollection,
-);
+router.post('/newCollection/:userId', collectionController.createEmptyCollection);
 
 // DELETE delete a specific deck for a specific user
 router.delete(
@@ -25,7 +22,7 @@ router.delete(
 );
 
 // Uncomment if you need to decrease item quantity
-// router.put('/:deckId/decrease', deckController.decreaseItemQuantity);
+// router.put('/:deckId/decrease', collectionController.updateAndSyncCollection);
 
 // Uncomment if you need to create or update a deck (not just an empty one)
 // router.post('/', deckController.createOrUpdateDeck);

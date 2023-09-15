@@ -19,13 +19,9 @@ exports.updateCollection = async (req, res) => {
   try {
     const collectionId = req.params.collectionId;
     const updatedFields = req.body;
-    const updatedCollection = await Collection.findByIdAndUpdate(
-      collectionId,
-      updatedFields,
-      {
-        new: true,
-      },
-    );
+    const updatedCollection = await Collection.findByIdAndUpdate(collectionId, updatedFields, {
+      new: true,
+    });
     if (!updatedCollection) {
       return res.status(404).send({ error: 'Collection not found.' });
     }
@@ -74,15 +70,11 @@ exports.decreaseItemQuantity = async (req, res) => {
   try {
     let collection = await Collection.findById(collectionId);
     if (collection) {
-      let existingItem = collection.items.find(
-        (item) => item.id.toString() === itemId,
-      );
+      let existingItem = collection.items.find((item) => item.id.toString() === itemId);
       if (existingItem && existingItem.quantity > 0) {
         existingItem.quantity -= 1;
         if (existingItem.quantity === 0) {
-          collection.items = collection.items.filter(
-            (item) => item.id.toString() !== itemId,
-          );
+          collection.items = collection.items.filter((item) => item.id.toString() !== itemId);
         }
       }
       await collection.save();
@@ -106,9 +98,7 @@ exports.createOrUpdateCollection = async (req, res) => {
         items: [itemData],
       });
     } else {
-      let existingItem = collection.items.find(
-        (item) => item.id.toString() === itemData.id,
-      );
+      let existingItem = collection.items.find((item) => item.id.toString() === itemData.id);
       if (existingItem) {
         Object.assign(existingItem, itemData);
       } else {

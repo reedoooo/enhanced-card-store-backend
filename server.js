@@ -13,10 +13,14 @@ const routes = require('./routes');
 // Configure dotenv
 dotenv.config();
 
-console.log('SECRET_KEY is: ', process.env.SECRET_KEY);
-
 // Prepare the express app with singleton
 const app = express();
+
+// Enable CORS
+app.use(cors());
+
+console.log('Type of app:', typeof app); // Should log 'Type of app: function'
+
 const port = process.env.PORT || 3001;
 
 //MongoDb connection
@@ -29,8 +33,8 @@ mongoose
     console.log(err);
   });
 
-app.use(cors()); // add this line if you haven't already
 applyCustomMiddleware(app);
+
 app.use(cookieParser());
 
 // HANDLE ROUTES
