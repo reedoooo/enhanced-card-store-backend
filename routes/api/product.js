@@ -34,7 +34,10 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const product = await productController.updateProduct(req.params.id, req.body);
+    const product = await productController.updateProduct(
+      req.params.id,
+      req.body,
+    );
     res.json(product);
   } catch (err) {
     return res.status(500).json({ message: err.message });

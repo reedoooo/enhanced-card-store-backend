@@ -16,8 +16,9 @@ const verifyToken = (req, res, next) => {
   const bearer = bearerHeader.split(' ');
   // Get token from array
   const token = bearer[1];
+  console.log('Debug SECRET_KEY in [auth]: ', process.env.SECRET_KEY);
 
-  jwt.verify(token, SECRET_KEY, (err, decoded) => {
+  jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
     if (err) {
       return res.status(401).send({ message: 'Unauthorized!' });
     }

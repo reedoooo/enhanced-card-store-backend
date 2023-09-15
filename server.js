@@ -3,21 +3,29 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
-
-// Configure dotenv
-dotenv.config();
+const cookieParser = require('cookie-parser');
+const cors = require('cors');
 
 // Import custom middleware and routes
 const applyCustomMiddleware = require('./middleware');
 const routes = require('./routes');
 
+// Configure dotenv
+dotenv.config();
+
 // Prepare the express app with singleton
 const app = express();
-const port = process.env.PORT || 3002;
+
+// Enable CORS
+app.use(cors());
+
+console.log('Type of app:', typeof app); // Should log 'Type of app: function'
+
+const port = process.env.PORT || 3001;
 
 //MongoDb connection
 mongoose
-  .connect(process.env.MONGODB_URL)
+  .connect(process.env.MONGO_URI)
   .then(() => {
     console.log('Connected to MongoDB');
   })
@@ -25,8 +33,9 @@ mongoose
     console.log(err);
   });
 
-// Apply middleware
 applyCustomMiddleware(app);
+
+app.use(cookieParser());
 
 // HANDLE ROUTES
 app.use(

@@ -6,9 +6,12 @@ const orderRoutes = require('./api/order');
 const productRoutes = require('./api/product');
 const cartRoutes = require('./api/cart');
 const cardRoutes = require('./api/card');
-const ygoproRoutes = require('./api/ygopro'); 
-const deckRoutes = require('./api/deck'); 
+const ygoproRoutes = require('./api/ygopro');
+const deckRoutes = require('./api/deck');
+// const collectionRoutes = require('./api/collection');
 const stripeRoutes = require('./other/stripe');
+const tcgScraperRoutes = require('./other/scrape');
+const cardImageRoutes = require('./api/cardimage');
 
 router.use('/orders', orderRoutes);
 router.use('/users', userRoutes);
@@ -16,7 +19,10 @@ router.use('/products', productRoutes);
 router.use('/carts', cartRoutes);
 router.use('/cards', cardRoutes); // Use card routes
 router.use('/decks', deckRoutes); // Use card routes
+// router.use('/collections', collectionRoutes);
 router.use('/cards/ygopro', ygoproRoutes); // Use card routes
 router.use('/stripe', stripeRoutes);
+router.use('/scrape', tcgScraperRoutes);
+router.use('/card-images', cardImageRoutes);
 
 module.exports = router;
