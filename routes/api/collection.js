@@ -21,6 +21,8 @@ router.delete(
   collectionController.deleteItemFromCollection,
 );
 
+router.get('/update/:itemType/:itemId', collectionController.updateSpecificItem);
+
 // Uncomment if you need to decrease item quantity
 // router.put('/:deckId/decrease', collectionController.updateAndSyncCollection);
 

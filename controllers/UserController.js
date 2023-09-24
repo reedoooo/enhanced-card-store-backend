@@ -203,8 +203,8 @@ exports.getAllDecksForUser = async (req, res, next) => {
 
 // Update existing deck
 exports.updateAndSyncDeck = async (req, res, next) => {
-  const { userId } = req.params;
-  const { cards, deckId, description, name } = req.body;
+  const { userId, deckId } = req.params;
+  const { cards, description, name, totalPrice } = req.body;
 
   // console.log('UPDATING userId:', userId);
   // console.log('UPDATING deckId:', deckId);
@@ -217,7 +217,7 @@ exports.updateAndSyncDeck = async (req, res, next) => {
     // Find deck by ID and update
     const updatedDeck = await Deck.findOneAndUpdate(
       { _id: deckId, userId },
-      { $set: { cards, name, description } },
+      { $set: { cards, name, description, totalPrice } },
       { new: true },
     );
 
@@ -225,9 +225,11 @@ exports.updateAndSyncDeck = async (req, res, next) => {
       return res.status(404).send({ error: 'Deck not found' });
     }
 
-    console.log('Updated Deck Data:', updatedDeck); // NEW LINE
-    console.log('Updated Name:', updatedDeck.name); // NEW LINE
-    console.log('Updated Description:', updatedDeck.description); // NEW LINE
+    // console.log('Updated Deck Data:', updatedDeck); // NEW LINE
+    // console.log('Updated Name:', updatedDeck.name); // NEW LINE
+    // console.log('Updated Description:', updatedDeck.description); // NEW LINE
+    // console.log('Updated Cards:', updatedDeck.cards); // NEW LINE
+    // console.log('Updated Total Price:', updatedDeck.totalPrice); // NEW LINE
 
     res.send(updatedDeck);
   } catch (error) {
@@ -238,10 +240,10 @@ exports.updateAndSyncDeck = async (req, res, next) => {
 
 exports.createNewDeck = async (req, res, next) => {
   const { userId } = req.params;
-  const { name, description, cards } = req.body;
+  const { name, description, cards, totalPrice } = req.body;
 
   try {
-    const newDeck = new Deck({ userId, name, description, cards });
+    const newDeck = new Deck({ userId, name, description, cards, totalPrice });
     await newDeck.save();
 
     // console.log('New Deck Created:', newDeck); // NEW LINE
@@ -273,6 +275,8 @@ exports.getAllCollectionsForUser = async (req, res, next) => {
       _id: { $in: user.allCollections },
     });
 
+    // console.log('********************ALL COLLECTIONS********************', collections);
+
     // More robust logging using Winston
     winston.info(`Fetched ${collections.length} collections for user ${req.params.userId}`);
 
@@ -283,61 +287,118 @@ exports.getAllCollectionsForUser = async (req, res, next) => {
   }
 };
 
-// Update existing collection
 exports.updateAndSyncCollection = async (req, res, next) => {
-  // Perform validation
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+  const { userId, collectionId } = req.params;
+  const { cards, description, name, totalPrice, allCardPrices, quantity } = req.body;
+
+  // Check if collectionId is present in the request parameters
+  if (!collectionId) {
+    return res.status(400).json({ message: 'collectionId is required' });
   }
 
-  console.log('req.body:', req.body);
-  const { userId, collectionId } = req.params;
-  const { cards, description, name } = req.body;
-  console.log('COLLECTION ID:', collectionId);
+  console.log('UPDATING userId:', userId);
+  console.log('UPDATING collectionId:', collectionId);
+  console.log('UPDATING name:', name);
+
+  let calculatedTotalPrice = totalPrice;
+  let calculatedCardPrices = allCardPrices;
+
+  // Recalculate totalPrice and allCardPrices based on the updated cards array
+  // if they are not present or are empty
+  if (
+    calculatedTotalPrice === undefined ||
+    calculatedTotalPrice === null ||
+    calculatedTotalPrice === '' ||
+    !Array.isArray(calculatedCardPrices) ||
+    calculatedCardPrices.length === 0
+  ) {
+    calculatedTotalPrice = 0;
+    calculatedCardPrices = [];
+
+    // Assume each card has a property "price"
+    for (const card of cards) {
+      calculatedTotalPrice += card.card_prices[0].tcgplayer_price;
+      calculatedCardPrices.push(card.card_prices[0].tcgplayer_price);
+    }
+  }
+
   try {
+    // Find user by userId
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Find and update the collection
     const updatedCollection = await Collection.findOneAndUpdate(
       { _id: collectionId, userId },
-      { $set: { cards, name, description } },
+      {
+        $set: {
+          cards,
+          name,
+          description,
+          totalPrice: calculatedTotalPrice,
+          quantity,
+          allCardPrices: calculatedCardPrices,
+        },
+      },
       { new: true },
     );
 
     if (!updatedCollection) {
-      return res.status(404).send({ error: 'Collection not found' });
+      return res.status(404).json({ message: 'Collection not found' });
     }
 
-    console.log('Updated Collection Data:', updatedCollection); // NEW LINE
-    console.log('Updated Collection Name:', updatedCollection.name); // NEW LINE
-    console.log('Updated Collection Description:', updatedCollection.description); // NEW LINE
+    // After updating the collection, also update the cards array in the collection
+    // if (cards && cards.length > 0) {
+    //   updatedCollection.cards = cards;
+    //   await updatedCollection.save();
+    // }
 
+    // Log updatedCollection using winston and send the response
     winston.info('Updated Collection Data:', updatedCollection);
-    res.status(200).send(updatedCollection);
+    res.status(200).json({ updatedCollection });
   } catch (error) {
+    // Log error using winston and pass the error to the next middleware
     winston.error('Failed to update collection:', error);
+    console.error('Error while updating collection:', error);
     next(error);
   }
 };
 
 // Create a new collection
 exports.createNewCollection = async (req, res, next) => {
-  // Perform validation
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
   const { userId } = req.params;
-  const { name, description, cards } = req.body;
+  const { name, description, cards, totalPrice, allCardPrices } = req.body;
 
   try {
-    const newCollection = new Collection({ userId, name, description, cards });
-    await newCollection.save();
+    // Check if the user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return handleNotFound('User', res);
+    }
 
-    winston.info('New Collection Created:', newCollection);
-    res.status(201).send(newCollection); // 201 status code for resource creation
+    // Create and save a new collection
+    const newCollection = new Collection({
+      userId,
+      name,
+      description,
+      cards: cards || [],
+      totalPrice: totalPrice || 0,
+      allCardPrices: allCardPrices || [],
+    });
+
+    const savedCollection = await newCollection.save();
+
+    // Update the user's collections
+    user.allCollections.push(savedCollection._id);
+    await user.save();
+
+    winston.info('New Collection Created:', savedCollection);
+    res.status(201).json(savedCollection); // 201 status code for resource creation
   } catch (error) {
     winston.error('Failed to create new collection:', error);
-    res.status(500).send({ error: 'Failed to create new collection' });
+    res.status(500).json({ error: 'Failed to create new collection' });
     next(error);
   }
 };

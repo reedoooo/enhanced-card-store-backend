@@ -5,18 +5,31 @@ const router = express.Router();
 
 // Express route to retrieve random card image URLs
 router.get('/random', (req, res) => {
-  const imageURLs = CardImageController.getRandomCardImages();
+  const numRandomImages = 10; // Adjust the number as needed
+  const imageURLs = CardImageController.getRandomCardImages(numRandomImages);
   res.json(imageURLs);
 });
 
 // Express route to retrieve the list of downloaded images
 router.get('/downloaded-images', (req, res) => {
   const downloadedImages = CardImageController.getDownloadedImages();
+  console.log('DOWNLOADED IMAGES ________________', downloadedImages);
   res.json(downloadedImages);
 });
 
-module.exports = router;
+// Express route to retrieve a specific image by filename
+router.get('/image/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const imagePath = CardImageController.getCardImageByFilename(filename);
 
+  if (imagePath) {
+    res.sendFile(imagePath);
+  } else {
+    res.status(404).json({ error: 'Image not found' });
+  }
+});
+
+module.exports = router;
 // const fs = require('fs');
 // const express = require('express');
 // const download = require('image-downloader');

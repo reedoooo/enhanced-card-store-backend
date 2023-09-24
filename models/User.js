@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Deck = require('./Deck');
 const Collection = require('./Collection');
+const ChartData = require('./ChartData');
 const { Schema } = mongoose;
 // const cartInfo = require('./Cart.js');
 
@@ -32,6 +33,8 @@ const UserSchema = new Schema(
     login_data: { type: securityInfo, required: true },
     allDecks: [Deck.schema], // add this line
     allCollections: [Collection.schema], // add this line
+    // allDataSets: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ChartData' }],
+    allDataSets: [ChartData.schema],
   },
   { timestamps: true },
 );

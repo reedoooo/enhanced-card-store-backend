@@ -65,6 +65,9 @@ const deckSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   name: String,
   description: String,
+  totalPrice: {
+    type: Number,
+  },
   cards: [CardInDeckSchema],
 });
 

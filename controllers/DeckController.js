@@ -70,16 +70,12 @@ exports.decreaseItemQuantity = async (req, res) => {
     let deck = await Deck.findById(deckId);
 
     if (deck) {
-      let existingCard = deck.cards.find(
-        (item) => item.id.toString() === cardId,
-      );
+      let existingCard = deck.cards.find((item) => item.id.toString() === cardId);
 
       if (existingCard && existingCard.quantity > 0) {
         existingCard.quantity -= 1;
         if (existingCard.quantity === 0) {
-          deck.cards = deck.cards.filter(
-            (item) => item.id.toString() !== cardId,
-          );
+          deck.cards = deck.cards.filter((item) => item.id.toString() !== cardId);
         }
       }
 
@@ -105,9 +101,7 @@ exports.createOrUpdateDeck = async (req, res) => {
         cards: [cardData],
       });
     } else {
-      let existingCard = deck.cards.find(
-        (item) => item.id.toString() === cardData.id,
-      );
+      let existingCard = deck.cards.find((item) => item.id.toString() === cardData.id);
 
       if (existingCard) {
         Object.assign(existingCard, cardData);

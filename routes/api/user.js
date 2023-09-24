@@ -36,26 +36,20 @@ router.get('/:id', asyncHandler(UserController.getUserById));
 
 // User Deck Routes
 router.get('/:userId/decks', asyncHandler(UserController.getAllDecksForUser));
-router.put('/:userId/:deckId', asyncHandler(UserController.updateAndSyncDeck));
+router.put('/:userId/decks/:deckId', asyncHandler(UserController.updateAndSyncDeck));
 router.post('/:userId/newDeck', asyncHandler(UserController.createNewDeck));
 
 // User Collection Routes
 // User Collection Routes
-router.get(
-  '/:userId/collections',
-  // validate(UserController.getAllCollectionsForUser),
-  asyncHandler(UserController.getAllCollectionsForUser),
-);
+router.get('/:userId/collections', asyncHandler(UserController.getAllCollectionsForUser));
 
 router.put(
   '/:userId/collections/:collectionId',
-  // validate('updateAndSyncCollection'),
   asyncHandler(UserController.updateAndSyncCollection),
 );
 
 router.post(
-  '/:userId/collections/newCollection',
-  // validate('createNewCollection'),
+  '/:userId/collections/newCollection/:userId',
   asyncHandler(UserController.createNewCollection),
 );
 

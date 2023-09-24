@@ -54,6 +54,14 @@ const CartSchema = new Schema({
     required: true,
     unique: true,
   },
+  totalPrice: {
+    type: Number,
+    default: 0,
+  },
+  quantity: {
+    type: Number,
+    default: 0,
+  },
   cart: [CardInCartSchema],
 });
 

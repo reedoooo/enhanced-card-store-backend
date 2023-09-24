@@ -12,6 +12,8 @@ const deckRoutes = require('./api/deck');
 const stripeRoutes = require('./other/stripe');
 const tcgScraperRoutes = require('./other/scrape');
 const cardImageRoutes = require('./api/cardimage');
+const cronRoutes = require('./other/collection-cron');
+const chartRoutes = require('./api/chart');
 
 router.use('/orders', orderRoutes);
 router.use('/users', userRoutes);
@@ -24,5 +26,7 @@ router.use('/cards/ygopro', ygoproRoutes); // Use card routes
 router.use('/stripe', stripeRoutes);
 router.use('/scrape', tcgScraperRoutes);
 router.use('/card-images', cardImageRoutes);
+router.use('/cron', cronRoutes);
+router.use('/chart-data', chartRoutes);
 
 module.exports = router;

@@ -47,6 +47,15 @@ app.use(
   routes,
 );
 
+app.use(
+  '/other',
+  (req, res, next) => {
+    // console.log(`Received request on OTHER route: ${req.method} ${req.originalUrl}`);
+    next();
+  },
+  routes,
+);
+
 app.get('/', (req, res) => {
   res.send('This is the beginning....');
 });
