@@ -40,9 +40,7 @@ router.get('/type/:type', async (req, res) => {
   try {
     const cards = await cardController.getCardByType(req.params.type);
     if (cards.length === 0) {
-      return res
-        .status(404)
-        .json({ message: 'Cannot find cards of given type' });
+      return res.status(404).json({ message: 'Cannot find cards of given type' });
     }
     res.json(cards);
   } catch (err) {
@@ -54,9 +52,7 @@ router.get('/attribute/:attribute', async (req, res) => {
   try {
     const cards = await cardController.getCardByAttribute(req.params.attribute);
     if (cards.length === 0) {
-      return res
-        .status(404)
-        .json({ message: 'Cannot find cards of given attribute' });
+      return res.status(404).json({ message: 'Cannot find cards of given attribute' });
     }
     res.json(cards);
   } catch (err) {
@@ -66,10 +62,7 @@ router.get('/attribute/:attribute', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const updatedCard = await cardController.updateCardStock(
-      req.params.id,
-      req.body.inStock,
-    );
+    const updatedCard = await cardController.updateCardStock(req.params.id, req.body.inStock);
     res.json(updatedCard);
   } catch (err) {
     res.status(500).json({ message: err.message });

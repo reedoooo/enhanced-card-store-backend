@@ -7,7 +7,8 @@ const rawData = fs.readFileSync('./routes/api/cardinfo.php.json');
 const data = JSON.parse(rawData).data;
 
 // Define the directory where the downloaded images are located
-const imageDirectory = path.join(__dirname, '../../data/cards');
+const imageDirectory = path.join(__dirname, '../data/cards');
+console.log('--------------------IMAGE DIRECTORY--------------------', imageDirectory);
 
 function downloadCard(card) {
   console.log('DOWNLOADING CARD', card);
@@ -33,10 +34,15 @@ function getDownloadedImages() {
   console.log('GETTING DOWNLOADED IMAGES');
   try {
     const files = fs.readdirSync(imageDirectory);
-    return files.filter((file) => file.endsWith('.jpg'));
+    // console.log('--------------------FILES--------------------', files);
+    const imageFiles = files.filter((file) => file.endsWith('.jpg'));
+    // console.log('--------------------IMAGE FILES--------------------', imageFiles);
+    const imagePaths = imageFiles.map((file) => path.join(imageDirectory, file));
+    // console.log('--------------------IMAGE PATHS--------------------', imagePaths);
+
+    return imagePaths;
   } catch (error) {
     console.error('Error reading image directory:', error);
-    return [];
   }
 }
 
@@ -52,7 +58,41 @@ async function startDownload() {
   }
 }
 
+// Function to get a random subset of card images
+function getRandomCardImages(numImages) {
+  const downloadedImages = getDownloadedImages();
+
+  // Shuffle the array of downloaded images randomly
+  const shuffledImages = shuffleArray(downloadedImages);
+
+  // Take the first `numImages` images from the shuffled array
+  const randomImages = shuffledImages.slice(0, numImages);
+
+  return randomImages;
+}
+
+// Function to shuffle an array randomly
+function shuffleArray(array) {
+  const shuffledArray = [...array];
+  for (let i = shuffledArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledArray[i], shuffledArray[j]] = [shuffledArray[j], shuffledArray[i]];
+  }
+  return shuffledArray;
+}
+
+// Function to get the path of a card image by filename
+function getCardImageByFilename(filename) {
+  const imagePath = path.join(imageDirectory, filename);
+  if (fs.existsSync(imagePath)) {
+    return imagePath;
+  }
+  return null;
+}
+
 module.exports = {
   getDownloadedImages,
   startDownload,
+  getRandomCardImages, // Add getRandomCardImages function
+  getCardImageByFilename, // Add getCardImageByFilename function
 };

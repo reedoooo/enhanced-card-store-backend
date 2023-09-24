@@ -33,9 +33,7 @@ const cardController = {
 
   getCardsFromApi: async () => {
     try {
-      const response = await axios.get(
-        'https://db.ygoprodeck.com/api/v7/cardinfo.php',
-      );
+      const response = await axios.get('https://db.ygoprodeck.com/api/v7/cardinfo.php');
       let cards = response.data.data;
 
       if (cards.length > 30) {
