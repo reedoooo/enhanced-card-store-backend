@@ -43,7 +43,14 @@ exports.addNewDataSet = async (req, res) => {
 
     const { data } = req.body;
     console.log('DATA RECEIVED:', data);
-    const newData = new ChartData({ userId, data }); // Pass data to the new instance
+
+    // Check for identical data
+    const existingData = await ChartData.findOne({ userId, data });
+    if (existingData) {
+      return res.status(409).json({ error: 'Identical data already exists' });
+    }
+
+    const newData = new ChartData({ userId, data });
     console.log('NEW DATA:', newData);
     await newData.save();
 
