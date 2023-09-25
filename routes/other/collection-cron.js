@@ -7,7 +7,7 @@ const Deck = require('../../models/Deck');
 const colors = require('colors'); // Import the 'colors' library
 
 let isCronJobRunning = false; // Flag to indicate if the cron job is running
-const numberOfCronJobRuns = 2;
+const numberOfCronJobRuns = 5;
 let cronJobRunCounter = 0;
 
 const instance = axios.create({
@@ -75,7 +75,9 @@ const cronJob = async () => {
     isCronJobRunning = false; // Reset flag even in case of an error
   }
 };
-const cronTask = cron.schedule('0 * * * *', cronJob);
+
+// Schedule the cron job to run every 10 minutes
+const cronTask = cron.schedule('*/10 * * * *', cronJob);
 
 // New function to update a specific collection or deck
 const updateSpecificItem = async (req, res) => {
