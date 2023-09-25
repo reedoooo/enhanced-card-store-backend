@@ -403,6 +403,37 @@ exports.createNewCollection = async (req, res, next) => {
   }
 };
 
+exports.deleteCollection = async (req, res, next) => {
+  const { userId, collectionId } = req.params;
+
+  try {
+    // Find user by userId
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Find the collection within the user's collections and remove it
+    const collectionIndex = user.allCollections?.findIndex(
+      (c) => c._id.toString() === collectionId,
+    );
+    if (collectionIndex === -1) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+
+    // Remove the collection and save the user
+    user.allCollections?.splice(collectionIndex, 1);
+    await user.save();
+
+    res
+      .status(200)
+      .json({ message: 'Collection deleted successfully', deletedCollectionId: collectionId });
+  } catch (error) {
+    console.error(`Failed to delete the collection: ${error.message}`);
+    res.status(500).json({ error: 'Server Error' });
+  }
+};
+
 // exports.getAllCollectionsForUser = async (req, res, next) => {
 //   try {
 //     const userId = req.params.userId;

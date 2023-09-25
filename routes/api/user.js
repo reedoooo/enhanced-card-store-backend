@@ -53,6 +53,8 @@ router.post(
   asyncHandler(UserController.createNewCollection),
 );
 
+router.delete('/:userId/collections/:collectionId', asyncHandler(UserController.deleteCollection));
+
 // Error handler
 router.use((error, req, res, next) => {
   winston.error('Middleware error:', error); // Replace console.error with winston.error
