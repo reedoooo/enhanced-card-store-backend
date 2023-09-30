@@ -94,10 +94,10 @@ exports.signup = async (req, res, next) => {
 exports.signin = async (req, res, next) => {
   try {
     handleValidationErrors(req, res);
-
+    console.log('req.body:', req);
     const { username, password } = req.body;
     const user = await findUser(username);
-    console.log('req.body:', req.body);
+    // console.log('req.body:', req.body);
     if (!user) {
       return res.status(401).json({ message: 'Invalid username' });
     }
@@ -120,7 +120,7 @@ exports.signin = async (req, res, next) => {
 };
 
 exports.getProfile = async (req, res, next) => {
-  console.log('req.authData:', req.authData);
+  // console.log('req.authData:', req.authData);
   const user = await User.findById(req.authData.id);
 
   if (!user) {
@@ -296,9 +296,9 @@ exports.updateAndSyncCollection = async (req, res, next) => {
     return res.status(400).json({ message: 'collectionId is required' });
   }
 
-  console.log('UPDATING userId:', userId);
-  console.log('UPDATING collectionId:', collectionId);
-  console.log('UPDATING name:', name);
+  // console.log('UPDATING userId:', userId);
+  // console.log('UPDATING collectionId:', collectionId);
+  // console.log('UPDATING name:', name);
 
   let calculatedTotalPrice = totalPrice;
   let calculatedCardPrices = allCardPrices;

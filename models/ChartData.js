@@ -7,6 +7,10 @@ const ChartDataSchema = new Schema({
     ref: 'User',
     required: true,
   },
+  _id: {
+    type: mongoose.Schema.Types.ObjectId,
+    auto: true,
+  },
   data: [
     {
       x: String,
@@ -14,6 +18,10 @@ const ChartDataSchema = new Schema({
       _id: false,
     },
   ],
+  name: {
+    type: String,
+    required: true,
+  },
   datasets: {
     type: Array,
     default: [],

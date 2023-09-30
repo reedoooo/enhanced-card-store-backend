@@ -6,6 +6,9 @@ const winston = require('winston');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const axios = require('axios');
 const { check } = require('express-validator');
+// const { io } = require('../server');
+// const http = require('http');
+
 // const API_ENDPOINT = 'https://api.tcgplayer.com/app/authorize/';
 // const AUTH_CODE = 'your-auth-code-here';
 const handleStripeWebhook = async (req, res) => {
@@ -47,7 +50,7 @@ const handleErrors = (err, req, res, next) => {
       message = 'Database error';
       break;
     default:
-      winston.error('Unhandled error:', err); // Using winston for logging
+    // winston.error('Unhandled error:', err); // Using winston for logging
   }
 
   res.status(status).json({ message });
@@ -95,20 +98,40 @@ exports.validate = (method) => {
   }
 };
 
-module.exports = function applyCustomMiddleware(app) {
-  console.log('App inside middleware:', app);
-  console.log('Type of app inside middleware:', typeof app);
+module.exports = function applyCustomMiddleware(app, server) {
+  // Accepting server object here
   app.use(logger('dev'));
   app.use(express.static(path.join(__dirname, '../public')));
   app.use(express.json());
+
+  // const io = require('socket.io')(server, {
+  //   cors: {
+  //     origin: ['http://localhost:3000', 'http://localhost:3000/', 'http://localhost:3000/profile'],
+  //     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  //     credentials: true,
+  //     allowedHeaders: [
+  //       'Content-Type',
+  //       'access-control-allow-origin',
+  //       'card-name',
+  //       'Authorization',
+  //       'User-Agent',
+  //       'text/plain',
+  //       'application/json',
+  //     ],
+  //   },
+  // });
 
   // CORS Configuration
   app.use(
     cors({
       origin: [
         'http://localhost:3000',
+        'http://localhost:3000/',
         'http://localhost:3000/profile',
-        'http://localhost:3001/api/users/signin',
+        'http://localhost:3000/api/users/signin',
+        'http://localhost:3000/api/users/signup',
+        'http://localhost:3000/api/users/:id',
+        'http://localhost:3000/api/users/:userId/decks',
       ],
       credentials: true,
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',

@@ -39,10 +39,7 @@ exports.scrapeGetHandler = async (req, res) => {
   };
 
   try {
-    const result = await getCardDetailsFromTCGPlayerAPI(
-      cardName,
-      defaultHeaders,
-    );
+    const result = await getCardDetailsFromTCGPlayerAPI(cardName, defaultHeaders);
     res.json(result);
   } catch (error) {
     console.error('Error:', error.message);
@@ -73,14 +70,10 @@ exports.scrapePostHandler = async (req, res) => {
     const data = await getCardDetailsFromTCGPlayerAPI(cardName, headers); // Pass the headers to the function
 
     // Save to MongoDB using Mongoose
-    const savedData = await ScrapeSchema.findOneAndUpdate(
-      { url: data.url },
-      data,
-      {
-        upsert: true,
-        new: true,
-      },
-    );
+    const savedData = await ScrapeSchema.findOneAndUpdate({ url: data.url }, data, {
+      upsert: true,
+      new: true,
+    });
 
     res.json(savedData);
   } catch (error) {

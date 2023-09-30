@@ -6,7 +6,7 @@ const winston = require('winston');
 // const Joi = require('joi');
 const validate = require('../../middleware/index.js');
 const { check } = require('express-validator');
-console.log('Type of validate:', typeof validate);
+// console.log('Type of validate:', typeof validate);
 
 // General Async Handler
 function asyncHandler(fn) {
@@ -57,7 +57,7 @@ router.delete('/:userId/collections/:collectionId', asyncHandler(UserController.
 
 // Error handler
 router.use((error, req, res, next) => {
-  winston.error('Middleware error:', error); // Replace console.error with winston.error
+  // winston.error('Middleware error:', error); // Replace console.error with winston.error
 
   if (error.isJoi) {
     // If the error is from a validation (Joi for instance)

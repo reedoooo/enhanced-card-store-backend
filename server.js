@@ -1,72 +1,47 @@
 'use strict';
 
+// Dependencies
 const express = require('express');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
-const cors = require('cors');
+const http = require('http');
+const socket = require('./socket'); // Socket module
+const winston = require('winston'); // Winston for logging
+const cors = require('cors'); // CORS for cross-origin requests
 
-// Import custom middleware and routes
+// Middleware and Routes
 const applyCustomMiddleware = require('./middleware');
-const routes = require('./routes');
 
-// Configure dotenv
+// Configuration
 dotenv.config();
-
-// Prepare the express app with singleton
-const app = express();
-
-// Enable CORS
-app.use(cors());
-
-console.log('Type of app:', typeof app); // Should log 'Type of app: function'
-
 const port = process.env.PORT || 3001;
 
-//MongoDb connection
+// App and Server Initialization
+const app = express();
+app.use(cors()); // CORS for cross-origin requests
+const server = http.createServer(app);
+socket.init(server); // Socket Initialization
+
+// Database Connection
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('Connected to MongoDB');
-  })
-  .catch((err) => {
-    console.log(err);
-  });
+  .then(() => console.log('Connected to MongoDB'))
+  .catch((err) => console.log(err));
 
-applyCustomMiddleware(app);
-
+// Middleware Application
 app.use(cookieParser());
+applyCustomMiddleware(app, server);
 
-// HANDLE ROUTES
-app.use(
-  '/api',
-  (req, res, next) => {
-    // console.log(`Received request on API route: ${req.method} ${req.originalUrl}`);
-    next();
-  },
-  routes,
-);
+// Routes
+const routes = require('./routes'); // Routes Import
+app.use('/api', routes);
+app.use('/other', routes); // Ensure that this is intentional and necessary
+app.get('/', (req, res) => res.send('This is the beginning....'));
+app.get('/test', (req, res) => res.send('This is the test....'));
 
-app.use(
-  '/other',
-  (req, res, next) => {
-    // console.log(`Received request on OTHER route: ${req.method} ${req.originalUrl}`);
-    next();
-  },
-  routes,
-);
+// Server Start
+server.listen(port, () => console.log(`Server is up on port ${port}`));
 
-app.get('/', (req, res) => {
-  res.send('This is the beginning....');
-});
-
-app.get('/test', (req, res) => {
-  res.send('This is the test....');
-});
-
-//start the server
-app.listen(port, () => {
-  console.log(`Server is up on port ${port}`);
-});
-
-module.exports = app;
+// Exports
+module.exports = { app }; // Just exporting app as socket is initialized at startup
