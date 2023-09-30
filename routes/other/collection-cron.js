@@ -46,11 +46,11 @@ const cronJob = async () => {
     let totalDeckPrice = 0;
     let totalCollectionPrice = 0;
 
-    console.log('Collections', collections);
-    console.log('Collections', collections.data);
+    // console.log('Collections', collections);
+    // console.log('Collections', collections.data);
 
-    console.log('Decks', decks);
-    console.log('All Items', allItems);
+    // console.log('Decks', decks);
+    // console.log('All Items', allItems);
     for (const item of allItems) {
       const price = await processItem(item);
       if (item.constructor.modelName === 'Collection') {

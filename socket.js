@@ -1,4 +1,6 @@
 const socketIo = require('socket.io');
+const { updateChartData } = require('./routes/other/itemUpdates');
+const { cronJob } = require('./routes/other/collection-cron');
 
 let io;
 
@@ -32,11 +34,18 @@ module.exports = {
 
     io.on('connection', (socket) => {
       console.log('A user connected:', socket.id);
-
+      const dataToSend = {
+        data: updateChartData,
+        allCollectionData: cronJob,
+      };
       // Set up your event listeners here, for example:
       // socket.on('my-event', (data) => {
       //   console.log('my-event received:', data);
       // });
+      socket.emit('returnvalue', dataToSend.data);
+      socket.emit('all-items-updated', dataToSend.allCollectionData);
+
+      // socket.emit('returnvalue', { data: returnValue});
 
       socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
