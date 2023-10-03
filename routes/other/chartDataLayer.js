@@ -1,4 +1,4 @@
-const ChartData = require('../../models/ChartData');
+const { ChartData } = require('../../models/ChartData');
 const User = require('../../models/User');
 
 const saveNewChartData = async (dataSetName, dataSetValues, userId) => {

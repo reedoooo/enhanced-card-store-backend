@@ -1,5 +1,6 @@
 // Desc: Helper functions for other routes
 const User = require('../../models/User');
+const { startCron } = require('./cronJob');
 
 // Example Axios instance to fetch data
 
@@ -7,8 +8,8 @@ const User = require('../../models/User');
 //   await cronJob();
 //   await new Promise((resolve) => setTimeout(resolve, 2000));
 // }
-const runCronJobAndPause = async (cronJob) => {
-  await cronJob();
+const runCronJobAndPause = async (startCronJob) => {
+  await startCronJob;
   await new Promise((resolve) => setTimeout(resolve, 2000));
 };
 

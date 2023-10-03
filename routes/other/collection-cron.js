@@ -1,91 +1,94 @@
-// Imports
-const express = require('express');
-const Collection = require('../../models/Collection');
-const Deck = require('../../models/Deck');
-const socket = require('../../socket');
-const { updateCardsInItem } = require('./itemUpdates');
-const { cronTask } = require('./cronJob');
+// const express = require('express');
+// const Collection = require('../../models/Collection');
+// const Deck = require('../../models/Deck');
+// const { updateCardsInItem } = require('./itemUpdates');
+// const { startCronJob, stopCronJob } = require('./cronJob');
+// const { getIO } = require('../../socket');
+// const { ChartData } = require('../../models/ChartData');
+// const router = express.Router();
+// const numberOfCronJobRuns = 5;
+// // const io = getIO();
+// let totalCollectionPrice = 0;
+// let totalDeckPrice = 0;
+// let isCronJobRunning = false;
+// let cronJobRunCounter = 0;
+// let allCollectionData = [];
+// let allDeckData = [];
+// let allItemTypeData = [];
+// let allChartData = [];
 
-// Constants
-const router = express.Router();
-const numberOfCronJobRuns = 5; // Ensure to define the number of runs
+// const processItem = async (item) => {
+//   let itemTypeData = await updateCardsInItem(item);
+//   await item.save();
 
-// State Variables
-let totalCollectionPrice = 0;
-let totalDeckPrice = 0;
-let isCronJobRunning = false;
-let cronJobRunCounter = 0;
-let allCollectionData = [];
-let allDeckData = [];
-let allItemTypeData = {};
-// let totalPrice = 0;
-const processItem = async (item) => {
-  allItemTypeData = await updateCardsInItem(item);
-  const itemType = item.constructor.modelName;
-  await item.save();
+//   if (item.constructor.modelName === 'Collection') {
+//     allCollectionData.push(itemTypeData);
+//     return itemTypeData.totalPrice;
+//   } else if (item.constructor.modelName === 'Deck') {
+//     allDeckData.push(itemTypeData);
+//     return itemTypeData.totalPrice;
+//   } else if (item.constructor.modelName === 'ChartData') {
+//     allChartData.push(itemTypeData);
+//     return itemTypeData;
+//   }
+//   return 0;
+// };
 
-  // itemType === 'Collection' ? totalCollectionPrice : totalDeckPrice;
-  if (allItemTypeData.allCollectionData.itemType === 'Collection') {
-    return allItemTypeData.allCollectionData[allItemTypeData.allCollectionData.length - 1]
-      .totalPrice;
-  } else if (allItemTypeData.allDeckData.itemType === 'Deck') {
-    return allItemTypeData.allDeckData[allItemTypeData.allDeckData.length - 1].totalPrice;
-  }
-  return 0;
-};
+// const cronJob = async () => {
+//   const io = getIO();
+//   if (isCronJobRunning) return;
+//   isCronJobRunning = true;
+//   console.log('is cron running', isCronJobRunning);
+//   try {
+//     // Resetting stateful variables
+//     totalCollectionPrice = 0;
+//     totalDeckPrice = 0;
+//     allCollectionData = [];
+//     allDeckData = [];
+//     allItemTypeData = [];
+//     allChartData = [];
 
-const cronJob = async () => {
-  if (isCronJobRunning) return;
-  isCronJobRunning = true;
+//     cronJobRunCounter++;
 
-  try {
-    cronJobRunCounter++;
-    const collections = await Collection.find().populate('cards');
-    const decks = await Deck.find().populate('cards');
-    const allItems = [...collections, ...decks];
-    let totalDeckPrice = 0;
-    let totalCollectionPrice = 0;
+//     const collections = await Collection.find().populate('cards');
+//     const decks = await Deck.find().populate('cards');
+//     const charts = await ChartData.find().populate('datasets');
+//     allItemTypeData = [...collections, ...decks];
+//     allChartData = [...charts];
+//     for (const item of allItemTypeData) {
+//       const price = await processItem(item);
+//       if (item.constructor.modelName === 'Collection') {
+//         totalCollectionPrice += price;
+//       } else {
+//         totalDeckPrice += price;
+//       }
+//     }
 
-    // console.log('Collections', collections);
-    // console.log('Collections', collections.data);
+//     if (cronJobRunCounter >= numberOfCronJobRuns) {
+//       stopCronJob;
+//     }
+//     isCronJobRunning = false;
 
-    // console.log('Decks', decks);
-    // console.log('All Items', allItems);
-    for (const item of allItems) {
-      const price = await processItem(item);
-      if (item.constructor.modelName === 'Collection') {
-        totalCollectionPrice += price;
-      } else {
-        totalDeckPrice += price;
-      }
-    }
+//     io.emit('ALL_DATA_ITEMS', {
+//       allItemTypeData,
+//       allDeckData,
+//       allCollectionData,
+//       totalCollectionPrice,
+//       totalDeckPrice,
+//     });
+//   } catch (error) {
+//     console.error(error.message);
+//     isCronJobRunning = false;
+//   }
+// };
 
-    socket.emit('all-items-updated', { allItemTypeData });
+// const stopCron = async () => {
+//   stopCronJob;
+//   cronJobRunCounter = 0;
+// };
 
-    if (cronJobRunCounter >= numberOfCronJobRuns) {
-      cronTask.stop();
-    }
-    isCronJobRunning = false;
-  } catch (error) {
-    console.error(error.message);
-    isCronJobRunning = false;
-  }
-};
-
-const runCronJob = async () => {
-  await cronJob(); // Assuming you meant to call cronJob
-};
-
-const startCron = async (req, res) => {
-  cronTask.start();
-  res.status(200).json({ message: 'Cron job started successfully.' });
-};
-
-const stopCron = async (req, res) => {
-  cronTask.stop();
-  cronJobRunCounter = 0;
-  res.status(200).json({ message: 'Cron job stopped.' });
-};
-
-// Exporting
-module.exports = { cronJob, runCronJob, isCronJobRunning, startCron, stopCron };
+// module.exports = {
+//   cronJob,
+//   stopCron,
+//   startCronJob,
+// };

@@ -94,7 +94,7 @@ exports.signup = async (req, res, next) => {
 exports.signin = async (req, res, next) => {
   try {
     handleValidationErrors(req, res);
-    console.log('req.body:', req);
+    // console.log('req.body:', req);
     const { username, password } = req.body;
     const user = await findUser(username);
     // console.log('req.body:', req.body);

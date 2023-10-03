@@ -1,14 +1,14 @@
 const express = require('express');
 const { postLimiter, asyncHandler } = require('../../utils/utils');
 const chartController = require('../../controllers/ChartController');
-const { updateCollections } = require('./itemUpdates');
+const { updateCollections, updateChartData } = require('./itemUpdates');
 const { startCronJob, stopCronJob } = require('./cronJob');
 
 const router = express.Router();
 
 router.get('/charts/:userId', asyncHandler(chartController.getAllChartDataForUser));
-router.put('/charts/updateChart/:chartId', asyncHandler(chartController.updateChartData));
-router.post('/charts/updateChart/:userId', postLimiter, asyncHandler(updateCollections));
+// router.put('/charts/updateChart/:chartId', asyncHandler(chartController.updateChartData));
+router.post('/charts/:userId/:chartId/updateChart', postLimiter, asyncHandler(updateChartData));
 router.delete(
   '/charts/user/:userId/collection/:collectionId',
   asyncHandler(chartController.deleteDataItem),

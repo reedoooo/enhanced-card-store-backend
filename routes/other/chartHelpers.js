@@ -1,24 +1,20 @@
-const axios = require('axios');
+const { ChartData } = require('../../models/ChartData');
 const socket = require('../../socket');
-const ChartData = require('../../models/ChartData');
 
-const addNewDataSet = async (req, res) => {
+const addNewDataSet = async (name, datasets, userId) => {
   try {
-    const { dataSetName, dataSetValues } = req.body;
     const newChartData = new ChartData({
-      name: dataSetName,
-      values: dataSetValues,
+      name: name,
+      datasets: datasets,
+      userId: userId,
     });
 
     await newChartData.save();
 
-    const io = socket.getIO();
+    const io = socket.getIO;
     io.emit('newDataSetAdded', { data: newChartData });
-
-    res.status(201).json({ message: 'New data set added successfully.', data: newChartData });
   } catch (error) {
     console.error('Error adding new data set: ', error);
-    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 

@@ -1,4 +1,4 @@
-const ChartData = require('../../models/ChartData');
+const { ChartData } = require('../../models/ChartData');
 
 async function validateAndSaveData({ userId, data, name, _id, datasets, result }) {
   const existingData = await ChartData.findOne({ userId, data });

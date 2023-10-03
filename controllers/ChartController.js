@@ -1,4 +1,4 @@
-const ChartData = require('../models/ChartData');
+const { ChartData } = require('../models/ChartData');
 const User = require('../models/User');
 
 exports.getAllData = async (req, res) => {
@@ -39,7 +39,7 @@ exports.addNewDataSet = async (req, res) => {
   try {
     const userId = req.params.userId;
     const user = await User.findById(userId);
-    console.log('body:', req.body);
+    // console.log('body:', req.body);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
