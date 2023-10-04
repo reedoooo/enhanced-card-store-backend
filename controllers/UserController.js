@@ -7,6 +7,7 @@ const Deck = require('../models/Deck');
 const Collection = require('../models/Collection');
 const winston = require('winston');
 const { validationResult } = require('express-validator');
+const { ChartData } = require('../models/ChartData');
 
 const SECRET_KEY = process.env.SECRET_KEY;
 
@@ -378,6 +379,12 @@ exports.createNewCollection = async (req, res, next) => {
       return handleNotFound('User', res);
     }
 
+    // const newChart = new ChartData({
+    //   chartData: {},
+    //   // any other field related to Chart model...
+    // });
+    // const savedChart = await newChart.save();
+
     // Create and save a new collection
     const newCollection = new Collection({
       userId,
@@ -386,19 +393,20 @@ exports.createNewCollection = async (req, res, next) => {
       cards: cards || [],
       totalPrice: totalPrice || 0,
       allCardPrices: allCardPrices || [],
+      // chartId: savedChart._id, // Linking the Chart to the Collection
     });
 
     const savedCollection = await newCollection.save();
 
-    // Update the user's collections
     user.allCollections.push(savedCollection._id);
     await user.save();
 
     winston.info('New Collection Created:', savedCollection);
-    res.status(201).json(savedCollection); // 201 status code for resource creation
+    // winston.info('New Chart Created:', savedChart);
+    // res.status(201).json({ savedCollection, savedChart }); // 201 status code for resource creation
   } catch (error) {
-    winston.error('Failed to create new collection:', error);
-    res.status(500).json({ error: 'Failed to create new collection' });
+    winston.error('Failed to create new collection or chart:', error);
+    res.status(500).json({ error: 'Failed to create new collection or chart' });
     next(error);
   }
 };

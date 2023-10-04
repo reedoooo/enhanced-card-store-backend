@@ -1,5 +1,5 @@
 const express = require('express');
-const logger = require('morgan');
+// const logger = require('morgan');
 const path = require('path');
 const cors = require('cors');
 const winston = require('winston');
@@ -11,6 +11,24 @@ const { check } = require('express-validator');
 
 // const API_ENDPOINT = 'https://api.tcgplayer.com/app/authorize/';
 // const AUTH_CODE = 'your-auth-code-here';
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  defaultMeta: { service: 'user-service' },
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(
+    new winston.transports.Console({
+      format: winston.format.simple(),
+    }),
+  );
+}
+
 const handleStripeWebhook = async (req, res) => {
   const sig = req.headers['stripe-signature'];
 
@@ -100,7 +118,7 @@ exports.validate = (method) => {
 
 module.exports = function applyCustomMiddleware(app, server) {
   // Accepting server object here
-  app.use(logger('dev'));
+  // app.use(logger('dev'));
   app.use(express.static(path.join(__dirname, '../public')));
   app.use(express.json());
 

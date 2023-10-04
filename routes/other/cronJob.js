@@ -2,15 +2,17 @@ const express = require('express');
 const cron = require('node-cron');
 const Collection = require('../../models/Collection');
 const Deck = require('../../models/Deck');
-const { updateCardsInItem, updateCollections } = require('./itemUpdates');
 const { getIO } = require('../../socket');
 const { ChartData } = require('../../models/ChartData');
-const colors = require('colors');
 const User = require('../../models/User');
-const router = express.Router();
+const { updateCardsInItem } = require('./cardManager');
+const { updateChartBasedOnCollection } = require('./chartManager');
+const { updateCollections } = require('./collectionManager');
+
+// Constants
 const numberOfCronJobRuns = 5;
 
-// Variables
+// Stateful Variables
 let isCronJobRunning = false;
 let cronJobRunCounter = 0;
 let totalCollectionPrice = 0;
@@ -19,29 +21,26 @@ let allCollectionData = [];
 let allDeckData = [];
 let allItemTypeData = [];
 let allChartData = [];
-let allCollectionPrices = [];
-let allDeckPrices = [];
-let currentItemID = null;
-let accumulatedPrice = 0;
-let allAccumulatedPrices = [];
 
 // Cron Task Configuration
-const cronTask = cron.schedule('*/10 * * * *', async () => {
+const cronTask = cron.schedule('*/5 * * * *', async () => {
   if (isCronJobRunning) return;
   isCronJobRunning = true;
+
   try {
     cronJobRunCounter++;
-    console.log('Cron job reached');
 
-    // Assume all users are stored in a User model
+    // Update collections
     const users = await User.find();
     for (const user of users) {
-      console.log('BIG BIG USER', user);
       await updateCollections(user);
     }
 
-    // Call the cronJob function
-    // await cronJob();
+    // Update charts
+    const charts = await ChartData.find({});
+    for (const chart of charts) {
+      await updateChartBasedOnCollection(chart._id);
+    }
 
     if (cronJobRunCounter >= numberOfCronJobRuns) {
       cronTask.stop();
@@ -53,18 +52,10 @@ const cronTask = cron.schedule('*/10 * * * *', async () => {
   }
 });
 
-// const startCronJob = async () => {
-//   const io = getIO();
-//   console.log('starting cron job');
-//   cronTask.start();
-//   io.emit('CRON_DATA_SPECIFIC', {
-//     data: { numberOfCronJobRuns, cronJobRunCounter, isCronJobRunning },
-//   });
-// };
+// Utility Functions
 const processItem = async (item, userId) => {
-  console.log('userId', userId);
+  const itemTypeData = await updateCardsInItem(item, userId);
 
-  let itemTypeData = await updateCardsInItem(item, userId);
   if (item && typeof item.save === 'function') {
     await item.save(itemTypeData);
   } else {
@@ -73,85 +64,27 @@ const processItem = async (item, userId) => {
 
   if (item.constructor.modelName === 'Collection') {
     totalCollectionPrice += itemTypeData.totalPrice;
-    allItemTypeData.push(itemTypeData);
   } else if (item.constructor.modelName === 'Deck') {
     totalDeckPrice += itemTypeData.totalPrice;
-    allItemTypeData.push(itemTypeData);
   }
 };
-// const processItem = async (item) => {
-//   // console.log('ITEM', item);
-//   let itemTypeData = await updateCardsInItem(item);
-//   await item.save(itemTypeData);
 
-//   console.log('itemTypeData', item.totalPrice);
+const stopCron = () => {
+  cronTask.stop();
+  cronJobRunCounter = 0;
+};
 
-//   // Check for a change in item._id
-//   if (currentItemID !== item._id) {
-//     if (accumulatedPrice > 0) {
-//       // If accumulatedPrice is non-zero, push to allAccumulatedPrices
-//       allAccumulatedPrices.push(accumulatedPrice);
-//     }
-//     // Reset accumulatedPrice and update currentItemID
-//     accumulatedPrice = 0;
-//     currentItemID = item._id;
-//   }
-
-//   // Assuming each card in itemTypeData has a 'price' and 'quantity' property
-//   let priceToAdd = itemTypeData.totalPrice || 0;
-
-//   console.log('priceToAdd', priceToAdd);
-
-//   // If item has cards, consider quantity in price calculation
-//   if (item.cards && item.cards.length > 0) {
-//     priceToAdd = item.cards.reduce((acc, card) => {
-//       return acc + (card.card_prices.tcgplayer_price * card.quantity || 1);
-//     }, 0);
-//     console.log('priceToAdd', priceToAdd);
-//   }
-
-//   accumulatedPrice += priceToAdd;
-//   console.log('accumulatedPrice', accumulatedPrice);
-
-//   if (item.constructor.modelName === 'Collection') {
-//     totalCollectionPrice += priceToAdd;
-//     allCollectionPrices.push(priceToAdd);
-
-//     try {
-//       item.totalPrice = priceToAdd;
-//       await item.save();
-//     } catch (err) {
-//       console.error(`Failed to save item with id ${item._id}:`, err.message);
-//     }
-
-//     return priceToAdd;
-//   } else if (item.constructor.modelName === 'Deck') {
-//     totalDeckPrice += priceToAdd;
-//     allDeckPrices.push(priceToAdd);
-
-//     try {
-//       item.totalPrice = priceToAdd;
-//       await item.save();
-//     } catch (err) {
-//       console.error(`Failed to save item with id ${item._id}:`, err.message);
-//     }
-
-//     return priceToAdd;
-//   } else if (item.constructor.modelName === 'ChartData') {
-//     return itemTypeData;
-//   }
-//   return 0;
-// };
-
+// Main Functions
 const cronJob = async (userId) => {
   const io = getIO();
+
   if (isCronJobRunning) return;
+
   isCronJobRunning = true;
-  console.log('is cron running', isCronJobRunning);
-  console.log('userId', userId);
+  cronJobRunCounter++;
 
   try {
-    // Resetting stateful variables
+    // Reset stateful variables
     totalCollectionPrice = 0;
     totalDeckPrice = 0;
     allCollectionData = [];
@@ -159,26 +92,16 @@ const cronJob = async (userId) => {
     allItemTypeData = [];
     allChartData = [];
 
-    cronJobRunCounter++;
-
+    // Fetch Data
     const collections = await Collection.find().populate('cards');
     const decks = await Deck.find().populate('cards');
     const charts = await ChartData.find().populate('datasets');
-    // console.log(collections);
+
     allItemTypeData = [...collections, ...decks];
     allChartData = [...charts];
 
     for (const item of allItemTypeData) {
-      const price = await processItem(item, userId);
-      console.log('PRICE--------', price);
-      if (item.constructor.modelName === 'Collection') {
-        console.log('ITEM TYPE:', item.constructor.modelName);
-        totalCollectionPrice = price;
-        console.log('totalCollectionPrice', totalCollectionPrice);
-      } else {
-        totalDeckPrice += price;
-        console.log('totalDeckPrice', totalDeckPrice);
-      }
+      await processItem(item, userId);
     }
 
     cronTask.start(userId);
@@ -201,11 +124,6 @@ const cronJob = async (userId) => {
     console.error(error.message);
     isCronJobRunning = false;
   }
-};
-
-const stopCron = () => {
-  cronTask.stop();
-  cronJobRunCounter = 0;
 };
 
 // Exports

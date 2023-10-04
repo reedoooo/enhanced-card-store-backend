@@ -1,345 +1,235 @@
 // Imports
 const axios = require('axios');
 const Collection = require('../../models/Collection');
-const { saveNewChartData } = require('./chartDataLayer');
-const { addNewDataSet } = require('./chartHelpers');
 const { ChartData, ChartDataSchema } = require('../../models/ChartData');
 const winston = require('winston');
-const { getIO } = require('../../socket');
 const User = require('../../models/User');
+const mongoose = require('mongoose');
+const { getIO } = require('../../socket');
 const colors = require('colors');
-const { default: mongoose } = require('mongoose');
-// Axios instance creation
-const instance = axios.create({
-  baseURL: 'https://db.ygoprodeck.com/api/v7/',
-});
+const {
+  getCardInfo,
+  convertUserIdToObjectId,
+  getCardPriceHistory,
+  validateCardData,
+} = require('../../utils/cardUtils');
+const { ensureNumber, roundMoney } = require('../../utils/utils');
+const { updateChartBasedOnCollection, newchart } = require('./chartManager');
 
-const cardPriceUpdates = {};
-const datasets = [];
-
-const getCardInfo = async (cardId) => {
-  try {
-    const response = await instance.get(`/cardinfo.php?id=${encodeURIComponent(cardId)}`);
-    return response.data.data[0];
-  } catch (error) {
-    console.error('Error fetching card info: ', error);
-    return null;
-  }
-};
-
-const getCardPriceHistory = async (cardId) => {
-  try {
-    const priceHistory = await ChartData.find({ cardId }).sort({ date: 1 });
-    return priceHistory;
-  } catch (error) {
-    console.error('Error fetching price history: ', error);
-    return [];
-  }
-};
-
-const validateCardData = (card) => {
-  if (!card || typeof card !== 'object' || !card.card_prices || !Array.isArray(card.card_prices)) {
-    console.error('Invalid card data: ', card);
-    return false;
-  }
-  return true;
-};
-
-const validateCardInfo = (cardInfo) => {
-  if (
-    !cardInfo ||
-    typeof cardInfo !== 'object' ||
-    !cardInfo.card_prices ||
-    !Array.isArray(cardInfo.card_prices)
-  ) {
-    console.error('Invalid cardInfo data: ', cardInfo);
-    return false;
-  }
-  return true;
-};
-
-// Your imports and other codes...
-
-// Assuming this is a module-wide state array
 const state = {
   xyDatasets: [],
-  yUpdateDataset: [], // New dataset to hold the accumulated y values
+  yUpdateDataset: [],
   userId: '',
+  allChartData: [],
 };
 
+// [6] Function: setUserId - Set User ID
 const setUserId = (userId) => {
-  console.log(userId);
-  // Check if the userId is either a string or a Mongoose ObjectId
-  if (typeof userId === 'string' || userId instanceof mongoose.Types.ObjectId) {
-    // Ensure the userId is a valid Mongoose ObjectId
-    if (mongoose.Types.ObjectId.isValid(userId)) {
-      state.userId = userId;
-      console.log('USER', state.userId);
-    } else {
-      console.error('Invalid user ID:', userId);
-    }
+  if (typeof userId === 'string') {
+    state.userId = userId;
   } else {
-    console.error('User ID must be a string or a Mongoose ObjectId:', userId);
+    console.error('User ID must be a string:', userId);
   }
 };
 
-const generateXYdatasets = async (
-  userId = state.userId,
+const generateXYdatasets = async ({
+  userId = state?.userId,
+  chartId = state?.chartData?._id || '',
   collectionId = null,
   cardId = null,
-  initialPrice = 0,
-  updatedPrice = 0,
-  totalPrice = 0,
+  cardName = null,
+  prices: { initialPrice = 0, updatedPrice = 0, totalPrice = 0 } = {},
   date = new Date(),
-) => {
-  if (initialPrice !== updatedPrice) {
-    initialPrice = Number(initialPrice);
-    updatedPrice = Number(updatedPrice);
-    totalPrice = Number(totalPrice);
-    if (isNaN(initialPrice) || isNaN(updatedPrice) || isNaN(totalPrice)) {
-      console.error('Price values must be numbers or convertible to numbers.');
-      return;
-    }
-    console.log('generateXYdatasets has been reacheed', userId);
+  priceChanged = false,
+} = {}) => {
+  // Ensure prices are valid numbers
+  [initialPrice, updatedPrice, totalPrice] = [initialPrice, updatedPrice, totalPrice].map(
+    ensureNumber,
+  );
 
-    const priceDifference = initialPrice - updatedPrice;
-    const newTotalPrice = totalPrice + priceDifference;
-    state.xyDatasets.push({
-      x: date,
-      y: newTotalPrice,
-      cardId, // Keeping cardId here for any reference you might need.
-    });
+  [initialPrice, updatedPrice, totalPrice] = [initialPrice, updatedPrice, totalPrice].map((price) =>
+    roundMoney(ensureNumber(price)),
+  );
 
-    const chartDataCollectionScope = {
-      userId: userId,
-      chartId: '',
-      name: `Dataset ${state?.totalY?.length + 1}`,
-      datasets: state.totalY,
-    };
+  if ([initialPrice, updatedPrice, totalPrice].includes(NaN)) {
+    console.error('Price values must be numbers or convertible to numbers.');
+    return;
+  }
 
-    // Calculate the total y value and add it to yUpdateDataset
-    const totalY = state.xyDatasets.reduce((acc, dataPoint) => acc + dataPoint.y, 0);
-    state.yUpdateDataset = [
-      {
-        x: date,
-        y: totalY,
-        collectionId,
-      },
-    ];
+  // const roundMoney = (amount) => Math.round(amount * 100) / 100;
+  const calculatePriceDifference = (initialPrice, updatedPrice) => updatedPrice - initialPrice;
+  const calculateNewTotalPrice = (totalPrice, priceDifference) => totalPrice + priceDifference;
 
-    // const chartDataCardScope = {
-    //   userId: '',
-    //   chartId: '',
-    //   name: `Dataset ${state.xyDatasets.length + 1}`,
-    //   datasets: state.xyDatasets,
-    // };
-    const chartData = new ChartData({ chartDataCollectionScope });
+  // Calculate relevant price and total values
+  const priceDifference = calculatePriceDifference(initialPrice, updatedPrice);
+  const oldTotalPrice = totalPrice; // Assuming totalPrice is already defined in your code.
+  const newTotalPrice = roundMoney(calculateNewTotalPrice(totalPrice, priceDifference));
 
-    await chartData.save();
+  // Log the old and new total prices
+  // console.log('OLD TOTAL PRICE:', colors.magenta(oldTotalPrice.toString()));
+  // console.log('NEW TOTAL PRICE:', colors.magenta(newTotalPrice.toString()));
 
-    console.log('XY DATESETS', state.xyDatasets);
-    console.log('Y UPDATE DATASET', state.yUpdateDataset); // Log the yUpdateDataset
+  const io = getIO();
+  // Check for duplicate data and update dataset
+  if (!isDuplicateDataPoint(state.xyDatasets, date, cardId)) {
+    const newDataset = createNewDataset(
+      date,
+      newTotalPrice,
+      cardId,
+      priceChanged,
+      cardName,
+      priceDifference,
+    );
+    state.xyDatasets.push(newDataset);
+  }
+
+  // Update Y Dataset and emit new chart data
+  const totalY = calculateTotalY(state.xyDatasets);
+  state.yUpdateDataset = createUpdateDataset(date, totalY, collectionId);
+  // console.log('state.yUpdateDataset', state.yUpdateDataset);
+  // console.log('state.totalY', totalY);
+  try {
+    const chartData = await newchart(userId, state.xyDatasets);
+    io.emit('NEW_CHART', { data: chartData });
+  } catch (error) {
+    console.error('Error saving chart data:', error.message);
   }
 };
 
-const updateCardPrice = async (card, cardInfo, userId, collectionId) => {
-  // added userId and collectionId as parameters
+const isDuplicateDataPoint = (dataset, date, cardId) =>
+  dataset.some((data) => data.x.getTime() === date.getTime() && data.cardId === cardId);
+
+const createNewDataset = (date, newTotalPrice, cardId, priceChanged, cardName, priceChange) => ({
+  x: date,
+  y: newTotalPrice,
+  cardId,
+  priceChanged,
+  cardName,
+  priceChange,
+});
+
+const calculateTotalY = (xyDatasets) =>
+  xyDatasets.reduce((acc, dataPoint) => acc + dataPoint?.y, 0);
+
+const createUpdateDataset = (date, totalY, collectionId) => [
+  {
+    x: date,
+    y: totalY,
+    collectionId,
+  },
+];
+
+// [11] Function: updateCardPrice - Update Card Price
+const updateCardPrice = async (card, cardInfo, userId, collectionId, chartId) => {
   if (!validateCardData(card) || !validateCardData(cardInfo)) {
+    console.error(colors.red('Error: Invalid card or cardInfo data provided'));
     return null;
   }
-  console.log('updatecardpriceuserid', userId);
-  const initialPrice = card.card_prices[0]?.tcgplayer_price;
-  const updatedPrice = cardInfo.card_prices[0]?.tcgplayer_price || 'Price not available';
-  const cardQuantity = typeof card.quantity === 'number' ? card.quantity : 1;
-  const totalCardPrice = updatedPrice * cardQuantity;
-  const todayDate = new Date();
-  const user = 
 
-  await generateXYdatasets(
+  const initialPrice = card.card_prices[0]?.tcgplayer_price;
+  // typeof initialPrice === 'number' && console.log('initialPrice', initialPrice);
+  const updatedPrice = cardInfo.card_prices[0]?.tcgplayer_price;
+  // typeof updatedPrice === 'number' && console.log('updatedPrice', updatedPrice);
+  const cardQuantity = typeof card.quantity === 'number' ? card?.quantity : 1;
+  // typeof cardQuantity === 'number' && console.log('cardQuantity', cardQuantity);
+  const totalCardPrice = updatedPrice * cardQuantity;
+  // console.log('totalCardPrice', totalCardPrice);
+  const priceDifference = initialPrice - updatedPrice;
+  const priceChanged = updatedPrice !== initialPrice ? true : false;
+
+  // console.log(colors.blue('-----------------------------------'));
+  // console.log(colors.blue('           Updating Card Price           '));
+  // console.log(colors.blue('-----------------------------------'));
+  // console.log(colors.cyan(`User ID: ${userId}`));
+  // console.log(colors.cyan(`Collection ID: ${collectionId}`));
+  // console.log(colors.cyan(`Chart ID: ${chartId}`));
+  // console.log('Card Data: ');
+  // console.log(`  Card ID: ${colors.green(card._id)}`);
+  // console.log(`  Initial Price: ${colors.magenta(initialPrice.toString())}`);
+  // console.log('Card Info Data: ');
+  // console.log(`  Updated Price: ${colors.magenta(updatedPrice.toString())}`);
+  // console.log(`  Card Quantity: ${colors.green(cardQuantity.toString())}`);
+  // console.log(`  Total Card Price: ${colors.green(totalCardPrice.toString())}`);
+  // console.log(
+  //   `  Price Difference: ${colors[priceDifference < 0 ? 'red' : 'green'](
+  //     priceDifference.toString(),
+  //   )}`,
+  // );
+  // console.log(`  Price Changed: ${colors[priceChanged ? 'yellow' : 'white']('Yes')}`);
+  // console.log(colors.blue('-----------------------------------'));
+
+  await generateXYdatasets({
     userId,
     collectionId,
-    card._id,
+    cardId: card._id,
     initialPrice,
     updatedPrice,
-    totalCardPrice,
-    todayDate,
-  ); // updated cardId parameter
+    chartId,
+    prices: {
+      initialPrice,
+      updatedPrice,
+      totalPrice: totalCardPrice,
+    },
+    date: new Date(),
+    priceChanged,
+  });
 
-  const priceDifference = initialPrice - updatedPrice;
+  const isValidObjectId = (str) => {
+    return /^[a-f\d]{24}$/i.test(str);
+  };
+  // console.log('chartId:', chartId);
+
   if (priceDifference !== 0) {
-    cardPriceUpdates[card._id] = {
-      id: card.id,
-      previousPrices: card.card_prices[0],
-      updatedPrices: { tcgplayer_price: updatedPrice },
-      priceDifference,
-    };
-    console.log('userId', userId);
+    if (!mongoose.Types.ObjectId.isValid(chartId)) {
+      console.error('Invalid user ID:', chartId);
+      return null;
+    }
 
-    datasets.push({
-      x: new Date(),
-      y: totalCardPrice,
-    });
-    console.log('userId', userId);
+    const dataset = generateXYdatasets(new Date(), totalCardPrice);
+
     try {
-      await ChartData.create({
-        name: `Chart for Card ID: ${card?._id}`,
-        userId: userId,
-        chartId: collectionId, // assuming you want to reference the collection ID as chartId here
-        datasets: [
-          {
-            x: todayDate,
-            y: updatedPrice, // or totalCardPrice, whichever you want to track
-          },
-        ],
-      });
+      // console.log('chartId:', chartId);
+
+      if (!isValidObjectId(chartId)) {
+        console.error('Invalid chartId:', chartId);
+        return;
+      }
+
+      if (isValidObjectId(chartId)) {
+        newchart(userId, chartId, dataset);
+      } else {
+        console.error('Invalid chartId:', chartId);
+      }
     } catch (err) {
       console.error('Error creating ChartData:', err.message);
     }
-    await user.allDatasets.save()
-    datasets.length = 0; // Reset the datasets array
-    console.log('ChartData', ChartData);
 
     return { updatedPrices: { tcgplayer_price: updatedPrice }, totalCardPrice };
   }
-};
-// const posOrNeg = priceDifference < 0 ? `${priceDifference}`.red : `${priceDifference}`.green;
-// console.log('updatedPrices', updatedPrices);
-
-const logCardUpdate = (card, cardId, itemType, updatedPrices, initialPrice, priceDifference) => {
-  const posOrNeg =
-    typeof priceDifference === 'number'
-      ? priceDifference < 0
-        ? `${priceDifference}`.red
-        : `${priceDifference}`.green
-      : 'Invalid Price Difference'.red;
-
-  console.log(
-    `Data for card ${card?.name ?? 'Unknown'} (ID: ${cardId}) in ${itemType}: `,
-    'Initial Prices: ' + `${initialPrice ?? 'Unknown'}`.yellow,
-    'Updated Prices: ' + `${updatedPrices?.tcgplayer_price ?? 'Unknown'}`.green,
-    'Price Difference: ' + `${posOrNeg}`.white,
-  );
+  return { updatedPrices: {}, totalCardPrice: 0 };
 };
 
-const updateCardsInItem = async (item, userId, collectionId) => {
-  // added userId and collectionId as parameters
-  const itemType = item.constructor.modelName;
-  let allPrices = [];
-  let totalPrice = 0; // Initialize totalPrice here to keep track of overall total
-
-  console.log('userId', userId);
-  setUserId(userId);
-  const cards = Array.isArray(item.cards)
-    ? item.cards
-    : Array.isArray(item.cart?.cards)
-    ? item.cart.cards
-    : [];
-
-  for (const card of cards) {
-    const cardId = card.id;
-
-    if (!cardId) {
-      console.warn(`Card ID missing for ${itemType}: ${card.name}`);
-      continue;
-    }
-
-    const cardInfo = await getCardInfo(cardId);
-    // console.log('past updateCardPrice has been reacheed', cardInfo);
-
-    if (!cardInfo) {
-      console.warn(`Card info not found for ${itemType} (ID: ${cardId}): ${card.name}`);
-      continue;
-    }
-    console.log('past updateCardPrice has been reacheed', userId);
-
-    const { updatedPrices, totalCardPrice } = await updateCardPrice(
-      card,
-      cardInfo,
-      userId,
-      collectionId,
-    ); // added userId and collectionId as arguments
-    console.log('past updateCardPrice has been reacheed', updatedPrices);
-    console.log('past updateCardPrice has been reacheed', userId);
-
-    // Make sure that totalCardPrice is a number and greater than or equal to 0 before adding it to totalPrice
-    if (!isNaN(totalCardPrice) && totalCardPrice >= 0) {
-      totalPrice += totalCardPrice;
-    }
-  }
-
-  allPrices.push(totalPrice);
-  console.log('allPrices', allPrices);
-  console.log('totalPrice', totalPrice);
-  return totalPrice;
-};
-const updateItemsInCollection = async (collection) => {
+const updateAllUserData = async () => {
   try {
-    const updatedItems = await Promise.all(
-      collection.items.map(async (item) => {
-        const response = await instance.get(`/cardinfo.php?id=${item._id}`);
-        console.log('response.data', response.data);
-        const updatedItemInfo = response.data.card_info;
-        console.log('updatedItemInfo', updatedItemInfo);
-        return {
-          ...item,
-          price: updatedItemInfo.price,
-          updatedAt: new Date(),
-        };
-      }),
-    );
-    collection.items = updatedItems;
-    console.log('updateditems', updatedItems);
-  } catch (error) {
-    console.error(error);
-    throw error;
-  }
-};
+    const users = await User.find({});
+    if (!Array.isArray(users)) return;
 
-const updateCollections = async (user) => {
-  const io = getIO();
-  console.log('user', user);
-  try {
-    if (!Array.isArray(user?.allCollections)) return;
-
-    for (const collectionId of user.allCollections) {
-      const collection = await Collection.findById(collectionId);
-      if (!collection) continue;
-
-      // Ensure cards are updated
-      const totalPrice = await updateCardsInItem(collection);
-
-      // Save the updated totalPrice to collection
-      collection.totalPrice = totalPrice;
-
-      await collection.save();
-
-      const newCollectionData = {
-        userId: user._id,
-        collectionData: {
-          userId: collection?.userId,
-          totalPrice: collection.totalPrice,
-          // The other fields...
-        },
-      };
-
-      io.emit('RECEIVE_S2S_COLLECTION_UPDATE', { newCollectionData });
+    for (const user of users) {
+      await this.updateCollections(user);
     }
   } catch (error) {
-    console.error(error);
-    throw error;
+    console.error('Failed to update user data:', error.message);
   }
 };
 
 module.exports = {
-  // getChartData,
-  // updateChartData,
-  generateXYdatasets,
-  getCardPriceHistory,
-  // handleChartDataCreation,
-  updateCardsInItem,
   getCardInfo,
-  updateCollections,
-  updateItemsInCollection,
+  convertUserIdToObjectId,
+  getCardPriceHistory,
+  updateChartBasedOnCollection,
+  validateCardData,
+  setUserId,
+  generateXYdatasets,
   updateCardPrice,
-  logCardUpdate,
+  updateAllUserData,
 };
