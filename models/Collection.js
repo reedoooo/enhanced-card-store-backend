@@ -68,6 +68,7 @@ const CardInCollectionSchema = new Schema({
 
 const collectionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  chartId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartData' },
   name: String,
   description: String,
   cards: [CardInCollectionSchema],

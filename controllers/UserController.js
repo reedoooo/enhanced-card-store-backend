@@ -1,13 +1,14 @@
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { findUser, validatePassword, createToken } = require('../services/auth');
+const { validatePassword, createToken } = require('../services/auth');
 const mongoose = require('mongoose');
 const Deck = require('../models/Deck');
 const Collection = require('../models/Collection');
 const winston = require('winston');
 const { validationResult } = require('express-validator');
 const { ChartData } = require('../models/ChartData');
+const { findUser } = require('../utils/utils');
 
 const SECRET_KEY = process.env.SECRET_KEY;
 
@@ -93,6 +94,7 @@ exports.signup = async (req, res, next) => {
 };
 
 exports.signin = async (req, res, next) => {
+  console.log('req.body:', req.body);
   try {
     handleValidationErrors(req, res);
     // console.log('req.body:', req);

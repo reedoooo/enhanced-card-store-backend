@@ -16,6 +16,7 @@ const getCardInfo = async (cardId) => {
 
 // [3] Function: convertUserIdToObjectId - Convert User ID to Object ID
 const convertUserIdToObjectId = (userId) => {
+  console.log('-------------> userid:', userId);
   try {
     return mongoose.Types.ObjectId(userId);
   } catch (error) {

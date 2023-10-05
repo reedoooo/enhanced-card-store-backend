@@ -1,9 +1,11 @@
 const { ChartData } = require('../../models/ChartData');
 const User = require('../../models/User');
 
-const saveNewChartData = async (dataSetName, dataSetValues, userId) => {
+const saveNewChartData = async (dataSetName, collectionId, dataSetValues, userId, chartId) => {
   const newChartData = new ChartData({
     name: dataSetName,
+    _id: chartId,
+    collectionId: collectionId, // Adding collectionId to the chart data model
     data: dataSetValues,
     userId: userId,
   });

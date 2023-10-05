@@ -11,12 +11,18 @@ const initSocket = (server) => {
 
   io = socketIo(server, {
     cors: {
-      origin: ['http://localhost:3000', 'http://localhost:3000/', 'http://localhost:3000/profile'],
+      origin: [
+        'http://localhost:3000',
+        'ws://localhost:3000',
+        'http://localhost:3000/',
+        'http://localhost:3000/profile',
+      ],
       methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
       credentials: true,
       allowedHeaders: [
         'Content-Type',
         'access-control-allow-origin',
+        'Access-Control-Allow-Headers',
         'card-name',
         'Authorization',
         'User-Agent',

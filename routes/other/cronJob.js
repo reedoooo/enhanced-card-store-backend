@@ -1,132 +1,106 @@
-const express = require('express');
 const cron = require('node-cron');
 const Collection = require('../../models/Collection');
 const Deck = require('../../models/Deck');
-const { getIO } = require('../../socket');
-const { ChartData } = require('../../models/ChartData');
 const User = require('../../models/User');
+const { getIO } = require('../../socket');
 const { updateCardsInItem } = require('./cardManager');
-const { updateChartBasedOnCollection } = require('./chartManager');
 const { updateCollections } = require('./collectionManager');
+const { ChartData } = require('../../models/ChartData');
 
 // Constants
-const numberOfCronJobRuns = 5;
+const NUMBER_OF_CRONJOB_RUNS = 5;
 
-// Stateful Variables
-let isCronJobRunning = false;
-let cronJobRunCounter = 0;
-let totalCollectionPrice = 0;
-let totalDeckPrice = 0;
-let allCollectionData = [];
-let allDeckData = [];
-let allItemTypeData = [];
-let allChartData = [];
-
-// Cron Task Configuration
-const cronTask = cron.schedule('*/5 * * * *', async () => {
-  if (isCronJobRunning) return;
-  isCronJobRunning = true;
-
-  try {
-    cronJobRunCounter++;
-
-    // Update collections
-    const users = await User.find();
-    for (const user of users) {
-      await updateCollections(user);
-    }
-
-    // Update charts
-    const charts = await ChartData.find({});
-    for (const chart of charts) {
-      await updateChartBasedOnCollection(chart._id);
-    }
-
-    if (cronJobRunCounter >= numberOfCronJobRuns) {
-      cronTask.stop();
-    }
-  } catch (error) {
-    console.error(error.message);
-  } finally {
-    isCronJobRunning = false;
-  }
-});
-
-// Utility Functions
-const processItem = async (item, userId) => {
-  const itemTypeData = await updateCardsInItem(item, userId);
-
-  if (item && typeof item.save === 'function') {
-    await item.save(itemTypeData);
-  } else {
+// Refactored utility functions
+const processItem = async (item) => {
+  if (!item || typeof item.save !== 'function') {
     console.error('Item is not defined or not a Mongoose model instance');
+    return 0;
   }
 
-  if (item.constructor.modelName === 'Collection') {
-    totalCollectionPrice += itemTypeData.totalPrice;
-  } else if (item.constructor.modelName === 'Deck') {
-    totalDeckPrice += itemTypeData.totalPrice;
-  }
+  const itemTypeData = await updateCardsInItem(item, item.userId); // Assuming the item has a userId field.
+  console.log('itemTypeData:', itemTypeData);
+  await cleanProcessedData(itemTypeData);
+
+  await item.save(itemTypeData);
+  // Delete all documents with a priceChange of 0
+
+  return itemTypeData.totalPrice || 0;
 };
 
-const stopCron = () => {
-  cronTask.stop();
-  cronJobRunCounter = 0;
+const cleanProcessedData = async (item) => {
+  ChartData.deleteMany({ priceChange: 0 })
+    .then((result) => {
+      console.log(
+        'Data points with priceChange of 0 were successfully deleted:',
+        result.deletedCount,
+      );
+    })
+    .catch((err) => {
+      console.error('Error deleting data points:', err);
+    });
 };
 
 // Main Functions
 const cronJob = async (userId) => {
   const io = getIO();
 
-  if (isCronJobRunning) return;
+  if (!userId) throw new Error('UserId is missing or invalid at cronJob');
 
-  isCronJobRunning = true;
-  cronJobRunCounter++;
+  // Local state variables
+  let totalCollectionPrice = 0;
+  let totalDeckPrice = 0;
+  let cronJobRunCounter = 0;
+  let isCronJobRunning = false;
 
-  try {
-    // Reset stateful variables
-    totalCollectionPrice = 0;
-    totalDeckPrice = 0;
-    allCollectionData = [];
-    allDeckData = [];
-    allItemTypeData = [];
-    allChartData = [];
+  const task = cron.schedule('*/5 * * * *', async () => {
+    if (isCronJobRunning) return;
 
-    // Fetch Data
-    const collections = await Collection.find().populate('cards');
-    const decks = await Deck.find().populate('cards');
-    const charts = await ChartData.find().populate('datasets');
+    isCronJobRunning = true;
+    cronJobRunCounter++;
 
-    allItemTypeData = [...collections, ...decks];
-    allChartData = [...charts];
+    try {
+      const users = await User.find();
+      for (const user of users) {
+        await updateCollections(user);
+      }
 
-    for (const item of allItemTypeData) {
-      await processItem(item, userId);
+      // Resetting data
+      totalCollectionPrice = 0;
+      totalDeckPrice = 0;
+
+      const collections = await Collection.find().populate('cards');
+      const decks = await Deck.find().populate('cards');
+
+      for (const collection of collections) {
+        totalCollectionPrice += await processItem(collection);
+      }
+      for (const deck of decks) {
+        totalDeckPrice += await processItem(deck);
+      }
+
+      io.emit('ALL_DATA_ITEMS', {
+        cronJobRunCounter,
+        totalCollectionPrice,
+        totalDeckPrice,
+      });
+
+      if (cronJobRunCounter >= NUMBER_OF_CRONJOB_RUNS) {
+        task.stop();
+      }
+    } catch (error) {
+      console.error(error.message);
+    } finally {
+      isCronJobRunning = false;
     }
+  });
 
-    cronTask.start(userId);
-
-    if (cronJobRunCounter >= numberOfCronJobRuns) {
-      stopCron();
-    }
-
-    isCronJobRunning = false;
-
-    io.emit('ALL_DATA_ITEMS', {
-      allItemTypeData,
-      cronJobRunCounter,
-      allDeckData,
-      allCollectionData,
-      totalCollectionPrice,
-      totalDeckPrice,
-    });
-  } catch (error) {
-    console.error(error.message);
-    isCronJobRunning = false;
-  }
+  task.start();
 };
 
-// Exports
+const stopCron = (task) => {
+  if (task) task.stop();
+};
+
 module.exports = {
   cronJob,
   stopCron,

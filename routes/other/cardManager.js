@@ -1,8 +1,9 @@
-const express = require('express');
-const { postLimiter, asyncHandler } = require('../../utils/utils');
 const { setUserId, getCardInfo, updateCardPrice } = require('./itemUpdates');
 
 const updateCardsInItem = async (item, userId, collectionId, chartId) => {
+  if (!userId) {
+    throw new Error('UserId is missing or invalid at newchart');
+  }
   const itemType = item.constructor.modelName;
   let totalPrice = 0;
 

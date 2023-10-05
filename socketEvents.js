@@ -3,6 +3,8 @@ const { handleChartDataRequest } = require('./routes/other/chartManager');
 const { Collection, CollectionModel } = require('./models/Collection');
 const { cronJob } = require('./routes/other/cronJob');
 const User = require('./models/User');
+const { ChartData } = require('./models/ChartData');
+const { transformedDataSets } = require('./routes/other/transformedCard');
 
 // Assuming you'd use these somewhere
 const validateData = (data, properties) => properties.every((prop) => data && data[prop]);
@@ -47,57 +49,18 @@ const handleUpdateForUserCollections = async (user, io) => {
   }
 };
 
-// const handleRequestExistingCollectionData = (socket, io) => {
-//   console.log('requesting existing collection data');
-//   socket.on('REQUEST_EXISTING_COLLECTION_DATA', async (userId) => {
-//     if (!userId) {
-//       console.error('Invalid data received:', userId);
-//       return io.emit('error', 'Invalid data received');
-//     }
-//     console.log('Received initial data request for collection:', userId);
-//     try {
-//       const users = await User.find();
-//       for (const user of users) {
-//         if (!Array.isArray(user?.allCollections)) return;
-
-//         for (const collectionId of user.allCollections) {
-//           console.log('Updating collection:', collectionId);
-//           typeof collectionId === 'string' && console.log('collectionId is a string');
-//           const collection = await Collection.findById(collectionId);
-
-//           io.emit('updateCollection', {
-//             userId: user._id,
-//             collectionId: collection?._id,
-//             updatedAt: collection?.updatedAt,
-//           });
-//           if (!user.allCollections?.length) {
-//             io.emit('error', 'No collections found.');
-//           } else {
-//             io.emit('SEND_S2C_EXISTING_COLLECTION', { data: user.allCollections });
-//           }
-//         }
-//         // const collections = await Collection?.find({ _id: userId });
-//         // console.log('collections', collections);
-//       }
-//     } catch (error) {
-//       console.error(error);
-//       io.emit('data_error', 'Error fetching data from MongoDB');
-//     }
-//   });
-// };
 const handleRequestExistingCollectionData = (socket, io) => {
   socket.on('REQUEST_EXISTING_COLLECTION_DATA', async (userId) => {
     if (!userId) {
-      return emitError(io, 'error', 'Invalid data received.');
+      return emitError(io, 'error', 'no userid.');
     }
 
     try {
       const user = await User.findById(userId);
-      // NOTE: Fetching a specific user instead of looping through all users
       if (!user) {
         return emitError(io, 'error', 'User not found.');
       }
-      await handleUpdateForUserCollections(user, io);
+      io.emit('SEND_S2C_EXISTING_COLLECTION', { data: user.allCollections });
     } catch (error) {
       emitError(io, 'data_error', 'Error fetching data from MongoDB');
     }
@@ -105,96 +68,99 @@ const handleRequestExistingCollectionData = (socket, io) => {
 };
 
 const handleStartCronJob = (socket, io) => {
-  console.log('starting cron job');
   socket.on('START_CRON_JOB', async (data) => {
-    console.log('Received cron job start request from:', data);
-    if (!data || !data.userId) {
-      console.error('Invalid data received:', data);
-      return io.emit('error', 'Invalid data received');
+    if (!data || !data?.userId) {
+      return emitError(io, 'error', 'Invalid data received.');
     }
-    const { userId } = data;
-    console.log('Received cron job start request from:', userId);
+
     try {
-      if (userId) {
-        await cronJob(userId); // Assuming `cronJob` is designed to use a `userId`
-      } else {
-        io.emit('error', 'Invalid user ID.');
-      }
+      await cronJob(data.userId);
     } catch (error) {
-      console.error('Error:', error);
-      io.emit('error', 'An error occurred while processing your request.');
+      emitError(io, 'error', 'An error occurred while processing your request.');
     }
   });
 };
 
 const handleRequestExistingChartData = (socket, io) => {
-  console.log('requesting existing chart data');
   socket.on('REQUEST_EXISTING_CHART_DATA', async (data) => {
-    console.log('requesting CHART: data', data);
-
-    if (!data || !data.userId) {
-      console.error('Invalid data received:', data);
-      return io.emit('error', 'Invalid data received');
+    if (!data?.userId) {
+      return emitError(io, 'error', 'Invalid data received.');
     }
-    // console.log('Received initial data request for chart:', data);
-    const { datasets, name, userId } = data;
-    console.log('Received initial data request for chart:', userId);
-    console.log('Received initial data request for chart:', name);
-    console.log('Received initial data request for chart:', datasets.data);
+
     try {
       const { chartData: myChartData, data: myData } = await handleChartDataRequest(
-        userId,
-        name,
-        datasets,
+        data.userId,
+        data.name,
+        data.datasets,
       );
-      console.log('Received initial data request for chart:', datasets.data);
-
       io.emit('SEND_S2C_EXISTING_CHART', { myChartData, myData });
     } catch (error) {
-      console.error('Error retrieving or updating chart data:', error);
-      io.emit('ERROR', { message: 'Error retrieving or updating chart data' });
+      emitError(io, 'ERROR', 'Error retrieving or updating chart data');
+    }
+  });
+};
+const handleRequestUpdateOrCreateChart = (socket, io) => {
+  socket.on('REQUEST_UPDATE_OR_CREATE_CHART', async ({ userId, chartId, datasets, name }) => {
+    try {
+      if (!userId) {
+        return emitError(io, 'error', 'User ID not provided.');
+      }
+
+      if (chartId) {
+        // Update existing chart logic
+        const chartData = await ChartData.findById(chartId);
+        if (!chartData) {
+          return emitError(io, 'error', `No chart found for ID: ${chartId}`);
+        }
+
+        // Assuming datasets is an array you want to merge
+        chartData.datasets.push(...datasets);
+        await chartData.save();
+
+        io.emit('CHART_UPDATED', {
+          message: 'Chart has been updated',
+          chartId: chartData._id,
+        });
+      } else {
+        // Create a new chart logic
+        const { chartData } = await handleChartDataRequest(userId, name, datasets);
+        io.emit('NEW_CHART_CREATED', {
+          message: 'New chart has been created',
+          chartData,
+        });
+      }
+    } catch (error) {
+      console.error('Error handling request to update or create chart:', error);
+      emitError(io, 'ERROR', 'Error handling request to update or create chart');
     }
   });
 };
 
 const handleRequestUpdateCollection = (socket, io) => {
-  socket.on('REQUEST_UPDATE_COLLECTION', async (data) => {
-    if (!data || !data.userId || !data.collectionId || !data.collectionData) {
-      console.error('Invalid data received:', data);
-      return io.emit('error', 'Invalid data received');
+  socket.on('REQUEST_UPDATE_COLLECTION', async ({ userId, collectionId, data: collectionData }) => {
+    if (!userId || !collectionId || !collectionData) {
+      emitError(io, 'error', 'Invalid data received.');
+      return;
     }
-    const { userId, collectionId, collectionData } = data;
-    console.log('REQUEST: COLLECTION DATA', userId);
-    console.log('+', collectionId);
-    console.log('+', collectionData);
 
-    console.log('Received update collection request from:', userId);
-    console.log('Received update collection request from:', collectionId);
-    console.log('Received update collection request from:', collectionData);
     try {
-      const user = await User.findById(userId);
-
-      if (!user) {
-        return emitError(io, 'error', 'User not found.');
-      }
       const collection = await Collection.findById(collectionId);
-
-      // Ensuring collection exists
       if (!collection) {
         return emitError(io, 'error', `No collection found for ID: ${collectionId}`);
       }
 
-      const updatedCollection = await Collection.updateOne(
-        { _id: collectionId },
-        { $set: collectionData }, // This assumes `collectionData` is structured correctly for the update
-      );
+      for (const key in collectionData) {
+        collection[key] = collectionData[key];
+      }
+      await collection.save();
+
       io.emit('COLLECTION_UPDATED', {
         message: 'Collection has been updated',
-        data: updatedCollection,
+        collectionId: collection._id,
       });
     } catch (error) {
-      console.error(error);
-      io.emit('data_error', 'Error updating collection in MongoDB');
+      console.error('Error updating collection:', error);
+      emitError(io, 'data_error', 'Error updating collection in MongoDB');
     }
   });
 };
@@ -211,6 +177,7 @@ const setupSocketEvents = () => {
   io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
     handleMessageFromClient(socket, io);
+    handleRequestUpdateOrCreateChart(socket, io);
     handleRequestExistingCollectionData(socket, io);
     handleStartCronJob(socket, io);
     handleRequestExistingChartData(socket, io);
