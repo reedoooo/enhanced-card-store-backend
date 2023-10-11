@@ -1,107 +1,97 @@
-const cron = require('node-cron');
-const Collection = require('../../models/Collection');
-const Deck = require('../../models/Deck');
+const { Collection } = require('../../models/Collection');
 const User = require('../../models/User');
 const { getIO } = require('../../socket');
-const { updateCardsInItem } = require('./cardManager');
-const { updateCollections } = require('./collectionManager');
-const { ChartData } = require('../../models/ChartData');
 
-// Constants
-const NUMBER_OF_CRONJOB_RUNS = 5;
-
-// Refactored utility functions
-const processItem = async (item) => {
-  if (!item || typeof item.save !== 'function') {
-    console.error('Item is not defined or not a Mongoose model instance');
-    return 0;
-  }
-
-  const itemTypeData = await updateCardsInItem(item, item.userId); // Assuming the item has a userId field.
-  console.log('itemTypeData:', itemTypeData);
-  await cleanProcessedData(itemTypeData);
-
-  await item.save(itemTypeData);
-  // Delete all documents with a priceChange of 0
-
-  return itemTypeData.totalPrice || 0;
+const isValidObjectId = (id) => {
+  const ObjectIdRegEx = /^[0-9a-fA-F]{24}$/;
+  return ObjectIdRegEx.test(id);
 };
 
-const cleanProcessedData = async (item) => {
-  ChartData.deleteMany({ priceChange: 0 })
-    .then((result) => {
-      console.log(
-        'Data points with priceChange of 0 were successfully deleted:',
-        result.deletedCount,
-      );
-    })
-    .catch((err) => {
-      console.error('Error deleting data points:', err);
-    });
-};
-
-// Main Functions
-const cronJob = async (userId) => {
+const updateUserCollections = async (userId, pricingData) => {
   const io = getIO();
 
-  if (!userId) throw new Error('UserId is missing or invalid at cronJob');
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('UserId is missing, invalid, or not in the correct format.');
+  }
 
-  // Local state variables
-  let totalCollectionPrice = 0;
-  let totalDeckPrice = 0;
-  let cronJobRunCounter = 0;
-  let isCronJobRunning = false;
+  if (
+    !pricingData ||
+    typeof pricingData.updatedPrices !== 'object' ||
+    Object.keys(pricingData.updatedPrices).length === 0
+  ) {
+    throw new Error('Invalid updatedPrices provided.');
+  }
 
-  const task = cron.schedule('*/5 * * * *', async () => {
-    if (isCronJobRunning) return;
+  if (
+    !pricingData ||
+    typeof pricingData.previousPrices !== 'object' ||
+    Object.keys(pricingData.previousPrices).length === 0
+  ) {
+    throw new Error('Invalid previousPrices provided.');
+  }
 
-    isCronJobRunning = true;
-    cronJobRunCounter++;
-
-    try {
-      const users = await User.find();
-      for (const user of users) {
-        await updateCollections(user);
-      }
-
-      // Resetting data
-      totalCollectionPrice = 0;
-      totalDeckPrice = 0;
-
-      const collections = await Collection.find().populate('cards');
-      const decks = await Deck.find().populate('cards');
-
-      for (const collection of collections) {
-        totalCollectionPrice += await processItem(collection);
-      }
-      for (const deck of decks) {
-        totalDeckPrice += await processItem(deck);
-      }
-
-      io.emit('ALL_DATA_ITEMS', {
-        cronJobRunCounter,
-        totalCollectionPrice,
-        totalDeckPrice,
-      });
-
-      if (cronJobRunCounter >= NUMBER_OF_CRONJOB_RUNS) {
-        task.stop();
-      }
-    } catch (error) {
-      console.error(error.message);
-    } finally {
-      isCronJobRunning = false;
+  try {
+    // Get the user's collections.
+    if (!userId) {
+      throw new Error('User ID is missing.');
     }
-  });
+    const user = await User.findById(userId).populate('allCollections');
+    if (!user) {
+      throw new Error('User not found.');
+    }
 
-  task.start();
-};
+    const userCollections = user.allCollections;
+    // Get the user's collections.
+    // const userCollections = await Collection.find({ userId: userId }).populate('cards');
+    console.log('userCollections:', userCollections);
+    // const userCollections = await User.find({ userId: userId });
+    if (!userCollections || !Array.isArray(userCollections)) {
+      throw new Error(
+        'Failed to retrieve user collections or collections are not in the expected format.',
+      );
+    }
 
-const stopCron = (task) => {
-  if (task) task.stop();
+    // Iterate over each collection and update the cards if the prices have shifted.
+    for (const collection of userCollections) {
+      if (!collection.cards || !Array.isArray(collection.cards)) {
+        console.error('Invalid cards array in collection:', collection._id);
+        continue;
+      }
+
+      for (const card of collection.cards) {
+        if (card.id && pricingData.updatedPrices[card.id]) {
+          card.price = pricingData.updatedPrices[card.id]; // Update the card price to the new one
+        } else if (!card.price) {
+          // If there's no updated price and the card doesn't have an existing price,
+          // handle the case, e.g., skip updating this card, set a default price, or handle in some other manner
+          console.error(`No price available for card ID: ${card.id}`);
+          continue; // This will skip updating this card in the current loop iteration
+        }
+      }
+
+      // Update the collection's totalPrice
+      collection.totalPrice = collection.cards.reduce((acc, card) => acc + card.price, 0);
+      // Update the collection's updatedAt timestamp
+      collection.updatedAt = new Date();
+      // Save the collection
+      await collection.save();
+    }
+    // console.log('Collections have been updated');
+    // console.log('userCollections:', userCollections);
+    io.emit('COLLECTIONS_UPDATED', { message: 'Collections have been updated' });
+
+    if (userCollections && userCollections.length > 0) {
+      io.emit('RESPONSE_CRON_UPDATED_ALLCOLLECTIONS', {
+        message: 'Cards have been updated',
+        collections: userCollections,
+      });
+    }
+  } catch (error) {
+    console.error(error.message);
+    throw new Error('Error updating user collections');
+  }
 };
 
 module.exports = {
-  cronJob,
-  stopCron,
+  updateUserCollections,
 };

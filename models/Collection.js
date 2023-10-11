@@ -19,27 +19,53 @@ const CardPriceSchema = new Schema({
   },
 });
 
-const ChartDataInCollectionSchema = new Schema({
+const ChartDataSchema = new Schema({
   name: String,
   userId: String,
-  userIdObject: {
+  collectionId: {
     type: Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Collection', // Assuming you'll name your collection model as "Collection"
   },
-  chartDataRef: {
-    // This field will store the ObjectId of the related ChartData document.
-    type: Schema.Types.ObjectId,
-    ref: 'ChartData', // Assuming that your model is named 'ChartData'
-  },
-  _id: false,
-  priceChanged: {
-    type: Boolean,
-    required: false,
-  },
-  datasets: {
-    type: Array,
-  },
+  priceChanged: Boolean,
+  priceDifference: Number,
+  cardName: String,
+  cardId: String,
+  default: {},
+  allXYValues: [
+    {
+      label: String,
+      x: Date,
+      y: Number,
+    },
+  ],
+  datasets: [
+    {
+      name: String,
+      priceChanged: Boolean,
+      initialPrice: Number,
+      updatedPrice: Number,
+      priceDifference: Number,
+      priceChange: Number,
+      data: [
+        {
+          xy: {
+            label: String,
+            x: Date,
+            y: Number,
+          },
+          additionalPriceData: {
+            priceChanged: Boolean,
+            initialPrice: Number,
+            updatedPrice: Number,
+            priceDifference: Number,
+            priceChange: Number,
+          },
+        },
+      ],
+    },
+  ],
 });
+
 const CardInCollectionSchema = new Schema({
   id: {
     type: String,
@@ -52,18 +78,38 @@ const CardInCollectionSchema = new Schema({
   type: String,
   frameType: String,
   description: String,
-  card_images: [CardImageSchema],
-  archetype: [String],
   atk: Number,
   def: Number,
   level: Number,
   race: String,
   attribute: String,
+  archetype: [String],
+  card_images: [CardImageSchema],
   card_prices: [CardPriceSchema],
+  price: {
+    type: Number,
+    // required: true,
+  },
+  totalPrice: {
+    type: Number,
+    // required: true,
+  },
   quantity: {
     type: Number,
     required: true,
   },
+  chart_datasets: [
+    {
+      x: {
+        type: Date,
+        required: true,
+      },
+      y: {
+        type: Number,
+        required: true,
+      },
+    },
+  ],
 });
 
 const collectionSchema = new mongoose.Schema({
@@ -72,7 +118,10 @@ const collectionSchema = new mongoose.Schema({
   name: String,
   description: String,
   cards: [CardInCollectionSchema],
-  chartData: [ChartDataInCollectionSchema],
+  chartData: ChartDataSchema,
+  totalCost: {
+    type: String,
+  },
   totalPrice: {
     type: Number,
   },
@@ -82,11 +131,20 @@ const collectionSchema = new mongoose.Schema({
   quantity: {
     type: Number,
   },
+  totalQuantity: {
+    type: Number,
+  },
 });
 
-const CollectionModel = mongoose.model('Collection', collectionSchema);
+const Collection = mongoose.model('Collection', collectionSchema);
+const ChartData = mongoose.model('ChartData', ChartDataSchema);
+
 module.exports = {
-  CollectionModel,
-  collectionSchema,
+  CollectionSchema: Collection.schema,
+  Collection: Collection,
+  ChartDataSchema: ChartData.schema,
+  ChartData: ChartData,
 };
-module.exports = mongoose.model('Collection', collectionSchema);
+
+// module.exports = mongoose.model('Collection', collectionSchema);
+// module.exports = mongoose.model('ChartData', ChartDataSchema);

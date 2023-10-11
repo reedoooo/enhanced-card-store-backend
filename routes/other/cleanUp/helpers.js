@@ -1,6 +1,6 @@
 // Desc: Helper functions for other routes
-const User = require('../../models/User');
-const { startCron } = require('./cronJob');
+const User = require('../../../models/User');
+const { startCron } = require('../cronJob');
 
 // Example Axios instance to fetch data
 

@@ -1,10 +1,8 @@
 const { getIO } = require('./socket');
-const { handleChartDataRequest } = require('./routes/other/chartManager');
-const { Collection, CollectionModel } = require('./models/Collection');
-const { cronJob } = require('./routes/other/cronJob');
+const { updateUserCollections } = require('./routes/other/cronJob');
+const { scheduleCheckCardPrices } = require('./utils/cardUtils');
 const User = require('./models/User');
-const { ChartData } = require('./models/ChartData');
-const { transformedDataSets } = require('./routes/other/transformedCard');
+const Collection = require('./models/Collection');
 
 // Assuming you'd use these somewhere
 const validateData = (data, properties) => properties.every((prop) => data && data[prop]);
@@ -21,32 +19,42 @@ const handleMessageFromClient = (socket, io) => {
   });
 };
 
-const handleUpdateForUserCollections = async (user, io) => {
-  try {
-    for (const collectionId of user.allCollections) {
-      const collection = await Collection.findById(collectionId);
-      // NOTE: Replacing `find({})` with `findById(collectionId)`
-
-      // Only emit if there are collections to avoid unnecessary socket emission.
-      if (collection) {
-        io.emit('updateCollection', {
-          userId: user._id,
-          collectionId: collection._id,
-          updatedAt: collection.updatedAt,
-        });
-      } else {
-        emitError(io, 'error', `No collection found for ID: ${collectionId}`);
-      }
+const handleStartCronJob = (socket, io) => {
+  socket.on('START_CRON_JOB', async (data) => {
+    if (!data || !data?.userId) {
+      return emitError(io, 'error', 'Invalid data received.');
     }
 
-    if (!user.allCollections?.length) {
-      emitError(io, 'error', 'No collections found.');
-    } else {
-      io.emit('SEND_S2C_EXISTING_COLLECTION', { data: user.allCollections });
+    try {
+      await updateUserCollections(data.userId);
+    } catch (error) {
+      emitError(io, 'error', 'START_CRON_JOB: An error occurred while processing your request.');
     }
-  } catch (error) {
-    emitError(io, 'data_error', 'Error updating user collections');
-  }
+  });
+};
+
+const handleCheckCardPrices = (socket, io) => {
+  socket.on('REQUEST_CRON_UPDATED_CARDS_IN_COLLECTION', async (data) => {
+    // console.log('REQUEST_CRON_UPDATED_CARDS_IN_COLLECTION', data.data);
+
+    // if (!data || !data?.userId || !data?.listOfMonitoredCards) {
+    //   return emitError(io, 'error', 'Invalid data received', data);
+    // }
+
+    const { userId, selectedList } = data.data;
+    console.log('userId:', userId);
+    // console.log('listOfMonitoredCards:', listOfMonitoredCards);
+    console.log('selectedList:', selectedList);
+    try {
+      scheduleCheckCardPrices(userId, selectedList);
+    } catch (error) {
+      emitError(
+        io,
+        'error',
+        'REQUEST_CRON_UPDATED_CARDS_IN_COLLECTION: An error occurred while processing your request.',
+      );
+    }
+  });
 };
 
 const handleRequestExistingCollectionData = (socket, io) => {
@@ -56,111 +64,63 @@ const handleRequestExistingCollectionData = (socket, io) => {
     }
 
     try {
+      // Check if user exists
       const user = await User.findById(userId);
       if (!user) {
         return emitError(io, 'error', 'User not found.');
       }
-      io.emit('SEND_S2C_EXISTING_COLLECTION', { data: user.allCollections });
-    } catch (error) {
-      emitError(io, 'data_error', 'Error fetching data from MongoDB');
-    }
-  });
-};
 
-const handleStartCronJob = (socket, io) => {
-  socket.on('START_CRON_JOB', async (data) => {
-    if (!data || !data?.userId) {
-      return emitError(io, 'error', 'Invalid data received.');
-    }
+      // Fetch all collections associated with the userId
+      const userCollections = user.allCollections;
 
-    try {
-      await cronJob(data.userId);
+      io.emit('RESPONSE_EXISTING_COLLECTION_DATA', { data: userCollections });
     } catch (error) {
-      emitError(io, 'error', 'An error occurred while processing your request.');
+      emitError(io, 'data_error', 'Error retrieving collection data');
     }
   });
 };
 
 const handleRequestExistingChartData = (socket, io) => {
   socket.on('REQUEST_EXISTING_CHART_DATA', async (data) => {
-    if (!data?.userId) {
+    console.log('REQUEST_EXISTING_CHART_DATA:', data);
+
+    if (!data?.data?.userId) {
       return emitError(io, 'error', 'Invalid data received.');
     }
 
     try {
-      const { chartData: myChartData, data: myData } = await handleChartDataRequest(
-        data.userId,
-        data.name,
-        data.datasets,
-      );
-      io.emit('SEND_S2C_EXISTING_CHART', { myChartData, myData });
-    } catch (error) {
-      emitError(io, 'ERROR', 'Error retrieving or updating chart data');
-    }
-  });
-};
-const handleRequestUpdateOrCreateChart = (socket, io) => {
-  socket.on('REQUEST_UPDATE_OR_CREATE_CHART', async ({ userId, chartId, datasets, name }) => {
-    try {
-      if (!userId) {
-        return emitError(io, 'error', 'User ID not provided.');
+      const user = await User.findById(data?.data?.userId).populate('allCollections');
+
+      if (!user) {
+        return emitError(io, 'error', 'User not found.');
       }
 
-      if (chartId) {
-        // Update existing chart logic
-        const chartData = await ChartData.findById(chartId);
-        if (!chartData) {
-          return emitError(io, 'error', `No chart found for ID: ${chartId}`);
+      const userCollections = user.allCollections;
+
+      if (!userCollections || userCollections.length === 0) {
+        return emitError(io, 'ERROR', 'No collections found for the user.');
+      }
+
+      // Extract chartData and attach the collection's name to it
+      let chartData = {};
+
+      userCollections.forEach((collection) => {
+        if (collection.chartData) {
+          chartData = {
+            ...collection.chartData.toObject(),
+            collectionName: collection.name,
+          };
         }
-
-        // Assuming datasets is an array you want to merge
-        chartData.datasets.push(...datasets);
-        await chartData.save();
-
-        io.emit('CHART_UPDATED', {
-          message: 'Chart has been updated',
-          chartId: chartData._id,
-        });
-      } else {
-        // Create a new chart logic
-        const { chartData } = await handleChartDataRequest(userId, name, datasets);
-        io.emit('NEW_CHART_CREATED', {
-          message: 'New chart has been created',
-          chartData,
-        });
-      }
-    } catch (error) {
-      console.error('Error handling request to update or create chart:', error);
-      emitError(io, 'ERROR', 'Error handling request to update or create chart');
-    }
-  });
-};
-
-const handleRequestUpdateCollection = (socket, io) => {
-  socket.on('REQUEST_UPDATE_COLLECTION', async ({ userId, collectionId, data: collectionData }) => {
-    if (!userId || !collectionId || !collectionData) {
-      emitError(io, 'error', 'Invalid data received.');
-      return;
-    }
-
-    try {
-      const collection = await Collection.findById(collectionId);
-      if (!collection) {
-        return emitError(io, 'error', `No collection found for ID: ${collectionId}`);
-      }
-
-      for (const key in collectionData) {
-        collection[key] = collectionData[key];
-      }
-      await collection.save();
-
-      io.emit('COLLECTION_UPDATED', {
-        message: 'Collection has been updated',
-        collectionId: collection._id,
       });
+
+      console.log('chartData:', chartData);
+      io.emit('RESPONSE_EXISTING_CHART_DATA', { data: chartData });
     } catch (error) {
-      console.error('Error updating collection:', error);
-      emitError(io, 'data_error', 'Error updating collection in MongoDB');
+      emitError(
+        io,
+        'ERROR',
+        'REQUEST_EXISTING_CHART_DATA: An error occurred while processing your request.',
+      );
     }
   });
 };
@@ -177,11 +137,13 @@ const setupSocketEvents = () => {
   io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
     handleMessageFromClient(socket, io);
-    handleRequestUpdateOrCreateChart(socket, io);
-    handleRequestExistingCollectionData(socket, io);
     handleStartCronJob(socket, io);
+    handleCheckCardPrices(socket, io);
+    handleRequestExistingCollectionData(socket, io);
     handleRequestExistingChartData(socket, io);
-    handleRequestUpdateCollection(socket, io);
+    // handleRequestUpdateOrCreateChart(socket, io);
+    // handleUpdateForUserCollections(socket, io);
+    // handleRequestUpdateCollection(socket, io);
     handleDisconnect(socket);
   });
 };
