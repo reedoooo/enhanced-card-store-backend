@@ -1,13 +1,28 @@
 const express = require('express');
-const logger = require('morgan');
 const path = require('path');
 const cors = require('cors');
 const winston = require('winston');
+const handleErrors = require('./errorMiddleware');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const axios = require('axios');
-const { check } = require('express-validator');
-// const API_ENDPOINT = 'https://api.tcgplayer.com/app/authorize/';
-// const AUTH_CODE = 'your-auth-code-here';
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.json(),
+  defaultMeta: { service: 'user-service' },
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(
+    new winston.transports.Console({
+      format: winston.format.simple(),
+    }),
+  );
+}
+
 const handleStripeWebhook = async (req, res) => {
   const sig = req.headers['stripe-signature'];
 
@@ -33,88 +48,29 @@ const handleStripeWebhook = async (req, res) => {
   res.json({ received: true });
 };
 
-const handleErrors = (err, req, res, next) => {
-  let status = 500;
-  let message = 'An unexpected error occurred';
-
-  switch (err.name) {
-    case 'ValidationError':
-      status = 400;
-      message = err.message;
-      break;
-    case 'MongoError':
-      status = 400;
-      message = 'Database error';
-      break;
-    default:
-      winston.error('Unhandled error:', err); // Using winston for logging
-  }
-
-  res.status(status).json({ message });
-};
-
-exports.validate = (method) => {
-  switch (method) {
-    case 'createNewCollection': {
-      return [
-        check('name', 'Name is required').exists(),
-        check('description', 'Description is required').exists(),
-        check('items', 'Items is required').exists(),
-        check('items', 'Items must be an array').isArray(),
-        // ... other checks
-      ];
-    }
-    case 'getAllCollectionsForUser': {
-      return [
-        check('name', 'Name is required').exists(),
-        check('description', 'Description is required').exists(),
-        check('items', 'Items is required').exists(),
-        check('items', 'Items must be an array').isArray(),
-        // ... other checks
-      ];
-    }
-    case 'updateAndSyncCollection': {
-      return [
-        check('name', 'Name is required').exists(),
-        check('description', 'Description is required').exists(),
-        check('items', 'Items is required').exists(),
-        check('items', 'Items must be an array').isArray(),
-        // ... other checks
-      ];
-    }
-    case 'createNewDeck': {
-      return [
-        check('name', 'Name is required').exists(),
-        check('description', 'Description is required').exists(),
-        check('cards', 'Cards is required').exists(),
-        check('cards', 'Cards must be an array').isArray(),
-        // ... other checks
-      ];
-    }
-    // ... other cases
-  }
-};
-
-module.exports = function applyCustomMiddleware(app) {
-  console.log('App inside middleware:', app);
-  console.log('Type of app inside middleware:', typeof app);
-  app.use(logger('dev'));
+module.exports = function applyCustomMiddleware(app, server) {
+  // Accepting server object here
+  // app.use(logger('dev'));
   app.use(express.static(path.join(__dirname, '../public')));
   app.use(express.json());
 
-  // CORS Configuration
   app.use(
     cors({
       origin: [
         'http://localhost:3000',
+        'http://localhost:3000/',
         'http://localhost:3000/profile',
-        'http://localhost:3001/api/users/signin',
+        'http://localhost:3000/api/users/signin',
+        'http://localhost:3000/api/users/signup',
+        'http://localhost:3000/api/users/:id',
+        'http://localhost:3000/api/users/:userId/decks',
       ],
       credentials: true,
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
       allowedHeaders: [
         'Content-Type',
         'access-control-allow-origin',
+        'Access-Control-Allow-Headers',
         'card-name',
         'Authorization',
         'User-Agent',
@@ -124,11 +80,8 @@ module.exports = function applyCustomMiddleware(app) {
     }),
   );
 
-  // Error Handler
-  app.use(handleErrors);
-
-  // Stripe Webhook
   app.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+  app.use(handleErrors);
 };
 
 // const express = require('express');

@@ -55,9 +55,29 @@ const CardSchema = new mongoose.Schema(
         },
       },
     ],
+    price: {
+      type: Number,
+      required: true,
+    },
+    totalPrice: {
+      type: Number,
+      // required: true,
+    },
     card_prices: [
       {
         tcgplayer_price: {
+          type: Number,
+          required: true,
+        },
+      },
+    ],
+    chart_datasets: [
+      {
+        x: {
+          type: Date,
+          required: true,
+        },
+        y: {
           type: Number,
           required: true,
         },

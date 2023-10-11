@@ -1,4 +1,4 @@
-const ChartData = require('../models/ChartData');
+const { ChartData } = require('../models/ChartData');
 const User = require('../models/User');
 
 exports.getAllData = async (req, res) => {
@@ -33,16 +33,19 @@ exports.updateChartData = async (req, res) => {
 };
 
 exports.addNewDataSet = async (req, res) => {
+  // console.log('ADD NEW DATA SET');
+  // console.log('REQ.BODY:', req.body);
+  // console.log('REQ.PARAMS:', req.params);
   try {
     const userId = req.params.userId;
     const user = await User.findById(userId);
-
+    // console.log('body:', req.body);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     const { data } = req.body;
-    console.log('DATA RECEIVED:', data);
+    // console.log('DATA RECEIVED:', data);
 
     // Check for identical data
     const existingData = await ChartData.findOne({ userId, data });
@@ -51,7 +54,7 @@ exports.addNewDataSet = async (req, res) => {
     }
 
     const newData = new ChartData({ userId, data });
-    console.log('NEW DATA:', newData);
+    // console.log('NEW DATA:', newData);
     await newData.save();
 
     // Assuming user has an allDataSets field to store all datasets

@@ -1,5 +1,5 @@
 const express = require('express');
-const scrapeController = require('../../controllers/ScrapeController');
+const scrapeController = require('./controllers/ScrapeController');
 
 const router = express.Router();
 

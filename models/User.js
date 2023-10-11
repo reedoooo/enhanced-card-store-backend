@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const Deck = require('./Deck');
 const Collection = require('./Collection');
-const ChartData = require('./ChartData');
+
 const { Schema } = mongoose;
 // const cartInfo = require('./Cart.js');
 
@@ -32,9 +32,11 @@ const UserSchema = new Schema(
     // activity_data: { type: cartInfo, required: false },
     login_data: { type: securityInfo, required: true },
     allDecks: [Deck.schema], // add this line
-    allCollections: [Collection.schema], // add this line
-    // allDataSets: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ChartData' }],
-    allDataSets: [ChartData.schema],
+    allCollections: [Collection.CollectionSchema], // add this line
+    allChartData: [Collection.ChartDataSchema], // add this line
+    // allChartData: [Collection.ChartData.schema], // add this line
+    // allChartData: ChartDataSchema,
+    // allDataSets: [ChartDataSchema],
   },
   { timestamps: true },
 );

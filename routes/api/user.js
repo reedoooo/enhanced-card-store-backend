@@ -2,13 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../../services/auth.js');
 const UserController = require('../../controllers/UserController.js');
-const winston = require('winston');
-// const Joi = require('joi');
-const validate = require('../../middleware/index.js');
-const { check } = require('express-validator');
-console.log('Type of validate:', typeof validate);
 
-// General Async Handler
 function asyncHandler(fn) {
   return (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch((error) => {
@@ -17,15 +11,10 @@ function asyncHandler(fn) {
   };
 }
 
-router.post('/signup', asyncHandler(UserController.signup));
-router.post(
-  '/signin',
-  [
-    check('username').exists().withMessage('Username is required'),
-    check('password').exists().withMessage('Password is required'),
-  ],
-  asyncHandler(UserController.signin),
-);
+router.post('/signup', asyncHandler(UserController.signup)); // Signup might not need authentication
+console.log('User Controller:', UserController);
+router.post('/signin', asyncHandler(UserController.signin)); // Signin also doesn't need authentication
+
 // User Routes
 router.get('/profile', verifyToken, asyncHandler(UserController.getProfile));
 router.put('/profile/:id', verifyToken, asyncHandler(UserController.updateProfile));
@@ -53,9 +42,11 @@ router.post(
   asyncHandler(UserController.createNewCollection),
 );
 
+router.delete('/:userId/collections/:collectionId', asyncHandler(UserController.deleteCollection));
+
 // Error handler
 router.use((error, req, res, next) => {
-  winston.error('Middleware error:', error); // Replace console.error with winston.error
+  // winston.error('Middleware error:', error); // Replace console.error with winston.error
 
   if (error.isJoi) {
     // If the error is from a validation (Joi for instance)
