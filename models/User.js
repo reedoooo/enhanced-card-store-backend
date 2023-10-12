@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Deck = require('./Deck');
-const Collection = require('./Collection');
+const { CronDataSchema } = require('./CronData');
+const { collectionSchema, ChartDataSchema } = require('./Collection');
 
 const { Schema } = mongoose;
 // const cartInfo = require('./Cart.js');
@@ -31,14 +32,24 @@ const UserSchema = new Schema(
     basic_info: { type: baseInfo, required: false },
     // activity_data: { type: cartInfo, required: false },
     login_data: { type: securityInfo, required: true },
-    allDecks: [Deck.schema], // add this line
-    allCollections: [Collection.CollectionSchema], // add this line
-    allChartData: [Collection.ChartDataSchema], // add this line
-    // allChartData: [Collection.ChartData.schema], // add this line
-    // allChartData: ChartDataSchema,
-    // allDataSets: [ChartDataSchema],
+    allDecks: [Deck.schema],
+    allCollections: [{ type: Schema.Types.ObjectId, ref: 'Collection' }], // Reference the Collection model
+    allChartData: [{ type: Schema.Types.ObjectId, ref: 'ChartData' }], // Reference the ChartData model
+    allCronData: [CronDataSchema],
   },
   { timestamps: true },
 );
+// const UserSchema = new Schema(
+//   {
+//     basic_info: { type: baseInfo, required: false },
+//     // activity_data: { type: cartInfo, required: false },
+//     login_data: { type: securityInfo, required: true },
+//     allDecks: [Deck.schema], // add this line
+//     allCollections: [collectionSchema], // add this line
+//     allChartData: [ChartDataSchema], // add this line
+//     allCronData: [CronDataSchema], // add this line
+//   },
+//   { timestamps: true },
+// );
 
 module.exports = mongoose.model('User', UserSchema);

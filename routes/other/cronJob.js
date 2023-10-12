@@ -73,9 +73,16 @@ const updateUserCollections = async (userId, pricingData) => {
       collection.totalPrice = collection.cards.reduce((acc, card) => acc + card.price, 0);
       // Update the collection's updatedAt timestamp
       collection.updatedAt = new Date();
+
       // Save the collection
       await collection.save();
+
+      console.log('Collection has been updated:', collection);
     }
+
+    // Save the user
+    await user.save();
+
     // console.log('Collections have been updated');
     // console.log('userCollections:', userCollections);
     io.emit('COLLECTIONS_UPDATED', { message: 'Collections have been updated' });

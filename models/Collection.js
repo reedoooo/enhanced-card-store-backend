@@ -24,7 +24,7 @@ const ChartDataSchema = new Schema({
   userId: String,
   collectionId: {
     type: Schema.Types.ObjectId,
-    ref: 'Collection', // Assuming you'll name your collection model as "Collection"
+    ref: 'Collection',
   },
   priceChanged: Boolean,
   priceDifference: Number,
@@ -64,6 +64,16 @@ const ChartDataSchema = new Schema({
       ],
     },
   ],
+  chartData: {
+    type: Object,
+    default: {},
+    validate: {
+      validator: function (v) {
+        return !Array.isArray(v);
+      },
+      message: (props) => 'chartData should not be an array!',
+    },
+  },
 });
 
 const CardInCollectionSchema = new Schema({
@@ -114,11 +124,11 @@ const CardInCollectionSchema = new Schema({
 
 const collectionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  chartId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartData' },
+  chartId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChartData' }, // Reference the ChartData model
   name: String,
   description: String,
   cards: [CardInCollectionSchema],
-  chartData: ChartDataSchema,
+  // chartData: ChartDataSchema,
   totalCost: {
     type: String,
   },
@@ -134,16 +144,34 @@ const collectionSchema = new mongoose.Schema({
   totalQuantity: {
     type: Number,
   },
+  chartData: {
+    type: ChartDataSchema,
+    default: {},
+    validate: {
+      validator: function (v) {
+        return !Array.isArray(v);
+      },
+      message: (props) => 'chartData should not be an array!',
+    },
+  },
 });
+
+// collectionSchema.pre('save', function (next) {
+//   if (Array.isArray(this.chartData)) {
+//     console.warn('chartData is an array, converting to an empty object');
+//     this.chartData = {};
+//   }
+//   next();
+// });
 
 const Collection = mongoose.model('Collection', collectionSchema);
 const ChartData = mongoose.model('ChartData', ChartDataSchema);
 
 module.exports = {
-  CollectionSchema: Collection.schema,
-  Collection: Collection,
-  ChartDataSchema: ChartData.schema,
-  ChartData: ChartData,
+  collectionSchema,
+  Collection,
+  ChartDataSchema,
+  ChartData,
 };
 
 // module.exports = mongoose.model('Collection', collectionSchema);

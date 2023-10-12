@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const { validatePassword, createToken } = require('../services/auth');
 const mongoose = require('mongoose');
 const Deck = require('../models/Deck');
-const { Collection, CollectionModel } = require('../models/Collection');
+const { Collection } = require('../models/Collection');
 const winston = require('winston');
 const { validationResult } = require('express-validator');
 const { findUser } = require('../utils/utils');
@@ -264,9 +264,53 @@ exports.createNewDeck = async (req, res, next) => {
   }
 };
 
-// Get all collections for a specific user
-// Get all collections for a specific user
-// Export a function named 'getAllCollectionsForUser'
+exports.createNewCollection = async (req, res, next) => {
+  const { userId } = req.params;
+  const {
+    cards,
+    description,
+    name,
+    totalPrice,
+    chartData,
+    totalCost,
+    allCardPrices,
+    quantity,
+    totalQuantity,
+  } = req.body;
+
+  try {
+    // Check if the user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return handleNotFound('User', res);
+    }
+
+    const newCollection = new Collection({
+      userId,
+      name,
+      description,
+      cards: cards || [],
+      totalPrice: totalPrice || 0,
+      totalCost: totalCost || '',
+      allCardPrices: allCardPrices || [],
+      quantity: quantity || 0,
+      totalQuantity: totalQuantity || 0,
+      chartData: chartData || {},
+    });
+
+    const savedCollection = await newCollection.save();
+    user.allCollections.push(savedCollection._id);
+    await user.save();
+
+    winston.info('New Collection Created:', savedCollection);
+    res.status(201).json({ savedCollection }); // 201 status code for resource creation
+  } catch (error) {
+    winston.error('Failed to create new collection or chart:', error);
+    res.status(500).json({ error: 'Failed to create new collection or chart' });
+    next(error);
+  }
+};
+
 exports.getAllCollectionsForUser = async (req, res, next) => {
   // Check if the request parameter 'userId' exists
   if (!req.params.userId) {
@@ -276,28 +320,24 @@ exports.getAllCollectionsForUser = async (req, res, next) => {
 
   // Wrap code inside a try-catch block to handle any potential errors
   try {
-    // Attempt to find a user in the database by their 'userId'
-    const user = await User.findById(req.params.userId);
-
-    // If the user doesn't exist
-    if (!user) {
-      // Return a 404 status with a message indicating the user was not found
-      return res.status(404).json({ message: 'User not found' });
-    }
+    const user = await User.findById(req.params.userId).populate('allCollections');
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     // Retrieve all collections associated with the user's 'allCollections' field from the database
-    let collections = await Collection.find({
-      _id: { $in: user.allCollections },
-    });
+    // let collections = await Collection.find({
+    //   _id: { $in: user.allCollections },
+    // });
 
     // This line is commented out but would print all collections to the console if uncommented
     // console.log('********************ALL COLLECTIONS********************', collections);
 
     // Log the number of collections fetched using the Winston logging library
-    winston.info(`Fetched ${collections.length} collections for user ${req.params.userId}`);
+    // winston.info(`Fetched ${collections.length} collections for user ${req.params.userId}`);
+    winston.info(`Fetched ${user.allCollections.length} collections for user ${req.params.userId}`);
 
     // Send a 200 status and the collections in the response
-    res.status(200).json(collections);
+    // res.status(200).json(collections);
+    res.status(200).json(user.allCollections);
   } catch (error) {
     // If there's an error in the try block
     // Log the error using Winston
@@ -309,8 +349,17 @@ exports.getAllCollectionsForUser = async (req, res, next) => {
 
 exports.updateAndSyncCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
-  let { cards, description, name, totalPrice, chartData, totalCost, allCardPrices, quantity } =
-    req.body;
+  let {
+    cards,
+    description,
+    name,
+    totalPrice,
+    chartData,
+    totalCost,
+    allCardPrices,
+    quantity,
+    totalQuantity,
+  } = req.body;
 
   // Convert all prices
   if (totalPrice) totalPrice = convertPrice(totalPrice);
@@ -338,14 +387,10 @@ exports.updateAndSyncCollection = async (req, res, next) => {
 
   try {
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     const existingCollection = await Collection.findOne({ _id: collectionId, userId });
-    if (!existingCollection) {
-      return res.status(404).json({ message: 'Collection not found' });
-    }
+    if (!existingCollection) return res.status(404).json({ message: 'Collection not found' });
 
     if (incomingDataset) {
       if (existingCollection.chartData && Array.isArray(existingCollection.chartData.allXYValues)) {
@@ -370,73 +415,34 @@ exports.updateAndSyncCollection = async (req, res, next) => {
     existingCollection.totalCost = totalCost;
     existingCollection.totalPrice = totalPrice;
     existingCollection.quantity = quantity;
+    existingCollection.totalQuantity = totalQuantity;
     existingCollection.allCardPrices = allCardPrices;
 
     await existingCollection.save();
 
     if (!user.allCollections.includes(existingCollection._id)) {
       user.allCollections.push(existingCollection._id);
+      await user.save();
     }
-    await user.save();
 
-    updatedCollection = existingCollection;
+    // Populate after the potential addition
+    await user.populate('allCollections').execPopulate();
+    res.status(200).json({ updatedCollection, allCollections: user.allCollections });
+
+    // updatedCollection = existingCollection;
   } catch (error) {
     winston.error('Failed to update collection:', error);
     console.error('Error while updating collection:', error);
     return next(error);
   }
 
-  if (updatedCollection) {
-    // winston.info('Updated Collection Data:', updatedCollection);
-    return res.status(200).json({ updatedCollection });
-  } else {
-    return res.status(404).json({ message: 'Failed to update the collection' });
-  }
-};
-
-// Create a new collection
-exports.createNewCollection = async (req, res, next) => {
-  const { userId } = req.params;
-  const { name, description, cards, totalCost, totalPrice, allCardPrices } = req.body;
-
-  try {
-    // Check if the user exists
-    const user = await User.findById(userId);
-    if (!user) {
-      return handleNotFound('User', res);
-    }
-
-    // const newChart = new ChartData({
-    //   chartData: {},
-    //   // any other field related to Chart model...
-    // });
-    // const savedChart = await newChart.save();
-
-    // Create and save a new collection
-    const newCollection = new CollectionModel({
-      userId,
-      name,
-      description,
-      cards: cards || [],
-      totalPrice: totalPrice || 0,
-      totalCost: totalCost || '',
-      allCardPrices: allCardPrices || [],
-      // chartId: savedChart._id, // Linking the Chart to the Collection
-    });
-
-    const savedCollection = await newCollection.save();
-
-    user.allCollections.push(savedCollection._id);
-    await user.save();
-
-    winston.info('New Collection Created:', savedCollection);
-    // winston.info('New Chart Created:', savedChart);
-    // res.status(201).json({ savedCollection, savedChart }); // 201 status code for resource creation
-  } catch (error) {
-    winston.error('Failed to create new collection or chart:', error);
-    res.status(500).json({ error: 'Failed to create new collection or chart' });
-    next(error);
-  }
+  // if (updatedCollection) {
+  //   // winston.info('Updated Collection Data:', updatedCollection);
+  //   // return res.status(200).json({ updatedCollection });
+  //   return res.status(200).json({ updatedCollection, allCollections: user.allCollections });
+  // } else {
+  //   return res.status(404).json({ message: 'Failed to update the collection' });
+  // }
 };
 
 exports.deleteCollection = async (req, res, next) => {

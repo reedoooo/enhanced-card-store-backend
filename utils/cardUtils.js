@@ -61,10 +61,9 @@ const checkCardPrices = async (userId, selectedList) => {
 
   for (const card of selectedList) {
     const latestCardInfo = await getCardInfo(card.id);
-    console.log('latestCardInfo:', latestCardInfo);
     if (!latestCardInfo || !latestCardInfo.card_prices) continue;
 
-    updatedPrices[card.id] = latestCardInfo.card_prices[0]?.tcgplayer_price;
+    updatedPrices[card.id] = parseFloat(latestCardInfo.card_prices[0]?.tcgplayer_price || '0'); // Convert to number
     previousPrices[card.id] = card.previousPrice;
 
     // Compute the price difference for the card
@@ -76,67 +75,40 @@ const checkCardPrices = async (userId, selectedList) => {
   }
 
   const pricingData = { updatedPrices, previousPrices, priceDifferences }; // Including priceDifferences in the pricingData object
-
-  if (!priceShifted) {
-    console.log('Emitting Data:', {
-      message: 'No card prices have shifted',
-      pricingData,
-    });
-    io.emit('RESPONSE_CRON_UPDATED_CARDS_IN_COLLECTION', {
-      message: 'No card prices have shifted',
-      pricingData,
-    });
-    return null;
-  } else if (priceShifted) {
-    console.log('Emitting Data:', {
-      message: 'Prices have shifted. Activating the cronJob.',
-      pricingData,
-    });
-
+  let message;
+  if (priceShifted) {
+    console.log('Emitting Data:', { message, pricingData });
+    message = 'Prices have shifted. Activating the cronJob.';
     io.emit('RESPONSE_CRON_UPDATED_CARDS_IN_COLLECTION', {
       message: 'Cards have been updated',
       pricingData,
     });
     await updateUserCollections(userId, pricingData);
-    return pricingData;
   } else {
-    console.log('Emitting Data:', {
-      message: 'An error occurred while processing your request.',
-      pricingData,
-    });
+    message = 'No card prices have shifted';
     io.emit('RESPONSE_CRON_UPDATED_CARDS_IN_COLLECTION', {
-      message: 'An error occurred while processing your request to update cards in collections.',
+      message,
       pricingData,
     });
-    return null;
   }
+
+  // console.log('Emitting Data:', { message, pricingData });
+  return pricingData;
 };
+const scheduledTasks = new Map(); // Store tasks by userId
 
 const scheduleCheckCardPrices = (userId, selectedList) => {
   const io = getIO();
 
-  const currentDate = new Date();
-  const currentSeconds = currentDate.getSeconds();
-  const currentMinutes = currentDate.getMinutes();
-  const minutesToNextRun = 3 - (currentMinutes % 3);
-
-  const cronTime = `*/${minutesToNextRun} * * * *`;
-  const formatTime = (date) => {
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const period = hours >= 12 ? 'pm' : 'am';
-    return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')}${period}`;
-  };
-
-  const task = cron.schedule(cronTime, async () => {
+  const task = cron.schedule('*/3 * * * *', async () => {
     try {
       const pricingData = await checkCardPrices(userId, selectedList);
 
-      let existingCronData = await CronData.findOne({ userId: userId });
+      let existingCronData = await CronData.findOne({ userId });
 
       if (!existingCronData) {
         existingCronData = new CronData({
-          userId: userId,
+          userId,
           runs: [],
         });
       }
@@ -147,10 +119,9 @@ const scheduleCheckCardPrices = (userId, selectedList) => {
       });
 
       await existingCronData.save();
-      // console.log('CronData saved successfully.', existingCronData);
 
       io.emit('RESPONSE_CRON_DATA', {
-        message: `Cron job updated prices at ${formatTime(new Date())}`,
+        message: `Cron job updated prices at ${new Date().toLocaleTimeString()}`, // Using built-in toLocaleTimeString for formatting
         data: existingCronData,
       });
     } catch (error) {
@@ -159,12 +130,24 @@ const scheduleCheckCardPrices = (userId, selectedList) => {
   });
 
   task.start();
+  scheduledTasks.set(userId, task);
+};
+
+const cronStop = (userId) => {
+  const task = scheduledTasks.get(userId);
+  if (task) {
+    task.stop(); // Stop the task
+    scheduledTasks.delete(userId); // Remove from our reference map
+    console.log(`Cron job for userId ${userId} has been stopped.`);
+  } else {
+    console.error(`No scheduled cron job found for userId ${userId}.`);
+  }
 };
 
 module.exports = {
   getCardInfo,
   convertUserIdToObjectId,
-  // getCardPriceHistory,
   validateCardData,
   scheduleCheckCardPrices,
+  cronStop, // Exporting the cronStop function
 };
