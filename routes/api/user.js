@@ -12,7 +12,7 @@ function asyncHandler(fn) {
 }
 
 router.post('/signup', asyncHandler(UserController.signup)); // Signup might not need authentication
-console.log('User Controller:', UserController);
+// console.log('User Controller:', UserController);
 router.post('/signin', asyncHandler(UserController.signin)); // Signin also doesn't need authentication
 
 // User Routes
@@ -28,15 +28,11 @@ router.get('/:userId/decks', asyncHandler(UserController.getAllDecksForUser));
 router.put('/:userId/decks/:deckId', asyncHandler(UserController.updateAndSyncDeck));
 router.post('/:userId/newDeck', asyncHandler(UserController.createNewDeck));
 
-// User Collection Routes
-// User Collection Routes
 router.get('/:userId/collections', asyncHandler(UserController.getAllCollectionsForUser));
-
 router.put(
   '/:userId/collections/:collectionId',
   asyncHandler(UserController.updateAndSyncCollection),
 );
-
 router.post(
   '/:userId/collections/newCollection/:userId',
   asyncHandler(UserController.createNewCollection),

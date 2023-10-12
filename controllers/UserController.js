@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const { validatePassword, createToken } = require('../services/auth');
 const mongoose = require('mongoose');
 const Deck = require('../models/Deck');
-const { Collection } = require('../models/Collection');
+const Collection = require('../models/Collection');
 const winston = require('winston');
 const { validationResult } = require('express-validator');
 const { findUser } = require('../utils/utils');
@@ -13,6 +13,7 @@ const {
   filterUniqueCards,
   handleDuplicateYValuesInDatasets,
 } = require('../utils/collectionUtils');
+const ChartData = require('../models/ChartData');
 
 const SECRET_KEY = process.env.SECRET_KEY;
 
@@ -25,7 +26,7 @@ const handleErrors = (res, error, next) => {
   if (error.code === 11000) {
     return res.status(400).json({ message: 'Duplicate key error', error: error.keyValue });
   }
-  next(error);
+  next(error); // Only call next if you haven't responded yet
 };
 
 // Function to handle not found resources
@@ -185,6 +186,8 @@ exports.getAllDecksForUser = async (req, res, next) => {
       return handleNotFound('User', res);
     }
 
+    user.allDecks = user.allDecks || []; // Ensure it's initialized
+
     const decks = (await Deck.find({ _id: { $in: user.allDecks } })) || [];
 
     if (decks.length === 0) {
@@ -279,11 +282,8 @@ exports.createNewCollection = async (req, res, next) => {
   } = req.body;
 
   try {
-    // Check if the user exists
-    const user = await User.findById(userId);
-    if (!user) {
-      return handleNotFound('User', res);
-    }
+    let chartDataObj = new ChartData(chartData);
+    await chartDataObj.save();
 
     const newCollection = new Collection({
       userId,
@@ -295,81 +295,47 @@ exports.createNewCollection = async (req, res, next) => {
       allCardPrices: allCardPrices || [],
       quantity: quantity || 0,
       totalQuantity: totalQuantity || 0,
-      chartData: chartData || {},
+      chartData: chartDataObj._id,
     });
 
     const savedCollection = await newCollection.save();
+
+    // Fetch the user by their userId
+    const user = await User.findById(userId);
+    if (!user) {
+      return handleNotFound('User', res);
+    }
+
     user.allCollections.push(savedCollection._id);
     await user.save();
 
     winston.info('New Collection Created:', savedCollection);
-    res.status(201).json({ savedCollection }); // 201 status code for resource creation
+    res.status(201).json({ savedCollection });
   } catch (error) {
-    winston.error('Failed to create new collection or chart:', error);
-    res.status(500).json({ error: 'Failed to create new collection or chart' });
-    next(error);
+    handleServerError(error, 'Failed to create new collection or chart', res, next);
   }
 };
 
 exports.getAllCollectionsForUser = async (req, res, next) => {
-  // Check if the request parameter 'userId' exists
-  if (!req.params.userId) {
-    // If not, return a 400 status with a message indicating the 'userId' is required
-    return res.status(400).json({ message: 'userId is required' });
-  }
+  const { userId } = req.params;
 
-  // Wrap code inside a try-catch block to handle any potential errors
   try {
-    const user = await User.findById(req.params.userId).populate('allCollections');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    // Retrieve all collections associated with the user's 'allCollections' field from the database
-    // let collections = await Collection.find({
-    //   _id: { $in: user.allCollections },
-    // });
-
-    // This line is commented out but would print all collections to the console if uncommented
-    // console.log('********************ALL COLLECTIONS********************', collections);
-
-    // Log the number of collections fetched using the Winston logging library
-    // winston.info(`Fetched ${collections.length} collections for user ${req.params.userId}`);
-    winston.info(`Fetched ${user.allCollections.length} collections for user ${req.params.userId}`);
-
-    // Send a 200 status and the collections in the response
-    // res.status(200).json(collections);
+    const user = await User.findById(userId).populate('allCollections');
+    if (!user) return handleNotFound('User', res);
+    winston.info(`Fetched ${user.allCollections.length} collections for user ${userId}`);
     res.status(200).json(user.allCollections);
   } catch (error) {
-    // If there's an error in the try block
-    // Log the error using Winston
-    winston.error(`Error fetching all collections for user: ${error}`);
-    // Forward the error to the next middleware in the chain
-    next(error);
+    handleServerError(error, 'Error fetching all collections for user', res, next);
   }
 };
-
 exports.updateAndSyncCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
-  let {
-    cards,
-    description,
-    name,
-    totalPrice,
-    chartData,
-    totalCost,
-    allCardPrices,
-    quantity,
-    totalQuantity,
-  } = req.body;
-
-  // Convert all prices
-  if (totalPrice) totalPrice = convertPrice(totalPrice);
-  if (Array.isArray(allCardPrices)) allCardPrices = allCardPrices.map(convertPrice);
+  const { description, name, chartData, totalCost, quantity, cards, totalQuantity } = req.body;
 
   if (!collectionId) return res.status(400).json({ message: 'collectionId is required' });
 
-  // Filter out duplicates and handle dataset
-  cards = filterUniqueCards(cards);
-  cards.forEach((card) => {
+  const filteredCards = filterUniqueCards(cards);
+  filteredCards.forEach((card) => {
     card.chart_datasets = handleDuplicateYValuesInDatasets(card);
   });
 
@@ -383,8 +349,6 @@ exports.updateAndSyncCollection = async (req, res, next) => {
     }
   }
 
-  let updatedCollection;
-
   try {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -392,57 +356,35 @@ exports.updateAndSyncCollection = async (req, res, next) => {
     const existingCollection = await Collection.findOne({ _id: collectionId, userId });
     if (!existingCollection) return res.status(404).json({ message: 'Collection not found' });
 
-    if (incomingDataset) {
-      if (existingCollection.chartData && Array.isArray(existingCollection.chartData.allXYValues)) {
-        const yValuesSet = new Set(existingCollection?.chartData?.allXYValues?.map((xy) => xy.y));
-        if (yValuesSet.has(incomingDataset?.data[0]?.xy?.y)) {
-          winston.info('Duplicate y-data found. Skipping...');
-        } else {
-          existingCollection.chartData.datasets.push(incomingDataset);
-          existingCollection.chartData.allXYValues.push(incomingDataset.data[0].xy);
-        }
-      } else {
-        existingCollection.chartData = {
-          datasets: [incomingDataset],
-          allXYValues: [incomingDataset.data[0].xy],
-        };
-      }
-    }
+    const associatedChartData = await ChartData.findById(existingCollection.chartData);
+    if (!associatedChartData)
+      return res.status(404).json({ message: 'ChartData not found for collection' });
 
-    existingCollection.cards = cards;
+    if (incomingDataset) {
+      const yValuesSet = new Set(
+        associatedChartData?.datasets?.map((dataset) => dataset.data[0].y),
+      );
+      if (yValuesSet.has(incomingDataset?.data[0]?.xy?.y)) {
+        console.info('Duplicate y-data found. Skipping...');
+      } else {
+        associatedChartData.datasets.push(incomingDataset);
+      }
+      await associatedChartData.save();
+    }
+    existingCollection.cards = filteredCards;
     existingCollection.name = name;
     existingCollection.description = description;
     existingCollection.totalCost = totalCost;
-    existingCollection.totalPrice = totalPrice;
     existingCollection.quantity = quantity;
     existingCollection.totalQuantity = totalQuantity;
-    existingCollection.allCardPrices = allCardPrices;
 
     await existingCollection.save();
 
-    if (!user.allCollections.includes(existingCollection._id)) {
-      user.allCollections.push(existingCollection._id);
-      await user.save();
-    }
-
-    // Populate after the potential addition
-    await user.populate('allCollections').execPopulate();
-    res.status(200).json({ updatedCollection, allCollections: user.allCollections });
-
-    // updatedCollection = existingCollection;
+    res.status(200).json({ updatedCollection: existingCollection });
   } catch (error) {
-    winston.error('Failed to update collection:', error);
-    console.error('Error while updating collection:', error);
-    return next(error);
+    console.error('Failed to update collection', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
-
-  // if (updatedCollection) {
-  //   // winston.info('Updated Collection Data:', updatedCollection);
-  //   // return res.status(200).json({ updatedCollection });
-  //   return res.status(200).json({ updatedCollection, allCollections: user.allCollections });
-  // } else {
-  //   return res.status(404).json({ message: 'Failed to update the collection' });
-  // }
 };
 
 exports.deleteCollection = async (req, res, next) => {

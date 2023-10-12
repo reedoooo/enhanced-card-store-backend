@@ -20,7 +20,27 @@ const CardPriceSchema = new Schema({
 });
 
 const CardInCartSchema = new Schema({
-  card: { type: Schema.Types.ObjectId, ref: 'CardBase' }, // reference to the CardBase
+  id: {
+    // type: Number,
+    type: String,
+
+    required: true,
+    // unique: true,
+  },
+  name: {
+    type: String,
+    required: true,
+  },
+  type: String,
+  frameType: String,
+  desc: String,
+  atk: Number,
+  def: Number,
+  level: Number,
+  race: String,
+  attribute: String,
+  card_images: [CardImageSchema],
+  card_prices: [CardPriceSchema],
   quantity: {
     type: Number,
     required: true,

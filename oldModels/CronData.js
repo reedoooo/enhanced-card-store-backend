@@ -6,7 +6,11 @@ const RunSchema = new mongoose.Schema({
 });
 
 const CronDataSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  userId: {
+    type: String,
+    required: true,
+    ref: 'User',
+  },
   runs: [RunSchema],
   timestamp: {
     type: Date,

@@ -29,25 +29,16 @@ const securityInfo = new Schema({
 
 const UserSchema = new Schema(
   {
-    basic_info: baseInfo,
-    login_data: {
-      type: securityInfo,
-      required: true,
-    },
-    cards: [{ type: Schema.Types.ObjectId, ref: 'CardBase' }],
-    allDecks: [{ type: Schema.Types.ObjectId, ref: 'Deck' }],
-    allCollections: [{ type: Schema.Types.ObjectId, ref: 'Collection' }],
-    allChartData: [{ type: Schema.Types.ObjectId, ref: 'ChartData' }],
-    allCronData: [{ type: Schema.Types.ObjectId, ref: 'CronData' }],
-    cart: { type: Schema.Types.ObjectId, ref: 'Cart' }, // Added this line
-
-    // allCronData: [CronDataSchema],
+    basic_info: { type: baseInfo, required: false },
+    // activity_data: { type: cartInfo, required: false },
+    login_data: { type: securityInfo, required: true },
+    allDecks: [Deck.schema],
+    allCollections: [{ type: Schema.Types.ObjectId, ref: 'Collection' }], // Reference the Collection model
+    allChartData: [{ type: Schema.Types.ObjectId, ref: 'ChartData' }], // Reference the ChartData model
+    allCronData: [CronDataSchema],
   },
   { timestamps: true },
 );
-
-module.exports = mongoose.model('User', UserSchema);
-
 // const UserSchema = new Schema(
 //   {
 //     basic_info: { type: baseInfo, required: false },
@@ -60,3 +51,5 @@ module.exports = mongoose.model('User', UserSchema);
 //   },
 //   { timestamps: true },
 // );
+
+module.exports = mongoose.model('User', UserSchema);
