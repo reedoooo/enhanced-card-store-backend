@@ -20,13 +20,13 @@ const CardPriceSchema = new Schema({
 });
 
 const CardBaseSchema = new mongoose.Schema({
-  // id: {
-  //   type: Number,
+  // cardId: {
+  //   type: mongoose.Types.ObjectId,
   //   required: true,
   //   unique: true,
   // },
   id: {
-    type: Number,
+    type: String,
     required: true,
   },
   name: {

@@ -16,7 +16,7 @@ const baseInfo = new Schema({
 
 const roleSchema = new Schema({
   name: { type: String, required: true },
-  capabilities: [String],
+  capabilities: [Array],
 });
 
 const securityInfo = new Schema({
@@ -34,7 +34,7 @@ const UserSchema = new Schema(
       type: securityInfo,
       required: true,
     },
-    cards: [{ type: Schema.Types.ObjectId, ref: 'CardBase' }],
+    // cards: [{ type: Schema.Types.ObjectId, ref: 'CardBase' }],
     allDecks: [{ type: Schema.Types.ObjectId, ref: 'Deck' }],
     allCollections: [{ type: Schema.Types.ObjectId, ref: 'Collection' }],
     allChartData: [{ type: Schema.Types.ObjectId, ref: 'ChartData' }],
@@ -47,16 +47,3 @@ const UserSchema = new Schema(
 );
 
 module.exports = mongoose.model('User', UserSchema);
-
-// const UserSchema = new Schema(
-//   {
-//     basic_info: { type: baseInfo, required: false },
-//     // activity_data: { type: cartInfo, required: false },
-//     login_data: { type: securityInfo, required: true },
-//     allDecks: [Deck.schema], // add this line
-//     allCollections: [collectionSchema], // add this line
-//     allChartData: [ChartDataSchema], // add this line
-//     allCronData: [CronDataSchema], // add this line
-//   },
-//   { timestamps: true },
-// );

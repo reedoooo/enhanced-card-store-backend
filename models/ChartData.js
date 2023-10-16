@@ -19,6 +19,7 @@ const ChartDataSchema = new Schema({
           label: String,
           x: Date,
           y: Number,
+          // dataPoint: { type: Schema.Types.ObjectId, ref: 'DataPoint' },
         },
       ],
     },

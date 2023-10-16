@@ -1,26 +1,14 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
-const CardImageSchema = new Schema({
-  id: {
-    type: Number,
-    required: true,
-  },
-  image_url: {
-    type: String,
-    required: true,
-  },
-});
-
-const CardPriceSchema = new Schema({
-  tcgplayer_price: {
-    type: Number,
-    required: true,
-  },
-});
-
 const CardInCartSchema = new Schema({
-  card: { type: Schema.Types.ObjectId, ref: 'CardBase' }, // reference to the CardBase
+  card: { type: Schema.Types.ObjectId, ref: 'CardBase' },
+  cardId: {
+    type: Schema.Types.ObjectId,
+    required: true,
+    unique: true,
+    sparse: true,
+  },
   quantity: {
     type: Number,
     required: true,

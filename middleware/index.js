@@ -54,6 +54,12 @@ module.exports = function applyCustomMiddleware(app, server) {
   // app.use(logger('dev'));
   app.use(express.static(path.join(__dirname, '../public')));
   app.use(express.json());
+  app.use((err, req, res, next) => {
+    if (res.headersSent) {
+      return next(err);
+    }
+    res.status(500).json({ error: err.message });
+  });
 
   app.use(
     cors({

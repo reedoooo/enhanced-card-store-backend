@@ -28,7 +28,13 @@ const { Schema } = mongoose;
 //   },
 // });
 const CardInDeckSchema = new Schema({
-  card: { type: Schema.Types.ObjectId, ref: 'CardBase' }, // reference to the CardBase
+  card: { type: Schema.Types.ObjectId, ref: 'CardBase' },
+  cardId: {
+    type: Schema.Types.ObjectId,
+    required: true,
+    unique: true,
+    sparse: true,
+  },
   quantity: {
     type: Number,
     // required: true,

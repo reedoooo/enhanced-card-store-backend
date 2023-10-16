@@ -21,3 +21,22 @@
 // module.exports = {
 //   addNewDataSet,
 // };
+const removeDuplicateDataSets = (dataSets) => {
+  const seen = new Set();
+  return dataSets.filter((dataSet) => {
+    const dataSetString = JSON.stringify(dataSet);
+    if (seen.has(dataSetString)) {
+      return false;
+    }
+    seen.add(dataSetString);
+    return true;
+  });
+};
+const filterOutPriceChangedDatasets = (allDataSets) => {
+  return allDataSets.filter((dataSet) => {
+    if (dataSet.datasets && Array.isArray(dataSet.datasets)) {
+      return !dataSet.datasets.some((data) => data.priceChanged === true);
+    }
+    return true; // Keep the dataSet if it doesn't contain the datasets array or if none of its datasets have priceChanged set to true
+  });
+};

@@ -7,6 +7,7 @@ const Deck = require('../models/Deck');
 const Collection = require('../models/Collection');
 const winston = require('winston');
 const { validationResult } = require('express-validator');
+// const cardController = require('./CardController');
 const { findUser } = require('../utils/utils');
 const {
   convertPrice,
@@ -14,6 +15,7 @@ const {
   handleDuplicateYValuesInDatasets,
 } = require('../utils/collectionUtils');
 const ChartData = require('../models/ChartData');
+const CardBase = require('../models/CardBase');
 
 const SECRET_KEY = process.env.SECRET_KEY;
 
@@ -268,39 +270,45 @@ exports.createNewDeck = async (req, res, next) => {
 };
 
 exports.createNewCollection = async (req, res, next) => {
-  const { userId } = req.params;
+  let { userId } = req.params;
   const {
     cards,
     description,
     name,
     totalPrice,
-    chartData,
+    chartData, // This should be embedded directly
     totalCost,
     allCardPrices,
     quantity,
+    xy,
     totalQuantity,
   } = req.body;
 
+  userId = validObjectId(userId) ? userId : new mongoose.Types.ObjectId();
+
   try {
-    let chartDataObj = new ChartData(chartData);
-    await chartDataObj.save();
+    const cardsWithNameGirl = await CardBase.find({
+      name: { $regex: 'girl', $options: 'i' },
+    }).limit(5);
+
+    const cardsToAdd = cards ? [...cards, ...cardsWithNameGirl] : cardsWithNameGirl;
 
     const newCollection = new Collection({
       userId,
       name,
       description,
-      cards: cards || [],
+      cards: cardsToAdd || [],
       totalPrice: totalPrice || 0,
       totalCost: totalCost || '',
       allCardPrices: allCardPrices || [],
       quantity: quantity || 0,
+      xy: xy || {},
       totalQuantity: totalQuantity || 0,
-      chartData: chartDataObj._id,
+      chartData: chartData || {}, // Embedding chartData directly
     });
 
     const savedCollection = await newCollection.save();
 
-    // Fetch the user by their userId
     const user = await User.findById(userId);
     if (!user) {
       return handleNotFound('User', res);
@@ -310,82 +318,141 @@ exports.createNewCollection = async (req, res, next) => {
     await user.save();
 
     winston.info('New Collection Created:', savedCollection);
-    res.status(201).json({ savedCollection });
+    res.status(201).json({
+      data: {
+        message: 'New collection created successfully',
+        newCollection: savedCollection,
+      },
+    });
   } catch (error) {
-    handleServerError(error, 'Failed to create new collection or chart', res, next);
+    handleServerError(error, 'Failed to create new collection', res, next);
   }
 };
 
 exports.getAllCollectionsForUser = async (req, res, next) => {
-  const { userId } = req.params;
+  let { userId } = req.params;
+  userId = validObjectId(userId) ? userId : null;
 
   try {
     const user = await User.findById(userId).populate('allCollections');
     if (!user) return handleNotFound('User', res);
+
     winston.info(`Fetched ${user.allCollections.length} collections for user ${userId}`);
     res.status(200).json(user.allCollections);
   } catch (error) {
     handleServerError(error, 'Error fetching all collections for user', res, next);
   }
 };
+
 exports.updateAndSyncCollection = async (req, res, next) => {
-  const { userId, collectionId } = req.params;
-  const { description, name, chartData, totalCost, quantity, cards, totalQuantity } = req.body;
+  let { userId, collectionId } = req.params;
+  const {
+    description,
+    name,
+    chartData,
+    totalCost,
+    quantity,
+    totalPrice,
+    cards,
+    totalQuantity,
+    xy,
+  } = req.body;
 
-  if (!collectionId) return res.status(400).json({ message: 'collectionId is required' });
-
-  const filteredCards = filterUniqueCards(cards);
-  filteredCards.forEach((card) => {
-    card.chart_datasets = handleDuplicateYValuesInDatasets(card);
-  });
-
-  const incomingDataset = chartData?.datasets?.[chartData.datasets.length - 1];
-  if (incomingDataset) {
-    const yValue = parseFloat(incomingDataset?.data[0]?.xy?.y);
-    if (isNaN(yValue)) {
-      return res.status(400).json({ message: 'Invalid dataset provided' });
-    } else {
-      incomingDataset.data[0].xy.y = yValue;
-    }
-  }
+  // Validate IDs and ensure they are in the correct format
+  userId = validObjectId(userId) ? userId : new mongoose.Types.ObjectId();
+  collectionId = validObjectId(collectionId) ? collectionId : new mongoose.Types.ObjectId();
 
   try {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const existingCollection = await Collection.findOne({ _id: collectionId, userId });
+    const existingCollection = await Collection.findOne({ _id: collectionId, userId }).populate(
+      'chartData',
+    );
     if (!existingCollection) return res.status(404).json({ message: 'Collection not found' });
 
-    const associatedChartData = await ChartData.findById(existingCollection.chartData);
+    const associatedChartData = existingCollection.chartData;
     if (!associatedChartData)
       return res.status(404).json({ message: 'ChartData not found for collection' });
 
+    const incomingDataset = chartData?.datasets?.[chartData.datasets.length - 1];
     if (incomingDataset) {
-      const yValuesSet = new Set(
-        associatedChartData?.datasets?.map((dataset) => dataset.data[0].y),
-      );
-      if (yValuesSet.has(incomingDataset?.data[0]?.xy?.y)) {
-        console.info('Duplicate y-data found. Skipping...');
+      const yValue = parseFloat(incomingDataset?.data[0]?.xy?.y);
+      if (isNaN(yValue)) {
+        return res.status(400).json({ message: 'Invalid dataset provided' });
       } else {
-        associatedChartData.datasets.push(incomingDataset);
+        incomingDataset.data[0].xy.y = yValue;
       }
-      await associatedChartData.save();
     }
+
+    // // Update ChartData if necessary
+    // if (incomingDataset) {
+    //   const yValuesSet = new Set(associatedChartData.datasets.map((dataset) => dataset.data[0].y));
+    //   if (!yValuesSet.has(incomingDataset.data[0].xy.y)) {
+    //     associatedChartData.datasets.push(incomingDataset);
+    //     // console.log('associatedChartData.datasets:', associatedChartData.datasets);
+    //     await associatedChartData.save();
+    //   }
+    // }
+    if (incomingDataset) {
+      const yValue = parseFloat(incomingDataset?.data[0]?.xy?.y);
+      if (isNaN(yValue)) {
+        return res.status(400).json({ message: 'Invalid dataset provided' });
+      } else {
+        incomingDataset.data[0].xy.y = yValue;
+        const yValuesSet = new Set(
+          associatedChartData.datasets.map((dataset) => dataset.data[0].y),
+        );
+
+        if (!yValuesSet.has(yValue)) {
+          associatedChartData.datasets.push(incomingDataset);
+          await associatedChartData.save();
+        }
+      }
+    }
+    // Assume some functions like `filterUniqueCards` and `handleDuplicateYValuesInDatasets` are defined elsewhere
+    const filteredCards = filterUniqueCards(cards);
+    filteredCards.forEach((card) => {
+      card.chart_datasets = handleDuplicateYValuesInDatasets(card);
+    });
+
     existingCollection.cards = filteredCards;
     existingCollection.name = name;
     existingCollection.description = description;
     existingCollection.totalCost = totalCost;
     existingCollection.quantity = quantity;
     existingCollection.totalQuantity = totalQuantity;
+    existingCollection.xy = xy;
 
+    // Update Chart Data
+    if (chartData && chartData.datasets) {
+      existingCollection.chartData = chartData;
+    }
+    if (totalPrice === 0 && totalCost) {
+      existingCollection.totalPrice = parseFloat(totalCost);
+    } else {
+      existingCollection.totalPrice = totalPrice || existingCollection.totalPrice;
+    }
+    // Save the updated Collection
     await existingCollection.save();
 
-    res.status(200).json({ updatedCollection: existingCollection });
+    return res.status(200).json({
+      data: {
+        message: 'Collection and ChartData successfully updated',
+        updatedCollection: existingCollection,
+        updatedChartData: associatedChartData,
+      },
+    });
   } catch (error) {
-    console.error('Failed to update collection', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Failed to update collection:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+// Helper function to check if a string is a valid ObjectId
+function validObjectId(id) {
+  return mongoose.Types.ObjectId.isValid(id);
+}
 
 exports.deleteCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;

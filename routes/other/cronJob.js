@@ -1,4 +1,3 @@
-const { Collection } = require('../../models/Collection');
 const User = require('../../models/User');
 const { getIO } = require('../../socket');
 
@@ -31,60 +30,102 @@ const updateUserCollections = async (userId, pricingData) => {
   }
 
   try {
-    // Get the user's collections.
-    if (!userId) {
-      throw new Error('User ID is missing.');
-    }
     const user = await User.findById(userId).populate('allCollections');
     if (!user) {
       throw new Error('User not found.');
     }
 
     const userCollections = user.allCollections;
-    // Get the user's collections.
-    // const userCollections = await Collection.find({ userId: userId }).populate('cards');
-    console.log('userCollections:', userCollections);
-    // const userCollections = await User.find({ userId: userId });
     if (!userCollections || !Array.isArray(userCollections)) {
       throw new Error(
         'Failed to retrieve user collections or collections are not in the expected format.',
       );
     }
 
-    // Iterate over each collection and update the cards if the prices have shifted.
     for (const collection of userCollections) {
       if (!collection.cards || !Array.isArray(collection.cards)) {
         console.error('Invalid cards array in collection:', collection._id);
         continue;
       }
 
+      collection.totalPrice = collection.cards.reduce(
+        (acc, card) => acc + collection.allCardPrices,
+        0,
+      );
+      collection.updatedAt = new Date();
+
+      if (collection.totalPrice === 0 && typeof collection.totalCost === 'string') {
+        collection.totalPrice = parseFloat(collection.totalCost);
+      }
+
       for (const card of collection.cards) {
         if (card.id && pricingData.updatedPrices[card.id]) {
-          card.price = pricingData.updatedPrices[card.id]; // Update the card price to the new one
+          card.price = pricingData.updatedPrices[card.id];
+          // Add additional logic for updating chart_datasets if required
         } else if (!card.price) {
-          // If there's no updated price and the card doesn't have an existing price,
-          // handle the case, e.g., skip updating this card, set a default price, or handle in some other manner
           console.error(`No price available for card ID: ${card.id}`);
-          continue; // This will skip updating this card in the current loop iteration
+          continue;
         }
       }
 
-      // Update the collection's totalPrice
-      collection.totalPrice = collection.cards.reduce((acc, card) => acc + card.price, 0);
-      // Update the collection's updatedAt timestamp
+      // const oldTotalPrice = collection.totalPrice; // Store the old totalPrice for comparison
+
+      // collection.totalPrice = collection.cards.reduce((acc, card) => acc + card.price, 0);
       collection.updatedAt = new Date();
 
-      // Save the collection
+      // Add logic for updating currentChartDatasets
+      if (!collection.currentChartDatasets) {
+        // Ensure to create an object which adheres to the new model format
+        collection.currentChartDatasets = [
+          {
+            id: collection._id.toString(), // Assume the collection id is used here
+            data: {
+              x: collection.updatedAt,
+              y: collection?.totalPrice === 0 ? collection?.totalCost : collection?.totalPrice,
+            },
+          },
+        ];
+      } else {
+        // If currentChartDatasets already exist, find the dataset for the current collection using id
+        const existingDataset = collection.currentChartDatasets.find(
+          (ds) => ds.id === collection._id.toString(),
+        );
+        console.log('+++++++++++++++++++ExistingDataset:', existingDataset);
+        console.log('+++++++++++++++++++Collection:', collection);
+        console.log('+++++++++++++++++++Collection._id:', collection._id);
+        console.log('+++++++++++++++++++Collection._id.toString():', collection.totalPrice);
+        // If existing dataset is found, update the data for that dataset
+        if (existingDataset) {
+          existingDataset.data = {
+            x: collection?.updatedAt,
+            y: collection?.totalPrice,
+          };
+        }
+        // If no existing dataset is found, add a new one
+        else {
+          collection.currentChartDatasets.push({
+            id: collection._id.toString(),
+            data: {
+              x: collection.updatedAt,
+              y: collection.totalPrice,
+            },
+          });
+        }
+      }
+
       await collection.save();
 
-      console.log('Collection has been updated:', collection);
+      console.log('Collection has been updated:', collection.name);
+      // Emit the updated chart datasets to the clients
+      io.emit('CHART_DATASETS_UPDATED', {
+        message: 'Chart datasets have been updated',
+        collectionId: collection._id,
+        currentChartDatasets: collection.currentChartDatasets,
+      });
     }
 
-    // Save the user
     await user.save();
 
-    // console.log('Collections have been updated');
-    // console.log('userCollections:', userCollections);
     io.emit('COLLECTIONS_UPDATED', { message: 'Collections have been updated' });
 
     if (userCollections && userCollections.length > 0) {
