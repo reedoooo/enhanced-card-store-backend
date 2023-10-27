@@ -9,9 +9,49 @@ const CardInCollectionSchema = new Schema({
   totalPrice: Number,
   quantity: { type: Number, required: true },
   chart_datasets: [
+    // This field matches the schema
     {
       x: { type: Date, required: true },
       y: { type: Number, required: true },
+    },
+  ],
+});
+
+const DatasetSchema = new Schema({
+  name: String,
+  // priceChangeDetails: {
+  //   priceChanged: Boolean,
+  //   initialPrice: Number,
+  //   updatedPrice: Number,
+  //   priceDifference: Number,
+  //   priceChange: Number,
+  // },
+  data: [
+    {
+      xys: [
+        {
+          label: String,
+          data: { x: Date, y: Number },
+        },
+      ],
+      additionalPriceData: [
+        {
+          // New field to store extra data
+          priceChanged: Boolean,
+          initialPrice: Number,
+          updatedPrice: Number,
+          priceDifference: Number,
+          priceChange: Number,
+        },
+      ],
+      // additionalPriceData: {
+      //   // New field to store extra data
+      //   priceChanged: Boolean,
+      //   initialPrice: Number,
+      //   updatedPrice: Number,
+      //   priceDifference: Number,
+      //   priceChange: Number,
+      // },
     },
   ],
 });
@@ -20,6 +60,20 @@ const collectionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   name: String,
   description: String,
+  totalCost: String,
+  totalPrice: Number,
+  quantity: Number,
+  totalQuantity: Number,
+  previousDayTotalPrice: Number,
+  dailyPriceChange: Number,
+  priceDifference: Number,
+  priceChange: Number,
+  allCardPrices: [
+    {
+      // cardName: String,
+      cardPrice: Number,
+    },
+  ],
   cards: [CardInCollectionSchema],
   currentChartDatasets: [
     {
@@ -30,40 +84,34 @@ const collectionSchema = new mongoose.Schema({
       },
     },
   ],
-  totalCost: String,
-  totalPrice: Number,
-  quantity: Number,
-  totalQuantity: Number,
-  // chartData: { type: Schema.Types.ObjectId, ref: 'ChartData' },
-  xy: {
-    x: Date,
-    y: Number,
-  },
+  xys: [
+    {
+      label: String,
+      data: { x: Date, y: Number },
+    },
+  ],
+  // {
+  //   x: Date,
+  //   y: Number,
+  // },
   chartData: {
     name: String,
-    datasets: [
+    userId: { type: Schema.Types.ObjectId, ref: 'User' },
+    datasets: [DatasetSchema], // Use DatasetSchema here
+    xys: [
       {
-        name: String,
-        priceChangeDetails: {
-          priceChanged: Boolean,
-          initialPrice: Number,
-          updatedPrice: Number,
-          priceDifference: Number,
-          priceChange: Number,
-        },
-        data: [
-          {
-            label: String,
-            x: Date,
-            y: Number,
-          },
-        ],
+        label: String,
+        data: { x: Date, y: Number },
       },
     ],
-    chartData: {
-      type: Object,
-      default: {},
-    },
+    allXYValues: [
+      // New field to store all xy values
+      {
+        label: String,
+        x: Date,
+        y: Number,
+      },
+    ],
   },
 });
 

@@ -1,3 +1,5 @@
+const CustomError = require('../../middleware/customError');
+const { handleError } = require('../../middleware/handleErrors');
 const User = require('../../models/User');
 const { getIO } = require('../../socket');
 
@@ -6,137 +8,153 @@ const isValidObjectId = (id) => {
   return ObjectIdRegEx.test(id);
 };
 
-const updateUserCollections = async (userId, pricingData) => {
-  const io = getIO();
-
-  if (!userId || typeof userId !== 'string') {
-    throw new Error('UserId is missing, invalid, or not in the correct format.');
-  }
-
-  if (
-    !pricingData ||
-    typeof pricingData.updatedPrices !== 'object' ||
-    Object.keys(pricingData.updatedPrices).length === 0
-  ) {
-    throw new Error('Invalid updatedPrices provided.');
-  }
-
-  if (
-    !pricingData ||
-    typeof pricingData.previousPrices !== 'object' ||
-    Object.keys(pricingData.previousPrices).length === 0
-  ) {
-    throw new Error('Invalid previousPrices provided.');
-  }
-
+const validateInput = (userId, pricingData) => {
   try {
-    const user = await User.findById(userId).populate('allCollections');
-    if (!user) {
-      throw new Error('User not found.');
+    if (!isValidObjectId(userId)) {
+      throw new CustomError('UserId is missing, invalid, or not in the correct format.', 400);
+    }
+    if (!pricingData) {
+      throw new CustomError('Pricing data is not provided.', 400);
     }
 
-    const userCollections = user.allCollections;
-    if (!userCollections || !Array.isArray(userCollections)) {
-      throw new Error(
+    ['updatedPrices', 'previousPrices'].forEach((priceType) => {
+      if (typeof pricingData[priceType] !== 'object') {
+        throw new CustomError(`Invalid ${priceType} provided.`, 400);
+      }
+    });
+  } catch (error) {
+    handleError(error);
+    throw error;
+  }
+};
+
+const updateUserCard = (card, pricingData) => {
+  try {
+    if (!card) {
+      console.error('Card is missing.');
+      return undefined;
+    }
+
+    if (!card.id) {
+      console.error('Card ID is missing.', { card });
+      return card;
+    }
+
+    const updatedCard = { ...card };
+    const updatedPriceInfo = pricingData?.updatedPrices[card.id];
+    console.log('UPDATED CARD:', updatedCard);
+    console.log('UPDATED PRICE INFO:', updatedPriceInfo);
+    if (updatedPriceInfo) {
+      const newPrice = parseFloat(updatedPriceInfo?.updatedPrice);
+      if (!isNaN(newPrice) && newPrice >= 0) {
+        updatedCard.price = newPrice;
+        updatedCard.totalPrice = newPrice * (card.quantity || 1);
+      } else {
+        console.error(`Invalid price for card ID: ${card.id}`);
+      }
+    } else {
+      console.warn(`No updated price available for card ID: ${card.id}. Keeping original price.`);
+    }
+
+    return updatedCard;
+  } catch (error) {
+    handleError(error, { card, pricingData });
+    return undefined;
+  }
+};
+
+const updateCurrentChartDatasets = (collection) => {
+  try {
+    if (!collection) {
+      console.error('Collection is not provided.');
+      return undefined;
+    }
+
+    const collectionIdStr = collection._id.toString();
+    const newDataset = {
+      id: collectionIdStr,
+      data: {
+        xy: collection.xy || [],
+      },
+    };
+
+    if (!collection.currentChartDatasets) {
+      collection.currentChartDatasets = [newDataset];
+    } else {
+      const existingDatasetIndex = collection.currentChartDatasets.findIndex(
+        (ds) => ds.id === collectionIdStr,
+      );
+      if (existingDatasetIndex !== -1) {
+        collection.currentChartDatasets[existingDatasetIndex].data = newDataset.data;
+      } else {
+        collection.currentChartDatasets.push(newDataset);
+      }
+    }
+  } catch (error) {
+    handleError(error, { collection });
+    return undefined;
+  }
+};
+
+const updateUserCollections = async (userId, updatedData) => {
+  const { pricingData, body } = updatedData;
+
+  const io = getIO();
+
+  try {
+    validateInput(userId, pricingData);
+
+    if (Object.keys(pricingData.updatedPrices).length === 0) {
+      console.log('No updated prices. Skipping collection update.');
+      return { message: 'No updated prices. Collection update skipped.' };
+    }
+
+    const user = await User.findById(userId).populate('allCollections');
+    if (!user) {
+      throw new CustomError('User not found.', 404);
+    }
+
+    if (!Array.isArray(user.allCollections)) {
+      throw new CustomError(
         'Failed to retrieve user collections or collections are not in the expected format.',
+        500,
       );
     }
 
-    for (const collection of userCollections) {
-      if (!collection.cards || !Array.isArray(collection.cards)) {
-        console.error('Invalid cards array in collection:', collection._id);
+    for (const collection of user.allCollections) {
+      if (!Array.isArray(collection.cards)) {
+        console.error('Invalid cards array in collection:', { collectionId: collection._id });
         continue;
       }
 
-      collection.totalPrice = collection.cards.reduce(
-        (acc, card) => acc + collection.allCardPrices,
-        0,
-      );
+      collection.cards = collection.cards.map((card) => updateUserCard(card, pricingData)) || [];
+
+      const previousDayTotalPrice = collection.previousDayTotalPrice || 0;
+      collection.totalPrice = collection.cards.reduce((acc, card) => acc + (card?.price || 0), 0);
+      collection.dailyPriceChange = collection.totalPrice - previousDayTotalPrice;
       collection.updatedAt = new Date();
 
-      if (collection.totalPrice === 0 && typeof collection.totalCost === 'string') {
+      if (!collection.totalPrice && typeof collection.totalCost === 'string') {
         collection.totalPrice = parseFloat(collection.totalCost);
       }
 
-      for (const card of collection.cards) {
-        if (card.id && pricingData.updatedPrices[card.id]) {
-          card.price = pricingData.updatedPrices[card.id];
-          // Add additional logic for updating chart_datasets if required
-        } else if (!card.price) {
-          console.error(`No price available for card ID: ${card.id}`);
-          continue;
-        }
-      }
-
-      // const oldTotalPrice = collection.totalPrice; // Store the old totalPrice for comparison
-
-      // collection.totalPrice = collection.cards.reduce((acc, card) => acc + card.price, 0);
-      collection.updatedAt = new Date();
-
-      // Add logic for updating currentChartDatasets
-      if (!collection.currentChartDatasets) {
-        // Ensure to create an object which adheres to the new model format
-        collection.currentChartDatasets = [
-          {
-            id: collection._id.toString(), // Assume the collection id is used here
-            data: {
-              x: collection.updatedAt,
-              y: collection?.totalPrice === 0 ? collection?.totalCost : collection?.totalPrice,
-            },
-          },
-        ];
-      } else {
-        // If currentChartDatasets already exist, find the dataset for the current collection using id
-        const existingDataset = collection.currentChartDatasets.find(
-          (ds) => ds.id === collection._id.toString(),
-        );
-        console.log('+++++++++++++++++++ExistingDataset:', existingDataset);
-        console.log('+++++++++++++++++++Collection:', collection);
-        console.log('+++++++++++++++++++Collection._id:', collection._id);
-        console.log('+++++++++++++++++++Collection._id.toString():', collection.totalPrice);
-        // If existing dataset is found, update the data for that dataset
-        if (existingDataset) {
-          existingDataset.data = {
-            x: collection?.updatedAt,
-            y: collection?.totalPrice,
-          };
-        }
-        // If no existing dataset is found, add a new one
-        else {
-          collection.currentChartDatasets.push({
-            id: collection._id.toString(),
-            data: {
-              x: collection.updatedAt,
-              y: collection.totalPrice,
-            },
-          });
-        }
-      }
-
+      updateCurrentChartDatasets(collection);
       await collection.save();
 
-      console.log('Collection has been updated:', collection.name);
-      // Emit the updated chart datasets to the clients
-      io.emit('CHART_DATASETS_UPDATED', {
-        message: 'Chart datasets have been updated',
+      io.emit('HANDLE_UPDATE_AND_SYNC_COLLECTION', {
+        userId,
         collectionId: collection._id,
-        currentChartDatasets: collection.currentChartDatasets,
+        body,
       });
     }
 
-    await user.save();
-
-    io.emit('COLLECTIONS_UPDATED', { message: 'Collections have been updated' });
-
-    if (userCollections && userCollections.length > 0) {
-      io.emit('RESPONSE_CRON_UPDATED_ALLCOLLECTIONS', {
-        message: 'Cards have been updated',
-        collections: userCollections,
-      });
-    }
+    return {
+      message: 'Collections have been updated',
+      collections: user.allCollections,
+    };
   } catch (error) {
-    console.error(error.message);
-    throw new Error('Error updating user collections');
+    handleError(error, { userId, updatedData });
+    return undefined;
   }
 };
 
