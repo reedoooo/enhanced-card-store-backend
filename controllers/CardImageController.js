@@ -3,7 +3,7 @@ const download = require('image-downloader');
 const path = require('path');
 
 // Load your card data
-const rawData = fs.readFileSync('./routes/api/cardinfo.php.json');
+const rawData = fs.readFileSync('./data/cardinfo.php.json');
 const data = JSON.parse(rawData).data;
 
 // Define the directory where the downloaded images are located

@@ -9,10 +9,11 @@ const User = require('../models/User');
 //   message: 'Too many requests created from this IP, please try again after a minute',
 // });
 
-// Middleware to handle async functions
 function asyncHandler(fn) {
   return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
+    Promise.resolve(fn(req, res, next)).catch((error) => {
+      next(error);
+    });
   };
 }
 

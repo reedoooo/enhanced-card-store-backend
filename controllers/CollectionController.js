@@ -1,4 +1,4 @@
-const { Collection, CollectionModel } = require('../models/Collection.js');
+const { Collection } = require('../models/Collection.js');
 
 // Get all collections for a specific user
 exports.getAllCollectionsForUser = async (req, res) => {
@@ -50,7 +50,7 @@ exports.createEmptyCollection = async (req, res) => {
   try {
     const userId = req.params.userId;
     const { name, description, items } = req.body;
-    const newCollection = new CollectionModel({
+    const newCollection = new Collection({
       userId,
       name,
       description,
@@ -93,7 +93,7 @@ exports.createOrUpdateCollection = async (req, res) => {
   try {
     let collection = await Collection.findOne({ userId });
     if (!collection) {
-      collection = new CollectionModel({
+      collection = new Collection({
         userId,
         items: [itemData],
       });

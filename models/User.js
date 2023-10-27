@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Deck = require('./Deck');
-const Collection = require('./Collection');
+const { CronDataSchema } = require('./CronData');
+const { collectionSchema, ChartDataSchema } = require('./Collection');
 
 const { Schema } = mongoose;
 // const cartInfo = require('./Cart.js');
@@ -15,7 +16,7 @@ const baseInfo = new Schema({
 
 const roleSchema = new Schema({
   name: { type: String, required: true },
-  capabilities: [String],
+  capabilities: [Array],
 });
 
 const securityInfo = new Schema({
@@ -28,15 +29,19 @@ const securityInfo = new Schema({
 
 const UserSchema = new Schema(
   {
-    basic_info: { type: baseInfo, required: false },
-    // activity_data: { type: cartInfo, required: false },
-    login_data: { type: securityInfo, required: true },
-    allDecks: [Deck.schema], // add this line
-    allCollections: [Collection.CollectionSchema], // add this line
-    allChartData: [Collection.ChartDataSchema], // add this line
-    // allChartData: [Collection.ChartData.schema], // add this line
-    // allChartData: ChartDataSchema,
-    // allDataSets: [ChartDataSchema],
+    basic_info: baseInfo,
+    login_data: {
+      type: securityInfo,
+      required: true,
+    },
+    // cards: [{ type: Schema.Types.ObjectId, ref: 'CardBase' }],
+    allDecks: [{ type: Schema.Types.ObjectId, ref: 'Deck' }],
+    allCollections: [{ type: Schema.Types.ObjectId, ref: 'Collection' }],
+    allChartData: [{ type: Schema.Types.ObjectId, ref: 'ChartData' }],
+    allCronData: [{ type: Schema.Types.ObjectId, ref: 'CronData' }],
+    cart: { type: Schema.Types.ObjectId, ref: 'Cart' }, // Added this line
+
+    // allCronData: [CronDataSchema],
   },
   { timestamps: true },
 );
