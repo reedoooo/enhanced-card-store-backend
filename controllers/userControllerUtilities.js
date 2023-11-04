@@ -2,14 +2,18 @@ const mongoose = require('mongoose');
 const winston = require('winston'); // Assuming winston is installed and configured
 const User = require('../models/User'); // Adjust the path as necessary
 const Collection = require('../models/Collection'); // Adjust the path as necessary
-const { logger, cardPriceLogger, logToAllSpecializedLoggers } = require('../middleware/infoLogger');
+const { logger, logToAllSpecializedLoggers } = require('../middleware/infoLogger');
 const { validationResult } = require('express-validator');
 const CustomError = require('../middleware/customError');
 const { STATUS, MESSAGES, ERROR_SOURCES } = require('../constants');
-const { directError } = require('./userControllerResponses');
-const validateDataset = require('./validateDataset');
-const validateCard = require('./validateCard');
-const validateXY = require('./validateXY');
+const { validateCardInCollection } = require('./validateCollection');
+const { validateXY } = require('./validateXY');
+const { validateDataset } = require('./validateDataset');
+const { validateCard } = require('./validateCard');
+// const { validateCardBase } = require('./validateCardBase');
+// const { validateCard } = require('./validateCard');
+// const { validateCollection } = require('./validateCollection');
+// const { validateUser } = require('./validateUser');
 
 // exports.handleErrors = (res, error, next) => {
 //   winston.error('Error:', error);
@@ -47,33 +51,33 @@ exports.handleValidationErrors = (req, res, next) => {
     next();
   }
 };
-exports.logBodyDetails = (body) => {
-  // Log the details of the request body
-  try {
-    const fieldsToLog = [
-      'chartData',
-      'allCardPrices',
-      'userId',
-      '_id',
-      'name',
-      'description',
-      'totalCost',
-      'totalPrice',
-      'quantity',
-      'totalQuantity',
-      'xys',
-      'dailyPriceChange',
-    ];
-    fieldsToLog.forEach((field) => logger.info(`${field}: ${JSON.stringify(body[field])}`));
+// exports.logBodyDetails = (body) => {
+//   // Log the details of the request body
+//   try {
+//     const fieldsToLog = [
+//       'chartData',
+//       'allCardPrices',
+//       'userId',
+//       '_id',
+//       'name',
+//       'description',
+//       'totalCost',
+//       'totalPrice',
+//       'quantity',
+//       'totalQuantity',
+//       'xys',
+//       'dailyPriceChange',
+//     ];
+//     fieldsToLog.forEach((field) => logger.info(`${field}: ${JSON.stringify(body[field])}`));
 
-    if (Array.isArray(body.cards) && body.cards.length > 0) {
-      const firstCard = body.cards[0];
-      logger.info('First Card:', firstCard);
-    }
-  } catch (error) {
-    throw new CustomError(`Failed to log body details: ${error.message}`, 500, true, { body });
-  }
-};
+//     if (Array.isArray(body.cards) && body.cards.length > 0) {
+//       const firstCard = body.cards[0];
+//       logger.info('First Card:', firstCard);
+//     }
+//   } catch (error) {
+//     throw new CustomError(`Failed to log body details: ${error.message}`, 500, true, { body });
+//   }
+// };
 
 exports.handleDuplicateYValuesInDatasets = (card) => {
   // Filter out duplicate y values in datasets
@@ -163,128 +167,172 @@ exports.ensureCollectionExists = async (userId) => {
   }
 };
 
-// DIRECTLY RELATED TO USERCONTROLLER
-exports.handleIncomingDatasets = (existingCollection, incomingDatasets) => {
-  if (!existingCollection || !incomingDatasets) return;
+// Assuming that validateDataset, validateXY, validateCard, CustomError, STATUS,
+// MESSAGES, ERROR_SOURCES, User, Collection, and other required entities are already defined elsewhere.
+// let validationErrors = [];
 
-  incomingDatasets.forEach((incomingDataset) => {
-    // Assume validateDataset is a function that returns a boolean
-    if (!validateDataset(incomingDataset)) {
-      // Validate incoming dataset
-      console.log('Invalid dataset structure', incomingDataset);
-      throw new CustomError('Invalid dataset structure', 400);
+// Assume validateDataset, validateXY, logToAllSpecializedLoggers, and other dependencies are defined elsewhere.
+
+exports.handleIncomingDatasets = async (existingCollection, incomingDatasets) => {
+  const validationErrors = [];
+
+  for (const incomingDataset of incomingDatasets) {
+    if (!validateDataset(existingCollection, incomingDataset)) {
+      validationErrors.push({ message: 'Invalid Dataset', dataset: incomingDataset });
+      continue;
     }
 
-    const existingDataset = existingCollection.chartData.datasets.find(
+    let datasetToUpdate = existingCollection.chartData.datasets.find(
       (dataset) => dataset.name === incomingDataset.name,
     );
 
-    if (existingDataset) {
-      existingDataset.data = [...existingDataset.data, ...incomingDataset.data];
+    if (datasetToUpdate) {
+      datasetToUpdate.data = datasetToUpdate.data.map((dataItem, index) => ({
+        ...dataItem,
+        xys: [...dataItem.xys, ...incomingDataset.data[index].xys],
+      }));
     } else {
-      existingCollection.chartData.datasets.push(incomingDataset);
+      const newDataset = {
+        name: incomingDataset.name,
+        data: incomingDataset.data.map((dataItem) => ({
+          xys: dataItem.xys.map((xy) => ({ label: xy.label, data: { x: xy.x, y: xy.y } })),
+        })),
+      };
+      existingCollection.chartData.datasets.push(newDataset);
     }
-  });
-};
-exports.handleIncomingXY = (existingCollection, incomingXYS) => {
-  if (!existingCollection || !incomingXYS) {
-    throw new CustomError('Existing collection or incoming XY data is missing', 400);
   }
 
-  incomingXYS.forEach((incomingXY) => {
-    if (!validateXY(incomingXY)) {
-      // Validate incoming XY
-      throw new CustomError('Invalid XY structure', 400);
-    }
-
-    const existingXY = existingCollection.chartData.xys.find(
-      (xydata) => xydata.label === incomingXY.label,
+  try {
+    await existingCollection.save();
+    logToAllSpecializedLoggers(
+      'info',
+      'Successfully saved existingCollection',
+      {
+        section: 'info',
+        data: existingCollection,
+      },
+      'log',
     );
+  } catch (err) {
+    logToAllSpecializedLoggers(
+      'error',
+      'Error occurred while saving existingCollection',
+      {
+        section: 'errors',
+        error: err,
+      },
+      'log',
+    );
+    validationErrors.push({ message: 'Error saving collection', error: err });
+  }
 
-    if (existingXY) {
-      existingXY.data.push({ x: incomingXY.x, y: incomingXY.y });
-    } else {
-      existingCollection.chartData.xys.push({
-        label: incomingXY.label,
-        data: [{ x: incomingXY.x, y: incomingXY.y }],
-      });
-    }
-  });
+  return validationErrors;
 };
+
+exports.handleIncomingXY = async (existingCollection, incomingXYS) => {
+  const validationErrors = [];
+  existingCollection.xys = existingCollection.xys || [];
+
+  for (const incomingXY of incomingXYS) {
+    const xyEntry = {
+      label: incomingXY.label,
+      data: incomingXY.data.map((xy) => ({ x: xy.x, y: xy.y })),
+    };
+
+    if (!validateXY(xyEntry)) {
+      validationErrors.push({ message: 'Invalid XY structure', xys: xyEntry });
+      continue;
+    }
+
+    const existingXY = existingCollection.xys.find((xy) => xy.label === incomingXY.label);
+    if (existingXY) {
+      existingXY.data.push(...xyEntry.data);
+    } else {
+      existingCollection.xys.push(xyEntry);
+    }
+  }
+
+  return validationErrors;
+};
+
 exports.processIncomingData = async (existingCollection, body) => {
-  const { cards, chartData, ...rest } = body;
-  if (chartData?.datasets) {
-    this.handleIncomingDatasets(existingCollection, chartData.datasets);
-  }
-  if (chartData?.xys) {
-    this.handleIncomingXY(existingCollection, chartData.xys);
-  }
+  const processErrors = [];
+  const { cards, chartData } = body;
 
   if (cards && !cards.every(validateCard)) {
-    throw new CustomError('Invalid card structure', 400);
+    processErrors.push({ message: 'Invalid card structure', cards });
   }
 
-  existingCollection.cards = cards;
+  if (chartData?.datasets) {
+    processErrors.push(
+      ...(await this.handleIncomingDatasets(existingCollection, chartData.datasets)),
+    );
+  }
 
-  Object.assign(existingCollection, rest);
+  if (chartData?.xys) {
+    processErrors.push(...(await this.handleIncomingXY(existingCollection, chartData.xys)));
+  }
 
-  return existingCollection;
+  if (processErrors.length > 0) {
+    return { errors: processErrors };
+  }
+
+  Object.assign(existingCollection, body, { xys: existingCollection.xys });
+
+  return { updatedCollection: existingCollection };
 };
 
 exports.handleUpdateAndSync = async (params, body) => {
-  const { userId, collectionId } = params;
-
   try {
+    const { userId, collectionId } = params;
+
     const user = await User.findById(userId);
-    if (!user) throw new CustomError('User not found', STATUS.NOT_FOUND);
+    if (!user) {
+      throw new CustomError('User not found', STATUS.NOT_FOUND);
+    }
 
     const existingCollection = await Collection.findOne({ _id: collectionId, userId });
-    if (!existingCollection) throw new CustomError('Collection not found', STATUS.NOT_FOUND);
+    if (!existingCollection) {
+      throw new CustomError('Collection not found', STATUS.NOT_FOUND);
+    }
 
-    const updatedCollection = await this.processIncomingData(existingCollection, body);
-    await updatedCollection.save();
+    // Ensure processIncomingData is awaited since it's potentially an asynchronous operation
+    const processData = await this.processIncomingData(existingCollection, body);
+    if (processData.errors && processData.errors.length) {
+      // Handle the errors case
+
+      // Log the errors
+      processData.errors.forEach((error) => {
+        logToAllSpecializedLoggers('error', error.message, { section: 'errors', error }, 'log');
+      });
+      logToAllSpecializedLoggers(
+        'info',
+        '[HANDLE UPDATE AND SYNC] --> Errors in processData',
+        { section: 'info', data: existingCollection },
+        'log',
+      );
+      return { errors: processData.errors };
+    }
+
+    await existingCollection.save();
 
     if (user.allCollections && !user.allCollections.includes(collectionId)) {
       user.allCollections.push(collectionId);
       await user.save();
     }
 
-    return {
-      status: STATUS.SUCCESS,
-      data: {
-        message: 'Collection and ChartData successfully updated',
-        updatedCollection,
-        userId,
-        collectionId,
-      },
-    };
-  } catch (error) {
-    logToAllSpecializedLoggers('Error in handleUpdateAndSync:', error);
-    // throw new CustomError(
-    //   `Failed to update and sync: ${error.message}`,
-    //   STATUS.INTERNAL_SERVER_ERROR,
-    //   true,
-    //   {
-    //     userId: params.userId,
-    //     collectionId: params.collectionId,
-    //     body,
-    //   },
-    // );
-    return directError(
-      // res,
-      'HANDLE_UPDATE_AND_SYNC',
-      error instanceof CustomError
-        ? error
-        : new CustomError(
-            MESSAGES.UPDATE_AND_SYNC_COLLECTION_ERROR,
-            STATUS.INTERNAL_SERVER_ERROR,
-            true,
-            {
-              source: ERROR_SOURCES.HANDLE_UPDATE_AND_SYNC,
-              detail: error.message || '',
-              stack: error.stack,
-            },
-          ),
+    // Successful update
+    logToAllSpecializedLoggers(
+      'info',
+      'Update and sync successful',
+      { section: 'info', data: existingCollection },
+      'log',
     );
+
+    return { updatedCollection: existingCollection };
+  } catch (error) {
+    // Log and re-throw the error for consistent error handling
+    logToAllSpecializedLoggers('error', error.message, { section: 'errors', error }, 'log');
+    throw error;
   }
 };

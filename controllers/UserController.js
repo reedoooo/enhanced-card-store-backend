@@ -21,7 +21,7 @@ const { directError, directResponse } = require('./userControllerResponses');
 const CustomError = require('../middleware/customError');
 const { STATUS, MESSAGES, ERROR_SOURCES } = require('../constants');
 const { handleError } = require('../middleware/handleErrors');
-const { logToAllSpecializedLoggers } = require('../middleware/infoLogger');
+const { logToAllSpecializedLoggers, respondToClient } = require('../middleware/infoLogger');
 const SECRET_KEY = process.env.SECRET_KEY;
 
 // Utility: Extract Data
@@ -239,6 +239,8 @@ exports.getUserById = async (req, res, next) => {
   }
 };
 
+// Refactored code for deck operations using directResponse and directError
+
 exports.getAllDecksForUser = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.userId);
@@ -263,15 +265,13 @@ exports.getAllDecksForUser = async (req, res, next) => {
       decks.push(newDeck);
     }
 
-    // Include section metadata when logging
-    logToAllSpecializedLoggers('Fetched all decks for user:', { section: 'decks', data: decks });
-
-    res.status(200).json({
-      message: 'Fetched all decks successfully',
-      data: { decks },
+    // Use directResponse for consistent logging and client response
+    directResponse(res, 'FETCH_ALL_DECKS', 'info', 'Fetched all decks successfully', {
+      data: decks,
     });
   } catch (error) {
-    directError(res, 'FETCH_ALL_DECKS_ERROR', error);
+    // Use directError for consistent error logging and client response
+    directError(res, 'FETCH_ALL_DECKS_ERROR', 'error', error);
   }
 };
 
@@ -290,20 +290,11 @@ exports.updateAndSyncDeck = async (req, res, next) => {
       throw new CustomError('Deck not found', 404);
     }
 
-    // Log using the specialized loggers with appropriate metadata
-    logToAllSpecializedLoggers('Deck updated successfully', {
-      section: 'decks',
-      data: updatedDeck,
-    });
-
-    res.status(200).json({
-      message: 'Deck updated successfully',
-      data: { updatedDeck },
-    });
+    // Use directResponse for logging success and responding to the client
+    directResponse(res, 'UPDATE_DECK', 'info', 'Deck updated successfully', { data: updatedDeck });
   } catch (error) {
-    // Log the error with specialized loggers as well
-    logToAllSpecializedLoggers('Error updating deck', { section: 'error', error });
-    directError(res, 'UPDATE_DECK_ERROR', error);
+    // Use directError to handle errors consistently
+    directError(res, 'UPDATE_DECK_ERROR', 'error', error);
   }
 };
 
@@ -315,64 +306,55 @@ exports.createNewDeck = async (req, res, next) => {
     const newDeck = new Deck({ userId, name, description, cards, totalPrice });
     await newDeck.save();
 
-    // Log with specialized loggers
-    logToAllSpecializedLoggers('New deck created successfully', {
-      section: 'decks',
+    // Use directResponse for success actions
+    directResponse(res, 'CREATE_NEW_DECK', 'info', 'New deck created successfully', {
       data: newDeck,
     });
-
-    res.status(201).json({
-      message: 'New deck created successfully',
-      data: { newDeck },
-    });
   } catch (error) {
-    // Log the error with specialized loggers
-    logToAllSpecializedLoggers('Error creating new deck', { section: 'error', error });
-    directError(res, 'CREATE_NEW_DECK_ERROR', error);
+    // Use directError for error handling
+    directError(res, 'CREATE_NEW_DECK_ERROR', 'error', error);
   }
+};
+
+const createCollectionObject = (body, userId) => {
+  return {
+    userId,
+    name: body.name,
+    description: body.description,
+    totalCost: body.totalCost || '',
+    totalPrice: body.totalPrice || 0,
+    quantity: body.quantity || 0,
+    totalQuantity: body.totalQuantity || 0,
+    dailyPriceChange: body.dailyPriceChange || 0,
+    priceDifference: body.priceDifference || 0,
+    priceChange: body.priceChange || 0,
+    previousDayTotalPrice: body.previousDayTotalPrice || 0,
+    allCardPrices: body.allCardPrices || [],
+    cards: body.cards || [],
+    currentChartDatasets: body.currentChartDatasets || [],
+    xys: Array.isArray(body.xys) ? body.xys : [],
+    chartData: {
+      name: body.chartData?.name || '',
+      userId: body.chartData?.userId || userId,
+      datasets: body.chartData?.datasets || [],
+      xys: Array.isArray(body.xys) ? body.xys : [],
+      allXYValues: body.chartData?.allXYValues || [],
+    },
+  };
 };
 
 exports.createNewCollection = async (req, res, next) => {
   const { userId: rawUserId } = req.params;
-  const {
-    cards,
-    description,
-    name,
-    totalPrice,
-    chartData,
-    totalCost,
-    allCardPrices,
-    quantity,
-    xys,
-    totalQuantity,
-  } = req.body;
 
   const userId = validObjectId(rawUserId) ? rawUserId : null;
   if (!userId) {
-    throw new CustomError('Invalid user ID', 400);
+    return directError(res, 'INVALID_USER_ID', 'error', new CustomError('Invalid user ID', 400));
   }
 
   try {
-    await ensureCollectionExists(userId); // Ensure collection exists
-
-    const newCollection = new Collection({
-      userId,
-      name,
-      description,
-      cards: cards || [],
-      totalPrice: totalPrice || 0,
-      totalCost: totalCost || 0,
-      allCardPrices: allCardPrices || [],
-      quantity: quantity || 0,
-      xys: Array.isArray(xys) ? xys : [],
-      totalQuantity: totalQuantity || 0,
-      chartData: {
-        datasets: chartData?.datasets || [],
-        allXYValues: chartData?.allXYValues || [],
-        xys: Array.isArray(xys) ? xys : [],
-      },
-    });
-
+    await ensureCollectionExists(userId);
+    const newCollectionData = createCollectionObject(req.body, userId);
+    const newCollection = new Collection(newCollectionData);
     const savedCollection = await newCollection.save();
 
     const user = await User.findById(userId);
@@ -382,76 +364,156 @@ exports.createNewCollection = async (req, res, next) => {
     user.allCollections.push(savedCollection._id);
     await user.save();
 
-    // Log with specialized loggers
-    logToAllSpecializedLoggers('New collection created successfully', {
-      section: 'collections',
-      data: savedCollection,
-    });
-
-    return directResponse(res, 'CREATE_NEW_COLLECTION', {
-      status: 'SUCCESS',
-      message: 'New collection created successfully',
-      data: { newCollection: savedCollection },
+    directResponse(res, 'CREATE_NEW_COLLECTION', 'info', 'New collection created successfully', {
+      newCollection: savedCollection,
     });
   } catch (error) {
-    // Log the error with specialized loggers
-    logToAllSpecializedLoggers('Error creating new collection', { section: 'error', error });
-    directError(res, 'CREATE_COLLECTION_ERROR', error);
+    directError(res, 'CREATE_COLLECTION_ERROR', 'error', error);
   }
 };
-exports.getAllCollectionsForUser = async (req, res, next) => {
+
+exports.getAllCollectionsForUser = async (req, res) => {
   try {
     const userId = validObjectId(req.params.userId) ? req.params.userId : null;
 
     if (!userId) {
-      throw new CustomError('Invalid user ID', 400);
+      return directError(res, 'INVALID_USER_ID', 'error', new CustomError('Invalid user ID', 400));
     }
-
-    logToAllSpecializedLoggers(`Fetching collections for user ${userId}`);
 
     const user = await User.findById(userId).populate('allCollections');
-
     if (!user) {
-      throw new CustomError('User not found', 404);
+      return directError(res, 'USER_NOT_FOUND', 'error', new CustomError('User not found', 404));
     }
 
-    logToAllSpecializedLoggers(
+    directResponse(
+      res,
+      'FETCHED_USER_COLLECTIONS',
+      'info',
       `Fetched ${user.allCollections.length} collections for user ${userId}`,
+      { allCollections: user.allCollections },
     );
-
-    res.status(200).json({
-      message: `Fetched ${user.allCollections.length} collections for user ${userId}`,
-      data: { allCollections: user.allCollections },
-    });
   } catch (error) {
-    logToAllSpecializedLoggers('Error in getAllCollectionsForUser', { error });
-    directError(res, 'FETCH_COLLECTIONS_ERROR', error, next);
+    directError(res, 'FETCH_COLLECTIONS_ERROR', 'error', error);
   }
 };
 
-exports.updateAndSyncCollection = async (req, res, next) => {
+// Endpoint handler function that uses the above utility.
+exports.updateAndSyncCollection = async (req, res) => {
   try {
     const { userId, collectionId } = req.params;
 
+    // Validate Object IDs before proceeding
     if (!validObjectId(userId) || !validObjectId(collectionId)) {
-      throw new CustomError('Invalid user or collection ID', 400);
+      throw new CustomError('Invalid user or collection ID', STATUS.BAD_REQUEST);
     }
 
-    logToAllSpecializedLoggers(`Updating collection ${collectionId} for user ${userId}`);
+    const updateResult = await handleUpdateAndSync({ userId, collectionId }, req.body);
 
-    const { status, data } = await handleUpdateAndSync({ userId, collectionId }, req.body);
+    // Check for errors in the updateResult
+    if (updateResult.errors) {
+      throw new CustomError('Errors occurred during update and sync', STATUS.INTERNAL_SERVER_ERROR);
+    }
 
-    logToAllSpecializedLoggers(`Updated collection with id: ${collectionId} for user ${userId}`);
-
-    res.status(status || 200).json({
-      message: `Updated collection with id: ${collectionId} for user ${userId}`,
-      data: { data: data.updatedCollection },
-    });
+    // Respond with the success message and the updated collection
+    directResponse(
+      res,
+      `Collection ${collectionId} for user ${userId} updated successfully`,
+      'info',
+      { data: updateResult.updatedCollection },
+    );
   } catch (error) {
-    logToAllSpecializedLoggers('Error in updateAndSyncCollection', { error });
-    directError(res, 'UPDATE_AND_SYNC_COLLECTION_ERROR', error, next);
+    // Handle errors consistently
+    directError(res, error.message, 'error', error);
   }
 };
+// Ensure the ensureCollectionExists and handleUpdateAndSync functions are implemented elsewhere in the code.
+
+// exports.getAllCollectionsForUser = async (req, res, next) => {
+//   try {
+//     const userId = validObjectId(req.params.userId) ? req.params.userId : null;
+
+//     if (!userId) {
+//       throw new CustomError('Invalid user ID', 400);
+//     }
+
+//     // Using the specialized logger for 'collection' section
+//     logToAllSpecializedLoggers('info', `Fetching collections for user ${userId}`, {
+//       section: 'collection',
+//     });
+//     const user = await User.findById(userId).populate('allCollections');
+
+//     if (!user) {
+//       throw new CustomError('User not found', 404);
+//     }
+
+//     // Again logging with the 'collection' section
+//     logToAllSpecializedLoggers(
+//       'info',
+//       `Fetched ${user.allCollections.length} collections for user ${userId}`,
+//       {
+//         section: 'collection',
+//       },
+//     );
+
+//     res.status(200).json({
+//       message: `Fetched ${user.allCollections.length} collections for user ${userId}`,
+//       data: { allCollections: user.allCollections },
+//     });
+//   } catch (error) {
+//     // Logging the error with the 'error' section
+//     logToAllSpecializedLoggers('error', 'Error in getAllCollectionsForUser', {
+//       section: 'error',
+//       error: error.message,
+//     });
+//     directError(res, 'FETCH_COLLECTIONS_ERROR', error, next);
+//   }
+// };
+
+// exports.updateAndSyncCollection = async (req, res, next) => {
+//   try {
+//     const { userId, collectionId } = req.params;
+
+//     if (!validObjectId(userId) || !validObjectId(collectionId)) {
+//       throw new CustomError('Invalid user or collection ID', 400);
+//     }
+
+//     logToAllSpecializedLoggers(
+//       'info',
+//       `Attempting to update collection ${collectionId} for user ${userId}`,
+//       {
+//         section: 'collection',
+//       },
+//     );
+
+//     const updateResult = await handleUpdateAndSync({ userId, collectionId }, req.body);
+
+//     if (!updateResult || !updateResult.data || !updateResult.data.updatedCollection) {
+//       throw new CustomError('Update operation did not return the expected result', 500);
+//     }
+
+//     const { status, data } = updateResult;
+
+//     logToAllSpecializedLoggers(
+//       'info',
+//       `Collection ${collectionId} for user ${userId} updated successfully`,
+//       {
+//         section: 'collection',
+//         data: data.updatedCollection,
+//       },
+//     );
+
+//     res.status(status || 200).json({
+//       message: `Updated collection with id: ${collectionId} for user ${userId}`,
+//       data: { updatedCollection: data.updatedCollection },
+//     });
+//   } catch (error) {
+//     logToAllSpecializedLoggers('error', 'Error in updateAndSyncCollection', {
+//       section: 'error',
+//       error: error.message,
+//     });
+//     directError(res, 'UPDATE_AND_SYNC_COLLECTION_ERROR', error, next);
+//   }
+// };
 
 // exports.getAllCollectionsForUser = async (req, res, next) => {
 //   // let isResponseSent = false; // Reset this flag for each new request

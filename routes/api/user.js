@@ -20,17 +20,15 @@ router.get('/:id', asyncHandler(UserController.getUserById));
 
 router.get('/:userId/decks', asyncHandler(UserController.getAllDecksForUser));
 router.put('/:userId/decks/:deckId', asyncHandler(UserController.updateAndSyncDeck));
-router.post('/:userId/newDeck', asyncHandler(UserController.createNewDeck));
+// router.post('/:userId/newDeck', asyncHandler(UserController.createNewDeck));
+router.post('/:userId/decks', asyncHandler(UserController.createNewDeck));
 
 router.get('/:userId/collections', asyncHandler(UserController.getAllCollectionsForUser));
 router.put(
   '/:userId/collections/:collectionId',
   asyncHandler(UserController.updateAndSyncCollection),
 );
-router.post(
-  '/:userId/collections/newCollection/:userId',
-  asyncHandler(UserController.createNewCollection),
-);
+router.post('/:userId/collections', asyncHandler(UserController.createNewCollection));
 router.delete('/:userId/collections/:collectionId', asyncHandler(UserController.deleteCollection));
 
 // Error handler

@@ -1,44 +1,64 @@
-module.exports = function validateCard(card) {
-  if (!card) return false;
+const { logToAllSpecializedLoggers } = require('../middleware/infoLogger');
+
+function logValidationError(message, card) {
+  logToAllSpecializedLoggers('error', message, { section: 'errors', data: card }, 'log');
+}
+
+module.exports.validateCard = function validateCard(card) {
+  let hasError = false;
+
+  if (!card) {
+    logValidationError('Card validation failed: card is undefined or null', card);
+    return false;
+  }
 
   // Validate the 'id' field
   if (typeof card.id !== 'string' || card.id.trim() === '') {
-    console.log('card.id is invalid');
-    console.log(card.id);
-    console.log(typeof card.id);
-    console.log(card.id.trim() === '');
-    return false;
+    logValidationError(`card.id is invalid: must be a non-empty string. Got ${card.id}`, card);
+    hasError = true;
   }
 
-  // Validate the 'price' and 'totalPrice' fields
+  // Validate and potentially correct the 'price' field
   if (typeof card.price !== 'number') {
-    console.log('card.price is invalid');
-    console.log(card.price);
-    console.log(typeof card.price);
-    return false;
+    const correctedPrice = parseFloat(card.price);
+    if (isNaN(correctedPrice)) {
+      logValidationError(`card.price is invalid after correction: Got ${card.price}`, card);
+      hasError = true;
+    } else {
+      card.price = correctedPrice; // Correct the price in the card
+    }
   }
 
+  // Validate the 'totalPrice' field
   if (typeof card.totalPrice !== 'number') {
-    console.log('card.totalPrice is invalid');
-    console.log(card.totalPrice);
-    console.log(typeof card.totalPrice);
-    return false;
+    logValidationError(
+      `card.totalPrice is invalid: must be a number, got ${typeof card.totalPrice}.`,
+      card,
+    );
+    hasError = true;
   }
 
   // Validate the 'quantity' field
   if (typeof card.quantity !== 'number' || card.quantity <= 0) {
-    console.log('card.quantity is invalid');
-    console.log(card.quantity);
-    console.log(typeof card.quantity);
-    console.log(card.quantity <= 0);
-    return false;
+    logValidationError(
+      `card.quantity is invalid: must be a positive number, got ${card.quantity}.`,
+      card,
+    );
+    hasError = true;
   }
 
-  // Validate the 'chart_datasets' field
-  if (!Array.isArray(card.chart_datasets)) return false;
-  for (let dataset of card.chart_datasets) {
-    if (typeof dataset.x !== 'object' || typeof dataset.y !== 'number') return false;
+  // Other validations commented out should be added here if needed...
+
+  if (hasError) {
+    return false; // If any errors are present, return false
   }
 
-  return true;
+  logToAllSpecializedLoggers(
+    'info',
+    'Card validated and price corrected if needed',
+    { section: 'info', card: card },
+    'log',
+  );
+
+  return true; // If no errors, card is valid
 };

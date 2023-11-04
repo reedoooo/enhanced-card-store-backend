@@ -13,9 +13,13 @@ const addRequestId = (req, res, next) => {
 };
 
 const connectionLogger = (req, res, next) => {
-  const timestamp = new Date().toISOString();
-  // Log with the unique request ID
-  console.log(`[${timestamp}] [${req.id}] ${req.method} ${req.originalUrl}`);
+  // We now delegate logging to the specialized logging function
+  logToAllSpecializedLoggers('info', `Incoming ${req.method} request to ${req.originalUrl}`, {
+    requestId: req.id,
+    method: req.method,
+    url: req.originalUrl,
+    section: 'general', // Assuming 'connection' is a valid section
+  });
   next();
 };
 
@@ -44,13 +48,14 @@ const handleStripeWebhook = async (req, res) => {
   res.json({ received: true });
 };
 const applyCustomMiddleware = (app, server) => {
-  // function applyCustomMiddleware(app, server) {
-  // app.use(logger('dev'));
-  // Adding the request ID middleware at the top to ensure every request gets a unique ID
   app.use(addRequestId);
+
+  // Replace console.log with the connectionLogger middleware for request logging
   app.use(connectionLogger);
+
   app.use(express.static(path.join(__dirname, '../public')));
   app.use(express.json());
+
   // Unified error-handling middleware
   app.use((err, req, res, next) => {
     if (res.headersSent) {
@@ -62,21 +67,18 @@ const applyCustomMiddleware = (app, server) => {
   app.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
   app.use((req, res, next) => {
     const startTime = Date.now();
-    let logged = false; // Flag to control logging
+    // let logged = false; // Flag to control logging
 
     res.on('finish', () => {
-      if (!logged) {
-        const duration = Date.now() - startTime;
-        logToAllSpecializedLoggers('API Request', {
-          requestId: req.id, // Include the request ID in the logs
-          timestamp: new Date().toISOString(),
-          method: req.method,
-          path: req.originalUrl,
-          duration: `${duration}ms`,
-          statusCode: res.statusCode,
-        });
-        logged = true; // Set the flag to true after logging
-      }
+      const duration = Date.now() - startTime;
+      logToAllSpecializedLoggers('info', `API [${req.method}] request finished`, {
+        requestId: req.id,
+        method: req.method,
+        path: req.originalUrl,
+        duration: `${duration}ms`,
+        statusCode: res.statusCode,
+        section: 'response', // Assuming 'response' is a valid section
+      });
     });
 
     next();

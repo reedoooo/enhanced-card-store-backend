@@ -94,13 +94,13 @@ const collectionSchema = new mongoose.Schema({
   },
 });
 
-collectionSchema.pre('save', function (next) {
-  if (!this.cards.every(validateCardInCollection)) {
-    console.error('Validation failed for one or more cards in the collection');
-    next(new Error('Validation failed'));
-  } else {
-    next();
-  }
-});
+// collectionSchema.pre('save', function (next) {
+//   if (!this.cards.every(validateCardInCollection)) {
+//     console.error('Validation failed for one or more cards in the collection');
+//     next(new Error('Validation failed'));
+//   } else {
+//     next();
+//   }
+// });
 
 module.exports = mongoose.model('Collection', collectionSchema);
