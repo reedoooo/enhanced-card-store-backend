@@ -5,6 +5,8 @@ const { verifyToken } = require('../../services/auth.js');
 const { asyncHandler } = require('../../utils/utils.js');
 const { logger } = require('../../middleware/infoLogger.js');
 const { directError } = require('../../controllers/userControllerResponses.js');
+const handleErrors = require('../../middleware/errorMiddleware.js');
+const unifiedErrorHandler = require('../../middleware/unifiedErrorHandler.js');
 // const { handleValidationErrors } = require('../../controllers/userControllerUtilities.js');
 
 router.post('/signup', asyncHandler(UserController.signup));
@@ -32,17 +34,19 @@ router.post(
 router.delete('/:userId/collections/:collectionId', asyncHandler(UserController.deleteCollection));
 
 // Error handler
-router.use((error, req, res, next) => {
-  // Log the error
-  logger.error('Error:', error);
+// router.use(unifiedErrorHandler);
 
-  // If the response has already been sent, forward the error to the default Express error handler
-  if (res.headersSent) {
-    return next(error);
-  }
+// router.use((error, req, res, next) => {
+//   // Log the error
+//   logger.error('Error:', error);
+//   handleErrors(res, error, next);
+//   // If the response has already been sent, forward the error to the default Express error handler
+//   if (res.headersSent) {
+//     return next(error);
+//   }
 
-  // Pass the error to your directError function for consistent error handling
-  directError(res, error.message, 'SERVER_ERROR', error, next);
-});
+//   // Pass the error to your directError function for consistent error handling
+//   directError(res, error.message, 'SERVER_ERROR', error, next);
+// });
 
 module.exports = router;

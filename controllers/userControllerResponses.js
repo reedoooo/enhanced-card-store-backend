@@ -4,10 +4,14 @@ const { handleError } = require('../middleware/handleErrors');
 
 const directedResponses = [];
 let responseIndex = 0;
+let isResponseSent = false;
 
 const directResponse = (res, eventType, options = {}) => {
   const { status = STATUS.SUCCESS, message = '', data = {}, error = null } = options;
-
+  if (isResponseSent) {
+    console.warn('Attempted to send multiple responses');
+    return;
+  }
   if (process.env.NODE_ENV === 'development') {
     console.log('Direct Response Called', eventType, options);
   }
@@ -33,13 +37,17 @@ const directResponse = (res, eventType, options = {}) => {
 
   const httpStatus = typeof status === 'number' ? status : 500;
   res.status(httpStatus).json(response);
+  isResponseSent = true;
 };
 
 const directError = (res, eventType, error, next) => {
   if (next && error) {
     return next(error);
   }
-
+  if (isResponseSent) {
+    console.warn('Attempted to send multiple responses');
+    return;
+  }
   if (!(error instanceof CustomError)) {
     error = new CustomError(
       error?.message ?? MESSAGES.AN_ERROR_OCCURRED,
@@ -66,22 +74,45 @@ const directError = (res, eventType, error, next) => {
       errorStack: error.stack,
     },
   });
+  isResponseSent = true;
 };
 
 const filterDirectedResponses = () => {
-  const latestResponses = {};
+  const latestResponses = new Map(); // For unique eventType
+  const latestResponsesWithData = new Map(); // For unique eventType and data
 
-  for (let i = directedResponses.length - 1; i >= 0; i--) {
-    const response = directedResponses[i];
-    if (!latestResponses[response.eventType]) {
-      latestResponses[response.eventType] = response.index;
+  // Filter and identify latest responses
+  directedResponses.forEach((response, index) => {
+    const eventType = response.eventType;
+    const dataStr = JSON.stringify(response.response.data); // Converting data to string for comparison
+
+    if (!latestResponses.has(eventType) || latestResponses.get(eventType).index < index) {
+      latestResponses.set(eventType, { index });
     }
-  }
 
-  const filteredResponses = directedResponses.filter(
-    (response) => latestResponses[response.eventType] === response.index,
-  );
+    // Use eventType and dataStr as key
+    const compositeKey = `${eventType}_${dataStr}`;
+    if (
+      !latestResponsesWithData.has(compositeKey) ||
+      latestResponsesWithData.get(compositeKey).index < index
+    ) {
+      latestResponsesWithData.set(compositeKey, { index });
+    }
+  });
 
+  // Remove duplicates based on eventType and data
+  const filteredResponses = directedResponses.filter((response) => {
+    const eventType = response.eventType;
+    const dataStr = JSON.stringify(response.response.data);
+    const compositeKey = `${eventType}_${dataStr}`;
+
+    return (
+      latestResponses.get(eventType).index === response.index &&
+      latestResponsesWithData.get(compositeKey).index === response.index
+    );
+  });
+
+  // Clear and repopulate directedResponses
   directedResponses.length = 0;
   directedResponses.push(...filteredResponses);
 };
@@ -105,10 +136,14 @@ const logResponse = (eventType, response, index) => {
 };
 
 const getDirectedResponses = async (req, res, next) => {
+  console.log('DIRECTED RESPONSES:', directedResponses);
+  console.log('REQ:', req);
   try {
-    filterDirectedResponses(); // filter the responses before sending them
+    console.log('Attempting to get and send directed responses');
+    filterDirectedResponses();
     res.status(STATUS.SUCCESS || 200).json(directedResponses);
   } catch (error) {
+    console.error(`An error occurred while getting directed responses: ${error.message}`);
     next(error);
   }
 };

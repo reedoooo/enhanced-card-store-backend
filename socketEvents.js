@@ -39,7 +39,13 @@ const emitResponse = (
 
   emittedResponses.push({ index: responseIndex, eventType, timestamp: new Date(), response });
 
-  console.log(`[${status.toUpperCase()}] ${eventType} (Index: ${responseIndex}):`, response);
+  if (typeof status === 'string') {
+    console.log(`[${status.toUpperCase()}] ${eventType} (Index: ${responseIndex}):`, response);
+  } else if (typeof status === 'number' && status >= 200 && status < 300) {
+    console.log(`[SUCCESS] ${eventType} (Index: ${responseIndex}):`, response);
+  } else {
+    console.log(`[INVALID_STATUS] ${eventType} (Index: ${responseIndex}):`, response);
+  }
 
   responseIndex += 1;
 

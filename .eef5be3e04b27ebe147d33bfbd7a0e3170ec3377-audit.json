@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": ".eef5be3e04b27ebe147d33bfbd7a0e3170ec3377-audit.json",
+    "files": [
+        {
+            "date": 1699041729995,
+            "name": "cronJobs-2023-11-03.log",
+            "hash": "a2088ba92bb02c913913e85f66df4236d6734589c4ddf857f70d4d48cb0ec80d"
+        }
+    ],
+    "hashType": "sha256"
+}

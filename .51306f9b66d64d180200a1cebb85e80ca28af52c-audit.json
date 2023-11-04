@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": ".51306f9b66d64d180200a1cebb85e80ca28af52c-audit.json",
+    "files": [
+        {
+            "date": 1699041729994,
+            "name": "cardPrices-2023-11-03.log",
+            "hash": "f756a0ccdabbf8a0347753c0211c1a83b20e07f196c177f7c36758b6b0a94d5a"
+        }
+    ],
+    "hashType": "sha256"
+}

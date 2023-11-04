@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { validateCardInCollection } = require('../controllers/validateCollection');
 const { Schema } = mongoose;
 const CardBaseSchema = require('./CardBase').schema;
 
@@ -9,7 +10,6 @@ const CardInCollectionSchema = new Schema({
   totalPrice: Number,
   quantity: { type: Number, required: true },
   chart_datasets: [
-    // This field matches the schema
     {
       x: { type: Date, required: true },
       y: { type: Number, required: true },
@@ -19,13 +19,6 @@ const CardInCollectionSchema = new Schema({
 
 const DatasetSchema = new Schema({
   name: String,
-  // priceChangeDetails: {
-  //   priceChanged: Boolean,
-  //   initialPrice: Number,
-  //   updatedPrice: Number,
-  //   priceDifference: Number,
-  //   priceChange: Number,
-  // },
   data: [
     {
       xys: [
@@ -36,7 +29,6 @@ const DatasetSchema = new Schema({
       ],
       additionalPriceData: [
         {
-          // New field to store extra data
           priceChanged: Boolean,
           initialPrice: Number,
           updatedPrice: Number,
@@ -44,14 +36,6 @@ const DatasetSchema = new Schema({
           priceChange: Number,
         },
       ],
-      // additionalPriceData: {
-      //   // New field to store extra data
-      //   priceChanged: Boolean,
-      //   initialPrice: Number,
-      //   updatedPrice: Number,
-      //   priceDifference: Number,
-      //   priceChange: Number,
-      // },
     },
   ],
 });
@@ -68,12 +52,7 @@ const collectionSchema = new mongoose.Schema({
   dailyPriceChange: Number,
   priceDifference: Number,
   priceChange: Number,
-  allCardPrices: [
-    {
-      // cardName: String,
-      cardPrice: Number,
-    },
-  ],
+  allCardPrices: Array,
   cards: [CardInCollectionSchema],
   currentChartDatasets: [
     {
@@ -113,6 +92,15 @@ const collectionSchema = new mongoose.Schema({
       },
     ],
   },
+});
+
+collectionSchema.pre('save', function (next) {
+  if (!this.cards.every(validateCardInCollection)) {
+    console.error('Validation failed for one or more cards in the collection');
+    next(new Error('Validation failed'));
+  } else {
+    next();
+  }
 });
 
 module.exports = mongoose.model('Collection', collectionSchema);

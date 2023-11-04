@@ -47,15 +47,14 @@ setupSocketEvents();
 app.use(express.json()); // To parse JSON bodies
 app.use(cookieParser());
 applyCustomMiddleware(app, server);
-
 // Routes
 app.use('/api', routes);
 app.get('/', (req, res) => res.send('This is the beginning....'));
 app.get('/test', (req, res) => res.send('This is the test....'));
 
 // Error Handling Middleware
-const handleErrors = require('./middleware/errorMiddleware');
-app.use(handleErrors);
+// const unifiedErrorHandler = require('./middleware/unifiedErrorHandler');
+// app.use(unifiedErrorHandler);
 
 // Start the server
 server.listen(port, () => console.log(`Server is up on port ${port}`));
