@@ -10,10 +10,10 @@ router.get('/', collectionController.getAllCollections);
 router.get('/:userId', collectionController.getAllCollectionsForUser);
 
 // PUT update a specific deck by deckId
-router.put('/:collectionId', collectionController.updateCollection);
+// router.put('/:collectionId', collectionController.updateCollection);
 
 // POST create a new empty deck for a specific user
-router.post('/newCollection/:userId', collectionController.createEmptyCollection);
+// router.post('/newCollection/:userId', collectionController.createEmptyCollection);
 
 // DELETE delete a specific deck for a specific user
 router.delete(
@@ -21,8 +21,14 @@ router.delete(
   collectionController.deleteItemFromCollection,
 );
 
-router.get('/update/:itemType/:itemId', collectionController.updateSpecificItem);
-
+// router.get('/update/:itemType/:itemId', collectionController.updateSpecificItem);
+router.post('/collections/:userId', validateObjectId, collectionController.createNewCollection);
+router.get('/collections/:userId', validateObjectId, collectionController.getAllCollectionsForUser);
+router.put(
+  '/collections/:userId/:collectionId',
+  validateObjectId,
+  collectionController.updateAndSyncCollection,
+);
 // Uncomment if you need to decrease item quantity
 // router.put('/:deckId/decrease', collectionController.updateAndSyncCollection);
 

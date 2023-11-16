@@ -1,17 +1,41 @@
 const mongoose = require('mongoose');
-const { validateCardInCollection } = require('../controllers/validateCollection');
 const { Schema } = mongoose;
 const CardBaseSchema = require('./CardBase').schema;
+
+const priceEntrySchema = new mongoose.Schema({
+  num: {
+    type: Number,
+    // required: true,
+  },
+  timestamp: {
+    type: Date,
+    required: true,
+  },
+});
 
 const CardInCollectionSchema = new Schema({
   ...CardBaseSchema.obj,
   id: { type: String, required: true },
+  tag: {
+    type: String,
+    required: true,
+  },
   price: Number,
   totalPrice: Number,
-  quantity: { type: Number, required: true },
+  name: {
+    type: String,
+    required: true,
+  },
+  quantity: {
+    type: Number,
+    required: false,
+  },
+  latestPrice: priceEntrySchema,
+  lastSavedPrice: priceEntrySchema,
+  priceHistory: [priceEntrySchema],
   chart_datasets: [
     {
-      x: { type: Date, required: true },
+      x: { type: String, required: true },
       y: { type: Number, required: true },
     },
   ],
@@ -40,6 +64,17 @@ const DatasetSchema = new Schema({
   ],
 });
 
+const collectionPriceHistorySchema = new mongoose.Schema({
+  timestamp: {
+    type: Date,
+    required: true,
+  },
+  num: {
+    type: Number,
+    required: true,
+  },
+});
+
 const collectionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   name: String,
@@ -49,18 +84,29 @@ const collectionSchema = new mongoose.Schema({
   quantity: Number,
   totalQuantity: Number,
   previousDayTotalPrice: Number,
-  dailyPriceChange: Number,
+  dailyPriceChange: String,
   priceDifference: Number,
   priceChange: Number,
   allCardPrices: Array,
+  collectionPriceHistory: [collectionPriceHistorySchema],
   cards: [CardInCollectionSchema],
-  currentChartDatasets: [
+  currentChartDataSets: [
+    // id: String,
+    // data: {
+    //   x: Date,
+    //   y: Number,
+    // },
     {
-      id: String,
-      data: {
-        x: Date,
-        y: Number,
-      },
+      label: String,
+      x: Date,
+      y: Number,
+    },
+  ],
+  currentChartDataSets2: [
+    {
+      label: String,
+      x: Date,
+      y: Number,
     },
   ],
   xys: [
@@ -69,10 +115,6 @@ const collectionSchema = new mongoose.Schema({
       data: { x: Date, y: Number },
     },
   ],
-  // {
-  //   x: Date,
-  //   y: Number,
-  // },
   chartData: {
     name: String,
     userId: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -84,7 +126,6 @@ const collectionSchema = new mongoose.Schema({
       },
     ],
     allXYValues: [
-      // New field to store all xy values
       {
         label: String,
         x: Date,

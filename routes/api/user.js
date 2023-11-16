@@ -3,11 +3,7 @@ const router = express.Router();
 const UserController = require('../../controllers/UserController.js');
 const { verifyToken } = require('../../services/auth.js');
 const { asyncHandler } = require('../../utils/utils.js');
-const { logger } = require('../../middleware/infoLogger.js');
-const { directError } = require('../../controllers/userControllerResponses.js');
-const handleErrors = require('../../middleware/errorMiddleware.js');
-const unifiedErrorHandler = require('../../middleware/unifiedErrorHandler.js');
-// const { handleValidationErrors } = require('../../controllers/userControllerUtilities.js');
+// const { validateObjectId } = require('../../controllers/userControllerUtilities.js');
 
 router.post('/signup', asyncHandler(UserController.signup));
 router.post('/signin', asyncHandler(UserController.signin));
@@ -23,12 +19,32 @@ router.put('/:userId/decks/:deckId', asyncHandler(UserController.updateAndSyncDe
 // router.post('/:userId/newDeck', asyncHandler(UserController.createNewDeck));
 router.post('/:userId/decks', asyncHandler(UserController.createNewDeck));
 
-router.get('/:userId/collections', asyncHandler(UserController.getAllCollectionsForUser));
+router.post(
+  '/:userId/collections',
+  // validateObjectId,
+  asyncHandler(UserController.createNewCollection),
+);
+router.get(
+  '/:userId/collections',
+  // validateObjectId,
+  asyncHandler(UserController.getAllCollectionsForUser),
+);
+router.put(
+  '/:userId/collections/:collectionId/updateCards',
+  // validateObjectId,
+  asyncHandler(UserController.updateCardsInCollection),
+);
+router.put(
+  '/:userId/collections/:collectionId/updateChartData',
+  // validateObjectId,
+  asyncHandler(UserController.updateChartDataInCollection),
+);
 router.put(
   '/:userId/collections/:collectionId',
+  // validateObjectId,
   asyncHandler(UserController.updateAndSyncCollection),
 );
-router.post('/:userId/collections', asyncHandler(UserController.createNewCollection));
+
 router.delete('/:userId/collections/:collectionId', asyncHandler(UserController.deleteCollection));
 
 // Error handler

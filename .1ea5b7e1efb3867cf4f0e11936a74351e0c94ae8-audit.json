@@ -14,6 +14,61 @@
             "date": 1699082497166,
             "name": "decks-2023-11-04.log",
             "hash": "1e1d13190fbebfb4afffe55900e9b0d8ee77e7802de8da54973dd126fed28b39"
+        },
+        {
+            "date": 1699175198477,
+            "name": "decks-2023-11-05.log",
+            "hash": "1f2d989c942b81f73cafdadfc1c04a5323562ba1f7de26adc1f4f051ab29f50b"
+        },
+        {
+            "date": 1699318207877,
+            "name": "decks-2023-11-06.log",
+            "hash": "f18f32d1ba7277339de491431235246879d2f8790626339d26ed6907b11b2aca"
+        },
+        {
+            "date": 1699351915995,
+            "name": "decks-2023-11-07.log",
+            "hash": "89197a92aa3bfb1e322e7d33c2dc97983259e14413e4324cc0fb7502ea2f62b0"
+        },
+        {
+            "date": 1699432426874,
+            "name": "decks-2023-11-08.log",
+            "hash": "5df731704259f4fb9f2788e8a0970f783bc4c8f3ff1e031daa714b739bb76755"
+        },
+        {
+            "date": 1699563145204,
+            "name": "decks-2023-11-09.log",
+            "hash": "729442cb12ea1665b071dca4eb83e0a7aa5a1af80606cf897f7ed2a8b2479090"
+        },
+        {
+            "date": 1699603262179,
+            "name": "decks-2023-11-10.log",
+            "hash": "56e33d1ac27423fd17fe13ffd1225f5eed79e104427ff0271b5da2a5df13a813"
+        },
+        {
+            "date": 1699740858337,
+            "name": "decks-2023-11-11.log",
+            "hash": "93e5a858f5b9d59ce9cb06d389985a8ad9c01d6ef16d7fa1623795a2f694659d"
+        },
+        {
+            "date": 1699780137508,
+            "name": "decks-2023-11-12.log",
+            "hash": "2c721aff4188ece834b1d34d91e3ccc15c581abdf7aaad1a09305d8ba041058e"
+        },
+        {
+            "date": 1699910062170,
+            "name": "decks-2023-11-13.log",
+            "hash": "2a2fece4ecf943759e1f73ac900b14d620139deea1508db90cb617868e9b229c"
+        },
+        {
+            "date": 1700085278709,
+            "name": "decks-2023-11-15.log",
+            "hash": "7e1bbb55abadcb0356a4724c8969edbea309e310c464908258230e83df6a8189"
+        },
+        {
+            "date": 1700122007088,
+            "name": "decks-2023-11-16.log",
+            "hash": "669cfd3b5d0d9638af02e565cbc2e04861e612b0b45b1f7f1c88d5ebd544a936"
         }
     ],
     "hashType": "sha256"

@@ -176,42 +176,67 @@ let isResponseSent = false;
 //   // Log the error, send the error response to the client, and possibly log to file/console
 //   logToAllSpecializedLoggers(level, `${action}: ${error.message}`, meta, 'response');
 // };
-const directResponse = (res, action, level, message, data) => {
-  const statusCode = 200 || '200';
+// const directResponse = (res, action, level, message, data = {}) => {
+//   logToAllSpecializedLoggers(
+//     level,
+//     `${action}: ${message}`,
+//     {
+//       section: 'response',
+//       action,
+//       data,
+//     },
+//     'response',
+//   );
+//   respondToClient(res, 200, message, data);
+// };
 
-  const meta = {
-    section: 'response',
-    action,
-    data,
-  };
+// // const directError = (res, action, level, error) => {
+// //   const errorMessage = error.message || 'An error occurred';
+// //   const statusCode = error.statusCode || 500;
 
-  // Log to console
-  logToConsole(level, `${action}: ${message}`, meta);
+// //   logToAllSpecializedLoggers(
+// //     level,
+// //     `${action}: ${errorMessage}`,
+// //     {
+// //       section: 'errors',
+// //       action,
+// //       error: errorMessage,
+// //       res,
+// //       status: statusCode,
+// //       data: { error: errorMessage },
+// //     },
+// //     'response',
+// //   );
+// //   respondToClient(res, statusCode, errorMessage, { error: errorMessage });
+// // };
+// const directError = (res, code, level, error) => {
+//   // Check if headers have already been sent
+//   if (res.headersSent) {
+//     return; // End the function to prevent further action
+//   }
 
-  // Log to file
-  logToFile('response', level, `${action}: ${message}`, meta);
+//   // Ensure there's a default error status if not provided
+//   const status = error.status || 500;
 
-  // Send response to the client
-  respondToClient(res, statusCode, message, data);
-};
-const directError = (res, action, level, error) => {
-  // Ensure the error object has a message and a statusCode
-  const errorMessage = error.message || 'An error occurred';
-  const statusCode = error.statusCode || 500;
+//   // Log the error internally
+//   console.error(`[${level.toUpperCase()}]: ${code}: ${error.message}`);
 
-  const meta = {
-    section: 'errors',
-    action,
-    error: errorMessage,
-  };
+//   // Send the error response to the client
+//   res.status(status).json({
+//     code,
+//     message: error.message || 'An error occurred',
+//   });
+// };
+// function directError(res, code, level, error) {
+//   // Log and respond with error here
+//   logToAllSpecializedLoggers(
+//     level,
+//     error.message,
+//     { section: 'errors', res, error, code },
+//     'response',
+//   );
+// }
 
-  // Log to console and file
-  logToConsole(level, `${action}: ${errorMessage}`, meta);
-  logToFile('error', level, `${action}: ${errorMessage}`, meta);
-
-  // Send error response to the client
-  respondToClient(res, statusCode, errorMessage, { error: errorMessage });
-};
 const filterDirectedResponses = () => {
   const latestResponses = new Map(); // For unique eventType
   const latestResponsesWithData = new Map(); // For unique eventType and data
@@ -284,7 +309,7 @@ const getDirectedResponses = async (req, res, next) => {
 };
 
 module.exports = {
-  directResponse,
-  directError,
+  // directResponse,
+  // directError,
   getDirectedResponses,
 };

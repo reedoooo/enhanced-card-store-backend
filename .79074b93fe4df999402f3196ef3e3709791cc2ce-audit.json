@@ -1,0 +1,70 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": ".79074b93fe4df999402f3196ef3e3709791cc2ce-audit.json",
+    "files": [
+        {
+            "date": 1699151859603,
+            "name": "cardPrice-2023-11-04.log",
+            "hash": "b0abca25c94df2dec62e36c80287bedd830a3102d53fec99a50dd695c6208a8b"
+        },
+        {
+            "date": 1699175198471,
+            "name": "cardPrice-2023-11-05.log",
+            "hash": "9b26ebc9569e96f839cc9549a833a38edcbb6f45590444f39efe9b177eece3d5"
+        },
+        {
+            "date": 1699318207873,
+            "name": "cardPrice-2023-11-06.log",
+            "hash": "a9e98d12904f26a7ca901966551583f1d8b680799dd70045295d14022512c508"
+        },
+        {
+            "date": 1699351915991,
+            "name": "cardPrice-2023-11-07.log",
+            "hash": "29cc69008861ae7982721b42e6b305332bbaf3740dd8343521493b9f4dd188c0"
+        },
+        {
+            "date": 1699432426865,
+            "name": "cardPrice-2023-11-08.log",
+            "hash": "a63f94d0d014babfde1133486fc60e7600c757cc70790437bc992b6b6a4362b3"
+        },
+        {
+            "date": 1699563145197,
+            "name": "cardPrice-2023-11-09.log",
+            "hash": "28afa8a26ff4fcd973db57d9be730d4195db376b2a7e3b63b6f29181580e65b0"
+        },
+        {
+            "date": 1699603262170,
+            "name": "cardPrice-2023-11-10.log",
+            "hash": "26f633a774a572ac402d674ad0a98b4519f1501af392539f226c9746aa742c54"
+        },
+        {
+            "date": 1699740858325,
+            "name": "cardPrice-2023-11-11.log",
+            "hash": "22d4c7844f2db45bfd5b792ab57e19a1c49d7096dc0b637799160b132807d72d"
+        },
+        {
+            "date": 1699780137502,
+            "name": "cardPrice-2023-11-12.log",
+            "hash": "8c2a7388ac9bac4ac204cf8c4373b96baa60f60c985d59b63ecdd51ac6e3f122"
+        },
+        {
+            "date": 1699910062163,
+            "name": "cardPrice-2023-11-13.log",
+            "hash": "8499968bc85a6e5d8b01cda8d7459288adac282cdbebe9f67dd2bf4b67c88d73"
+        },
+        {
+            "date": 1700085278705,
+            "name": "cardPrice-2023-11-15.log",
+            "hash": "56aa0aa87f255ee12875f017e2a4e364e31237258b778c6001a8529db2be4823"
+        },
+        {
+            "date": 1700122007083,
+            "name": "cardPrice-2023-11-16.log",
+            "hash": "e9220e169177ea14991983ad5c32b0180cf53bafd52091517ebc309694f6a4eb"
+        }
+    ],
+    "hashType": "sha256"
+}

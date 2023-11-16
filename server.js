@@ -2,17 +2,21 @@
 
 // Dependencies
 const express = require('express');
-const dotenv = require('dotenv');
+const dotenv = require('dotenv').config(); // directly call config here
 const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
+const bodyParser = require('body-parser'); // Added for handling larger request bodies
+
 const http = require('http');
 const cors = require('cors');
 const { initSocket } = require('./socket');
-const { setupSocketEvents } = require('./socketEvents');
+const { setupSocketEvents } = require('./socketEvents.js');
+
+const applyCustomMiddleware = require('./middleware/index');
 const routes = require('./routes/index');
 
 // Configuration
-dotenv.config();
+// dotenv.config();
 const port = process.env.PORT || 3001;
 
 // App and Server Initialization
@@ -30,23 +34,24 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Middleware and Routes
-const applyCustomMiddleware = require('./middleware/index');
-
 // Database Connection
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch((err) => console.error(err));
 
+// Middleware Application
+app.use(express.json()); // To parse JSON bodies
+
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+
+app.use(cookieParser());
+applyCustomMiddleware(app, server);
+
 // Socket Initialization
 initSocket(server);
 setupSocketEvents();
-
-// Middleware Application
-app.use(express.json()); // To parse JSON bodies
-app.use(cookieParser());
-applyCustomMiddleware(app, server);
 // Routes
 app.use('/api', routes);
 app.get('/', (req, res) => res.send('This is the beginning....'));

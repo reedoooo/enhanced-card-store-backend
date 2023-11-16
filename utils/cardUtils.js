@@ -5,8 +5,11 @@ const { updateUserCollections } = require('../routes/other/cronJob');
 const { CronData } = require('../models/CronData');
 const { getIO } = require('../socket');
 const CustomError = require('../middleware/customError');
-const { logger, cardPriceLogger, cronJobLogger } = require('../middleware/infoLogger');
+const { logger, logToAllSpecializedLoggers, logPriceChanges } = require('../middleware/infoLogger');
 const { handleError } = require('../middleware/handleErrors');
+const { convertUserIdToObjectId } = require('./utils');
+const User = require('../models/User');
+const saveCardPriceHistory = require('./saveCardPriceHistory');
 
 require('colors');
 
@@ -21,16 +24,39 @@ const logResults = async ({
   pricingData,
 }) => {
   try {
-    cardPriceLogger.info('Total items tested:', testedItemCount);
-
-    if (itemsWithoutValidID.length > 0) {
-      cardPriceLogger.warn('Items without a valid ID:', itemsWithoutValidID);
-    }
-
-    cardPriceLogger.info('Cards with changed prices:', cardsWithChangedPrices.length);
-    cardPriceLogger.info('Pricing data:', pricingData);
+    logToAllSpecializedLoggers('info', 'Total items tested:', {
+      section: 'cronjob',
+      action: 'log',
+      data: testedItemCount,
+    });
+    logToAllSpecializedLoggers(
+      'info',
+      `Items without a valid ID: ${JSON.stringify(itemsWithoutValidID)}`,
+      {
+        section: 'cronjob',
+        action: 'log',
+        data: itemsWithoutValidID,
+      },
+    );
+    logToAllSpecializedLoggers(
+      'info',
+      `Cards with changed prices: ${cardsWithChangedPrices.length}`,
+      {
+        section: 'cronjob',
+        action: 'log',
+        data: cardsWithChangedPrices,
+      },
+    );
+    logToAllSpecializedLoggers('info', 'Pricing data:', {
+      section: 'cronjob',
+      action: 'log',
+      data: pricingData,
+    });
   } catch (error) {
-    handleError(error);
+    logToAllSpecializedLoggers('error', 'Error occurred in logResults:', {
+      section: 'error',
+      error,
+    });
   }
 };
 
@@ -43,24 +69,9 @@ const getCardInfo = async (cardId) => {
     const { data } = await axiosInstance.get(`/cardinfo.php?id=${encodeURIComponent(cardId)}`);
     return data.data[0];
   } catch (error) {
-    handleError(
-      new CustomError('Failed to get card information', 500, true, {
-        function: 'getCardInfo',
-        cardId,
-        error: error.message,
-        stack: error.stack,
-      }),
-    );
-  }
-};
-
-const convertUserIdToObjectId = (userId) => {
-  try {
-    return mongoose.Types.ObjectId(userId);
-  } catch (error) {
-    throw new CustomError('Failed to convert user ID to ObjectId', 400, true, {
-      function: 'convertUserIdToObjectId',
-      userId,
+    throw new CustomError('Failed to get card information', 500, true, {
+      function: 'getCardInfo',
+      cardId,
       error: error.message,
       stack: error.stack,
     });
@@ -69,40 +80,57 @@ const convertUserIdToObjectId = (userId) => {
 
 const processCardPrices = async (userId, selectedList) => {
   try {
-    const cardsWithChangedPrices = [];
     const itemsWithoutValidID = [];
-    let testedItemCount = 0;
+    const cardsWithPriceHistory = [];
 
-    for (const card of selectedList) {
-      testedItemCount++;
-      if (!card.id) {
-        itemsWithoutValidID.push(card);
-        continue;
-      }
-
-      try {
-        const latestCardInfo = await getCardInfo(card.id);
-        if (!latestCardInfo || !latestCardInfo.card_prices) continue;
-
-        const updatedPrice = parseFloat(latestCardInfo.card_prices[0]?.tcgplayer_price || '0');
-        const previousPrice = card.previousPrice;
-
-        if (updatedPrice !== previousPrice) {
-          cardsWithChangedPrices.push({
-            ...card,
-            updatedPrice,
-            tag: 'updated',
-          });
+    // Using map to handle promises simultaneously where possible
+    await Promise.all(
+      selectedList.map(async (card) => {
+        if (!card.id) {
+          itemsWithoutValidID.push(card);
+          return; // Equivalent to "continue" in a for..of loop
         }
-      } catch (error) {
-        cardPriceLogger.error('Error occurred while checking card prices:', error.message);
+
+        const latestCardInfo = await getCardInfo(card.id);
+        if (!latestCardInfo || !latestCardInfo.card_prices) return;
+
+        const latestCardPrice = parseFloat(latestCardInfo.card_prices[0]?.tcgplayer_price || '0');
+        const priceHistory = card.priceHistory || [];
+
+        if (
+          !priceHistory.length ||
+          priceHistory[priceHistory.length - 1].price !== latestCardPrice
+        ) {
+          const newPriceEntry = { price: latestCardPrice, timestamp: new Date().toISOString() };
+          priceHistory.push(newPriceEntry);
+
+          await saveCardPriceHistory(card.id, newPriceEntry); // Assuming this function only needs card ID and new price entry
+        }
+
+        cardsWithPriceHistory.push({
+          ...card,
+          priceHistory,
+          latestCardPrice,
+        });
+      }),
+    );
+
+    const user = await User.findById(userId).populate('allCollections');
+    let numCardsWithCheckedPrices = 0;
+
+    cardsWithPriceHistory.forEach((card) => {
+      const collection = user.allCollections.find((col) => col.cards.includes(card.id));
+      if (collection) {
+        const cardInCollection = collection.cards.find((c) => c.id === card.id);
+        if (cardInCollection) {
+          numCardsWithCheckedPrices++;
+          cardInCollection.price = card.latestCardPrice;
+          cardInCollection.totalPrice = card.latestCardPrice * cardInCollection.quantity;
+        }
       }
-    }
+    });
 
-    const pricingData = createPricingData(cardsWithChangedPrices);
-    await logResults({ testedItemCount, itemsWithoutValidID, cardsWithChangedPrices, pricingData });
-
-    return { cardsWithChangedPrices, pricingData };
+    return { cardsWithPriceHistory, numCardsWithCheckedPrices };
   } catch (error) {
     handleError(error);
   }
@@ -110,16 +138,47 @@ const processCardPrices = async (userId, selectedList) => {
 
 const checkCardPrices = async (userId, selectedList) => {
   try {
+    // Validate the input arguments
     if (!userId || !Array.isArray(selectedList)) {
       throw new CustomError('Invalid arguments for checkCardPrices', 400);
     }
 
-    const { cardsWithChangedPrices, pricingData } = await processCardPrices(userId, selectedList);
-    await handlePriceUpdates(userId, cardsWithChangedPrices, pricingData);
+    // Process card prices and get cards with price history
+    const { cardsWithPriceHistory, numCardsWithCheckedPrices } = await processCardPrices(
+      userId,
+      selectedList,
+    );
+
+    // Log results
+    await logResults({ cardsWithPriceHistory, numCardsWithCheckedPrices });
+
+    let pricingData = {};
+    if (cardsWithPriceHistory.length > 0) {
+      // Prepare pricing data using the helper function
+      pricingData = preparePricingData(cardsWithPriceHistory);
+
+      // Use the logPriceChanges function to log the price changes
+      logPriceChanges(pricingData.updatedPrices);
+    } else {
+      logger.info('No updated prices. Skipping collection update.');
+    }
+
+    // Log the number of cards with changed prices
+    logToAllSpecializedLoggers(
+      'info',
+      `Cards with changed prices: ${cardsWithPriceHistory.length} out of ${numCardsWithCheckedPrices} cards checked.`,
+      {
+        section: 'cronjob',
+        action: 'log',
+        data: cardsWithPriceHistory,
+      },
+    );
+
+    // Return the results
     return {
-      pricingData,
-      pricesUpdated: cardsWithChangedPrices.length > 0,
-      cardsWithChangedPrices: cardsWithChangedPrices,
+      pricesUpdated: cardsWithPriceHistory.length > 0,
+      cardsWithPriceHistory: cardsWithPriceHistory,
+      pricingData: pricingData,
     };
   } catch (error) {
     handleError(error);
@@ -127,81 +186,57 @@ const checkCardPrices = async (userId, selectedList) => {
   }
 };
 
-const handlePriceUpdates = async (userId, cardsWithChangedPrices, pricingData) => {
-  try {
-    if (cardsWithChangedPrices.length > 0) {
-      cronJobLogger.info('Prices have shifted. Activating the cronJob.');
-      await updateUserCollections(userId, pricingData);
-    } else {
-      cronJobLogger.info('Prices have not shifted. Skipping cronJob.');
-    }
-  } catch (error) {
-    handleError(error);
-  }
-};
+// Refactored helper function to prepare pricing data
+function preparePricingData(cardsWithChangedPrices) {
+  const updatedPrices = {};
+  const previousPrices = {};
+  const priceDifferences = {};
+  let totalDifference = 0;
 
-const createPricingData = (cardsWithChangedPrices) => {
-  try {
-    if (!Array.isArray(cardsWithChangedPrices)) {
-      throw new CustomError('Invalid input: Expected an array of cards with changed prices.', 400);
-    }
-
-    if (cardsWithChangedPrices.length === 0) {
-      logger.info('No updated prices. Skipping collection update.');
-      return { message: 'No updated prices. Collection update skipped.' };
-    }
-
-    const updatedPrices = {};
-    const previousPrices = {};
-    const priceDifferences = {};
-
-    let totalDifference = 0;
-
-    for (const { id, name, updatedPrice, previousPrice, tag } of cardsWithChangedPrices) {
-      const diff = parseFloat((updatedPrice - previousPrice).toFixed(2));
-      updatedPrices[id] = {
-        id,
-        name,
-        previousPrice,
-        updatedPrice,
-        difference: diff,
-        tag,
-        lastUpdated: new Date(),
-      };
-      previousPrices[id] = previousPrice;
-      priceDifferences[id] = diff;
-      totalDifference += diff;
-    }
-
-    const sortedUpdatedPrices = Object.values(updatedPrices)
-      .sort((a, b) => b.lastUpdated - a.lastUpdated)
-      .reduce((acc, priceObj) => {
-        acc[priceObj.id] = priceObj;
-        return acc;
-      }, {});
-
-    return {
-      updatedPrices: sortedUpdatedPrices,
-      previousPrices,
-      priceDifferences,
-      totalDifference,
+  for (const { id, name, updatedPrice, previousPrice, tag } of cardsWithChangedPrices) {
+    const diff = parseFloat((updatedPrice - previousPrice).toFixed(2));
+    updatedPrices[id] = {
+      id,
+      name,
+      previousPrice,
+      updatedPrice,
+      difference: diff,
+      tag,
+      lastUpdated: new Date(),
     };
-  } catch (error) {
-    handleError(error);
+    previousPrices[id] = previousPrice;
+    priceDifferences[id] = diff;
+    totalDifference += diff;
   }
-};
 
+  const sortedUpdatedPrices = Object.values(updatedPrices)
+    .sort((a, b) => b.lastUpdated - a.lastUpdated)
+    .reduce((acc, priceObj) => {
+      acc[priceObj.id] = priceObj;
+      return acc;
+    }, {});
+
+  return {
+    updatedPrices: sortedUpdatedPrices,
+    previousPrices,
+    priceDifferences,
+    totalDifference,
+  };
+}
 const scheduledTasks = new Map();
 
 const scheduleCheckCardPrices = async (userId, selectedList) => {
+  const io = getIO();
+
   try {
     if (!userId || !Array.isArray(selectedList)) {
       throw new CustomError('Invalid inputs provided to scheduleCheckCardPrices.', 400);
     }
 
-    const io = getIO();
+    // cronJobLogger.info('Scheduling cron job for userId:', userId);
+    // cronJobLogger.info('Scheduled tasks:', scheduledTasks);
     if (scheduledTasks.has(userId)) {
-      io.emit('ERROR_MESSAGE', { message: 'A task is already running for this userId.' });
+      io.emit('ERROR', { message: 'A task is already running for this userId.' });
       return;
     }
 
@@ -209,14 +244,21 @@ const scheduleCheckCardPrices = async (userId, selectedList) => {
       '*/3 * * * *',
       async () => {
         try {
-          const pricingData = await checkCardPrices(userId, selectedList);
+          const { pricesUpdated, cardsWithPriceHistory } = await checkCardPrices(
+            userId,
+            selectedList,
+          );
           let existingCronData = await CronData.findOne({ userId });
 
           if (!existingCronData) {
             existingCronData = new CronData({ userId, runs: [] });
           }
 
-          existingCronData.runs.push({ updated: new Date(), valuesUpdated: pricingData });
+          existingCronData.runs.push({
+            updated: new Date(),
+            valuesUpdated: pricesUpdated,
+            cardsWithPriceHistory: cardsWithPriceHistory,
+          });
           await existingCronData.save();
 
           io.emit('RESPONSE_CRON_DATA', {
@@ -237,7 +279,12 @@ const scheduleCheckCardPrices = async (userId, selectedList) => {
     task.start();
     scheduledTasks.set(userId, task);
     io.emit('RESPONSE_CRON_STARTED', { message: 'Cron job started.', userId });
-    cronJobLogger.info('Cron job started for userId:', userId);
+    logToAllSpecializedLoggers('info', 'Cron job started', {
+      section: 'cronjob',
+      action: 'log',
+      data: userId,
+    });
+    // cronJobLogger.info('Cron job started for userId:', userId);
   } catch (error) {
     handleError(error);
     throw error;
@@ -257,7 +304,12 @@ const stopCheckCardPrices = (userId) => {
   task.stop();
   scheduledTasks.delete(userId);
   getIO().emit('RESPONSE_CRON_STOPPED', { message: 'Cron job stopped.', userId });
-  cronJobLogger.info('Cron job stopped for userId:', userId);
+  logToAllSpecializedLoggers('info', 'Cron job stopped for userId:', {
+    section: 'cronjob',
+    action: 'log',
+    data: userId,
+  });
+  // cronJobLogger.info('Cron job stopped for userId:', userId);
 };
 
 module.exports = {
@@ -266,5 +318,4 @@ module.exports = {
   stopCheckCardPrices,
   getCardInfo,
   convertUserIdToObjectId,
-  createPricingData,
 };

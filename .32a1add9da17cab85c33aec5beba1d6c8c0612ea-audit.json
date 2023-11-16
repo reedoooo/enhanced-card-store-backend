@@ -1,0 +1,50 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": ".32a1add9da17cab85c33aec5beba1d6c8c0612ea-audit.json",
+    "files": [
+        {
+            "date": 1699449172062,
+            "name": "price-2023-11-08.log",
+            "hash": "8c9125923436f698e6e4df10e708fcfe287dd012b6c09ca888f806f402034272"
+        },
+        {
+            "date": 1699563145215,
+            "name": "price-2023-11-09.log",
+            "hash": "f3834b5a816ec67ca132badc3dd6f8994739ccc254ff275ef34c72b3bc4b8a11"
+        },
+        {
+            "date": 1699603262197,
+            "name": "price-2023-11-10.log",
+            "hash": "4ba9981b1f9a8009ae9178461c6f0c6ad1d8f3c1a7ebccf811b031df7df2a44d"
+        },
+        {
+            "date": 1699740858349,
+            "name": "price-2023-11-11.log",
+            "hash": "fe3d25d65fdd81983fc26598f8604b71ca8d092a0fefaa90a7c19065ebaf55a2"
+        },
+        {
+            "date": 1699780137517,
+            "name": "price-2023-11-12.log",
+            "hash": "bad6251d6f82afd3b4a104659efe726a9153b152c1a3de7286d52e329c1586af"
+        },
+        {
+            "date": 1699910062181,
+            "name": "price-2023-11-13.log",
+            "hash": "b0e84eeb89e2cedb45f090c2f91ee532d29a25b0f34a64bc686e773e48cc9e20"
+        },
+        {
+            "date": 1700085278715,
+            "name": "price-2023-11-15.log",
+            "hash": "f006131acd9ac84eeca27cbb550cc037e8772df8405d4b6ddb7ad16c2c06d0e5"
+        },
+        {
+            "date": 1700122007097,
+            "name": "price-2023-11-16.log",
+            "hash": "2dd131a8a73fa0924f960b30dc84afc9f6a34a6f4bdef04fbfb105e065f48108"
+        }
+    ],
+    "hashType": "sha256"
+}

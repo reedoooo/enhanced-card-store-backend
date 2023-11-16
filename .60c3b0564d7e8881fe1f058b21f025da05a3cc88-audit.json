@@ -1,0 +1,30 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": ".60c3b0564d7e8881fe1f058b21f025da05a3cc88-audit.json",
+    "files": [
+        {
+            "date": 1699151859604,
+            "name": "cronJob-2023-11-04.log",
+            "hash": "e510f182286913cb22c63e1165ecd0639d215b3302eaf188295d3c60376c9a79"
+        },
+        {
+            "date": 1699175198472,
+            "name": "cronJob-2023-11-05.log",
+            "hash": "3fcc0c2d1214952e08c63dfc6e83a54b1fb8e9df19538ed5983fccfad90acc49"
+        },
+        {
+            "date": 1699318207874,
+            "name": "cronJob-2023-11-06.log",
+            "hash": "3c2dd4bd8c5d613fe4e07744bf16fe76e337903bddbe202d424d7ee2b078d4eb"
+        },
+        {
+            "date": 1699351915992,
+            "name": "cronJob-2023-11-07.log",
+            "hash": "0992653679fc45de733d0f3777c4bc65c8293e5768224f6556de42e3175a492d"
+        }
+    ],
+    "hashType": "sha256"
+}

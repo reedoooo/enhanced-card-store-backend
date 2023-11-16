@@ -6,24 +6,39 @@ const jwt = require('jsonwebtoken');
 const Deck = require('../models/Deck');
 const Collection = require('../models/Collection');
 const winston = require('winston');
-// const cardController = require('./CardController');
 const {
   handleValidationErrors,
   handleUpdateAndSync,
-  handleNotFound,
-  ensureCollectionExists,
-  validObjectId,
-  convertPrice,
-  filterUniqueCards,
-  handleDuplicateYValuesInDatasets,
+  handleCardUpdate,
+  handleChartDataUpdate,
 } = require('./userControllerUtilities');
-const { directError, directResponse } = require('./userControllerResponses');
 const CustomError = require('../middleware/customError');
 const { STATUS, MESSAGES, ERROR_SOURCES } = require('../constants');
-const { handleError } = require('../middleware/handleErrors');
-const { logToAllSpecializedLoggers, respondToClient } = require('../middleware/infoLogger');
+const {
+  logToAllSpecializedLoggers,
+  directError,
+  directResponse,
+} = require('../middleware/infoLogger');
+const { logCollection } = require('../utils/collectionLogTracking');
+const { logData } = require('../utils/logPriceChanges');
 const SECRET_KEY = process.env.SECRET_KEY;
 
+// const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+// Enhanced error logging
+const logError = (message, error) => {
+  logToAllSpecializedLoggers('error', message, { section: 'errors', error }, 'log');
+};
+
+// Enhanced info logging
+const logInfo = (message, status, data) => {
+  logToAllSpecializedLoggers(
+    'info',
+    status.green + ' | ' + message,
+    { section: 'info', data: data },
+    'log',
+  );
+};
 // Utility: Extract Data
 const extractData = ({ body }) => {
   const { login_data, basic_info, ...otherInfo } = body;
@@ -32,7 +47,6 @@ const extractData = ({ body }) => {
 const generateToken = (userData) => {
   return jwt.sign(userData, process.env.SECRET_KEY || 'YOUR_SECRET_KEY');
 };
-// Signup function
 exports.signup = async (req, res, next) => {
   try {
     handleValidationErrors(req, res);
@@ -41,7 +55,6 @@ exports.signup = async (req, res, next) => {
     const { username, password, email, role_data } = login_data || {};
     const { name } = basic_info || {};
 
-    // Check for missing required fields
     if (!name || !email || !username || !password) {
       logToAllSpecializedLoggers('Required fields are missing for signup.', { section: 'signup' });
       return directError(
@@ -64,10 +77,10 @@ exports.signup = async (req, res, next) => {
     const hashedPassword = await bcrypt.hash(password.trim(), 10);
     const newUser = new User({
       login_data: {
+        ...login_data,
         username: username.trim(),
         password: hashedPassword,
         email: email.trim(),
-        role_data,
       },
       basic_info,
       ...otherInfo,
@@ -82,7 +95,6 @@ exports.signup = async (req, res, next) => {
     });
 
     logToAllSpecializedLoggers('New user signup successful', { section: 'signup', user: username });
-
     return directResponse(res, 'SIGNUP', {
       status: STATUS.SUCCESS,
       message: MESSAGES.SIGNUP_SUCCESS,
@@ -97,7 +109,6 @@ exports.signup = async (req, res, next) => {
   }
 };
 
-// Signin function
 exports.signin = async (req, res, next) => {
   try {
     handleValidationErrors(req, res);
@@ -106,33 +117,19 @@ exports.signin = async (req, res, next) => {
 
     if (!process.env.SECRET_KEY) {
       logToAllSpecializedLoggers('Secret key is not set for signin.', { section: 'signin' });
-      throw new CustomError(
-        `${MESSAGES.SIGNIN_ERROR} ${process.env.SECRET_KEY}`,
-        STATUS.INTERNAL_SERVER_ERROR,
-        true,
-        { source: ERROR_SOURCES.SIGNIN, detail: 'Secret key is not set!' },
-      );
+      throw new CustomError(MESSAGES.SECRET_KEY_MISSING, STATUS.INTERNAL_SERVER_ERROR);
     }
 
     const user = await User.findOne({ 'login_data.username': username.trim() });
     if (!user) {
       logToAllSpecializedLoggers(`Invalid username for signin: ${username}`, { section: 'signin' });
-      throw new CustomError(`${MESSAGES.INVALID_USERNAME} ${username}`, STATUS.NOT_FOUND, true, {
-        source: ERROR_SOURCES.SIGNIN,
-        detail: `User ${username} not found`,
-      });
+      throw new CustomError(MESSAGES.INVALID_USERNAME, STATUS.NOT_FOUND);
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user?.login_data?.password);
+    const isPasswordValid = await bcrypt.compare(password, user.login_data.password);
     if (!isPasswordValid) {
-      logToAllSpecializedLoggers('Invalid password for signin.', {
-        section: 'signin',
-        username: username,
-      });
-      throw new CustomError(MESSAGES.INVALID_PASSWORD, STATUS.UNAUTHORIZED, true, {
-        source: ERROR_SOURCES.SIGNIN,
-        detail: 'Invalid Password',
-      });
+      logToAllSpecializedLoggers('Invalid password for signin.', { section: 'signin', username });
+      throw new CustomError(MESSAGES.INVALID_PASSWORD, STATUS.UNAUTHORIZED);
     }
 
     const token = generateToken({
@@ -142,7 +139,6 @@ exports.signin = async (req, res, next) => {
     });
 
     logToAllSpecializedLoggers('User signin successful', { section: 'signin', user: username });
-
     return directResponse(res, 'SIGNIN', {
       status: STATUS.SUCCESS,
       message: MESSAGES.SIGNIN_SUCCESS,
@@ -153,11 +149,13 @@ exports.signin = async (req, res, next) => {
       section: 'signin',
       error: error.toString(),
     });
+    // Use headersSent to check if headers are already sent to the client
     if (!res.headersSent) {
       next(error);
     }
   }
 };
+
 exports.getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.authData.id);
@@ -189,7 +187,6 @@ exports.getProfile = async (req, res, next) => {
     );
   }
 };
-
 exports.updateProfile = async (req, res, next) => {
   try {
     const updates = req.body;
@@ -204,7 +201,6 @@ exports.updateProfile = async (req, res, next) => {
     directError(res, MESSAGES.UPDATE_PROFILE_ERROR, STATUS.INTERNAL_SERVER_ERROR, next, error);
   }
 };
-
 exports.deleteProfile = async (req, res, next) => {
   try {
     const user = await User.findByIdAndDelete(req.authData.id);
@@ -224,7 +220,6 @@ exports.deleteProfile = async (req, res, next) => {
     next(error);
   }
 };
-
 exports.getUserById = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
@@ -239,9 +234,11 @@ exports.getUserById = async (req, res, next) => {
   }
 };
 
-// Refactored code for deck operations using directResponse and directError
-
 exports.getAllDecksForUser = async (req, res, next) => {
+  if (!req.params.userId) {
+    // Pass the error to the next middleware, which is the unified error handler
+    return next(new CustomError('User ID is required', 400));
+  }
   try {
     const user = await User.findById(req.params.userId);
     if (!user) {
@@ -249,7 +246,7 @@ exports.getAllDecksForUser = async (req, res, next) => {
     }
 
     user.allDecks = user.allDecks || [];
-    const decks = (await Deck.find({ _id: { $in: user.allDecks } })) || [];
+    const decks = await Deck.find({ _id: { $in: user.allDecks } });
 
     if (decks.length === 0) {
       const newDeck = new Deck({
@@ -265,13 +262,13 @@ exports.getAllDecksForUser = async (req, res, next) => {
       decks.push(newDeck);
     }
 
-    // Use directResponse for consistent logging and client response
-    directResponse(res, 'FETCH_ALL_DECKS', 'info', 'Fetched all decks successfully', {
+    // Directly send a successful response
+    res.status(200).json({
+      message: 'Fetched all decks successfully',
       data: decks,
     });
   } catch (error) {
-    // Use directError for consistent error logging and client response
-    directError(res, 'FETCH_ALL_DECKS_ERROR', 'error', error);
+    next(error); // Let the unified error handler deal with it
   }
 };
 
@@ -290,11 +287,13 @@ exports.updateAndSyncDeck = async (req, res, next) => {
       throw new CustomError('Deck not found', 404);
     }
 
-    // Use directResponse for logging success and responding to the client
-    directResponse(res, 'UPDATE_DECK', 'info', 'Deck updated successfully', { data: updatedDeck });
+    // Directly send a successful response
+    res.status(200).json({
+      message: 'Deck updated successfully',
+      data: updatedDeck,
+    });
   } catch (error) {
-    // Use directError to handle errors consistently
-    directError(res, 'UPDATE_DECK_ERROR', 'error', error);
+    next(error);
   }
 };
 
@@ -306,126 +305,317 @@ exports.createNewDeck = async (req, res, next) => {
     const newDeck = new Deck({ userId, name, description, cards, totalPrice });
     await newDeck.save();
 
-    // Use directResponse for success actions
-    directResponse(res, 'CREATE_NEW_DECK', 'info', 'New deck created successfully', {
+    // Directly send a successful response
+    res.status(201).json({
+      message: 'New deck created successfully',
       data: newDeck,
     });
   } catch (error) {
-    // Use directError for error handling
-    directError(res, 'CREATE_NEW_DECK_ERROR', 'error', error);
+    next(error);
   }
 };
 
 const createCollectionObject = (body, userId) => {
   return {
-    userId,
-    name: body.name,
-    description: body.description,
+    userId: body.userId || userId, // Use userId from body if available, else use the passed userId
+    name: body.name || '',
+    description: body.description || '',
     totalCost: body.totalCost || '',
     totalPrice: body.totalPrice || 0,
     quantity: body.quantity || 0,
     totalQuantity: body.totalQuantity || 0,
-    dailyPriceChange: body.dailyPriceChange || 0,
+    dailyPriceChange: body.dailyPriceChange || '',
     priceDifference: body.priceDifference || 0,
     priceChange: body.priceChange || 0,
     previousDayTotalPrice: body.previousDayTotalPrice || 0,
-    allCardPrices: body.allCardPrices || [],
-    cards: body.cards || [],
-    currentChartDatasets: body.currentChartDatasets || [],
+    allCardPrices: Array.isArray(body.allCardPrices) ? body.allCardPrices : [],
+    cards: Array.isArray(body.cards) ? body.cards : [],
+    currentChartDataSets: Array.isArray(body.currentChartDataSets) ? body.currentChartDataSets : [],
+    currentChartDataSets2: Array.isArray(body.currentChartDataSets2)
+      ? body.currentChartDataSets2
+      : [],
     xys: Array.isArray(body.xys) ? body.xys : [],
+    collectionPriceHistory: Array.isArray(body.collectionPriceHistory)
+      ? body.collectionPriceHistory
+      : [],
     chartData: {
-      name: body.chartData?.name || '',
-      userId: body.chartData?.userId || userId,
-      datasets: body.chartData?.datasets || [],
-      xys: Array.isArray(body.xys) ? body.xys : [],
-      allXYValues: body.chartData?.allXYValues || [],
+      // Ensuring chartData is populated correctly
+      name: body.chartData?.name || `Chart for ${body.name || 'Collection'}`,
+      userId: body.chartData?.userId || body.userId || userId,
+      datasets: Array.isArray(body.chartData?.datasets) ? body.chartData.datasets : [],
+      allXYValues: Array.isArray(body.chartData?.allXYValues) ? body.chartData.allXYValues : [],
+      xys: Array.isArray(body.chartData?.xys) ? body.chartData.xys : [],
     },
   };
 };
 
-exports.createNewCollection = async (req, res, next) => {
-  const { userId: rawUserId } = req.params;
-
-  const userId = validObjectId(rawUserId) ? rawUserId : null;
-  if (!userId) {
-    return directError(res, 'INVALID_USER_ID', 'error', new CustomError('Invalid user ID', 400));
-  }
-
+exports.getAllCollectionsForUser = async (req, res, next) => {
   try {
-    await ensureCollectionExists(userId);
-    const newCollectionData = createCollectionObject(req.body, userId);
-    const newCollection = new Collection(newCollectionData);
-    const savedCollection = await newCollection.save();
-
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new CustomError('User not found', 404);
-    }
-    user.allCollections.push(savedCollection._id);
-    await user.save();
-
-    directResponse(res, 'CREATE_NEW_COLLECTION', 'info', 'New collection created successfully', {
-      newCollection: savedCollection,
-    });
-  } catch (error) {
-    directError(res, 'CREATE_COLLECTION_ERROR', 'error', error);
-  }
-};
-
-exports.getAllCollectionsForUser = async (req, res) => {
-  try {
-    const userId = validObjectId(req.params.userId) ? req.params.userId : null;
-
-    if (!userId) {
-      return directError(res, 'INVALID_USER_ID', 'error', new CustomError('Invalid user ID', 400));
-    }
-
+    const userId = req.params.userId; // Already validated by middleware
     const user = await User.findById(userId).populate('allCollections');
     if (!user) {
-      return directError(res, 'USER_NOT_FOUND', 'error', new CustomError('User not found', 404));
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    directResponse(
-      res,
-      'FETCHED_USER_COLLECTIONS',
-      'info',
-      `Fetched ${user.allCollections.length} collections for user ${userId}`,
-      { allCollections: user.allCollections },
-    );
+    logInfo('Fetched all collections for user', { userId });
+    res.status(200).json({
+      message: `Fetched collections for user ${userId}`,
+      data: user.allCollections,
+    });
   } catch (error) {
-    directError(res, 'FETCH_COLLECTIONS_ERROR', 'error', error);
+    logError('Error fetching collections', { error });
+    next(error);
   }
 };
 
-// Endpoint handler function that uses the above utility.
-exports.updateAndSyncCollection = async (req, res) => {
+exports.createNewCollection = async (req, res, next) => {
+  try {
+    const userId = req.params.userId;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    console.log('Request body:', req.body);
+    console.log('Request body:', req.body.name);
+    console.log('Request body:', req.body.description);
+
+    const newCollectionData = createCollectionObject(req.body, userId);
+    console.log('New collection data:', newCollectionData);
+    const newCollection = new Collection(newCollectionData);
+    await newCollection.save();
+
+    logInfo('createNewCollection', { newCollection });
+
+    logCollection(newCollection);
+    user.allCollections.push(newCollection);
+    await user.save();
+
+    // Re-populate allCollections to return full collection data
+    await user.populate('allCollections'); // Correct way
+
+    res.status(201).json({
+      message: 'New collection created successfully',
+      data: newCollection,
+    });
+  } catch (error) {
+    next(error); // Use your existing error handling middleware
+  }
+};
+
+exports.updateCardsInCollection = async (req, res, next) => {
   try {
     const { userId, collectionId } = req.params;
 
-    // Validate Object IDs before proceeding
-    if (!validObjectId(userId) || !validObjectId(collectionId)) {
-      throw new CustomError('Invalid user or collection ID', STATUS.BAD_REQUEST);
+    if (req.body.cards && Array.isArray(req.body.cards)) {
+      req.body.cards.forEach((card, index) => {
+        if (card.priceHistory && Array.isArray(card.priceHistory)) {
+          card.priceHistory.forEach((entry, entryIndex) => {
+            if (entry && !Object.prototype.hasOwnProperty.call(entry, 'num')) {
+              entry.num = card.price; // Assuming card.price is the value you want to assign
+            } else if (entry) {
+              // console.log(`Card ${index}, Price History Entry ${entryIndex}: entry is not null`);
+            } else {
+              card.priceHistory[entryIndex] = {
+                num: card.totalPrice, // Assuming card.price is the value you want to assign
+                timestamp: new Date().toISOString(),
+              };
+            }
+          });
+        }
+      });
     }
 
-    const updateResult = await handleUpdateAndSync({ userId, collectionId }, req.body);
+    // Call a function to handle the card update logic, passing in necessary parameters
+    const updateCardsResult = await handleCardUpdate({ userId, collectionId }, req.body.cards);
 
-    // Check for errors in the updateResult
-    if (updateResult.errors) {
-      throw new CustomError('Errors occurred during update and sync', STATUS.INTERNAL_SERVER_ERROR);
+    if (updateCardsResult.status === 'error') {
+      console.log('Error during card update:', updateCardsResult);
+      return res.status(500).json({
+        message: updateCardsResult.message,
+        errors: updateCardsResult.errorDetails,
+      });
+    } else if (updateCardsResult.status === 'success') {
+      logInfo('Cards in collection updated successfully', { updateCardsResult });
     }
 
-    // Respond with the success message and the updated collection
-    directResponse(
-      res,
-      `Collection ${collectionId} for user ${userId} updated successfully`,
-      'info',
-      { data: updateResult.updatedCollection },
-    );
+    res.status(200).json({
+      message: 'Cards in collection updated successfully',
+      data: updateCardsResult.data,
+    });
   } catch (error) {
-    // Handle errors consistently
-    directError(res, error.message, 'error', error);
+    next(error);
   }
 };
+
+exports.updateChartDataInCollection = async (req, res, next) => {
+  try {
+    const { userId, collectionId } = req.params;
+    const { chartData } = req.body;
+
+    // Handle the chart data update logic
+    const updateChartDataResult = await handleChartDataUpdate(userId, collectionId, chartData);
+
+    if (updateChartDataResult.status === 'error') {
+      console.log('Error during chart data update:', updateChartDataResult);
+      logError('Error during chart data update', { updateChartDataResult });
+      return res.status(500).json({
+        message: updateChartDataResult.message,
+        errors: updateChartDataResult.errorDetails,
+      });
+    } else if (updateChartDataResult.status === 'success') {
+      logInfo('Chart data updated successfully', { updateChartDataResult });
+    }
+
+    logCollection(updateChartDataResult.data);
+    res.status(200).json({
+      message: 'Chart data updated successfully',
+      data: updateChartDataResult.data,
+    });
+  } catch (error) {
+    logError('Error during chart data update', { error });
+    next(error);
+  }
+};
+
+exports.updateAndSyncCollection = async (req, res, next) => {
+  try {
+    const { userId, collectionId } = req.params;
+    const { cards, chartData, ...collectionUpdates } = req.body;
+    const updateResult = await handleUpdateAndSync({ userId, collectionId }, collectionUpdates);
+
+    if (updateResult.status === 'error') {
+      console.log('Error during update and sync:', updateResult);
+      logError('Error during update and sync', { updateResult });
+      return res.status(500).json({
+        message: updateResult.message,
+        errors: updateResult.errorDetails,
+      });
+    } else if (updateResult.status === 'success') {
+      logInfo('Collection updated successfully', updateResult.status, { updateResult });
+    }
+
+    // logInfo('Collection updated successfully', { updateResult });
+    logCollection(updateResult.data);
+    res.status(200).json({
+      message: 'Collection updated successfully',
+      data: updateResult.data,
+    });
+  } catch (error) {
+    logError('Error during update and sync', { error });
+    next(error);
+  }
+};
+
+// exports.createNewCollection = async (req, res, next) => {
+//   const { userId: rawUserId } = req.params;
+
+//   const userId = validObjectId(rawUserId) ? rawUserId : null;
+
+//   if (!userId) {
+//     return directError(res, 'INVALID_USER_ID', 'error', new CustomError('Invalid user ID', 400));
+//   }
+//   // const user = await User.findById(userId).populate('allCollections');
+
+//   try {
+//     // await ensureCollectionExists(userId);
+//     const newCollectionData = createCollectionObject(req.body, userId);
+
+//     const newCollection = new Collection(newCollectionData);
+
+//     await newCollection.save();
+
+//     // user.allCollections.push(newCollection._id);
+//     // await user.save();
+
+//     directResponse(res, 'CREATE_NEW_COLLECTION', 'info', 'New collection created successfully', {
+//       data: newCollection,
+//     });
+//   } catch (error) {
+//     directError(res, 'CREATE_COLLECTION_ERROR', 'error', error);
+//   }
+// };
+
+// exports.getAllCollectionsForUser = async (req, res) => {
+//   try {
+//     const userId = validObjectId(req.params.userId) ? req.params.userId : null;
+
+//     if (!userId) {
+//       // Logging and responding for an invalid user ID error
+//       logToAllSpecializedLoggers(
+//         'error',
+//         'Invalid user ID',
+//         { section: 'collections', status: 400, res },
+//         'response',
+//       );
+//       return;
+//     }
+
+//     const user = await User.findById(userId).populate('allCollections');
+//     if (!user) {
+//       // Logging and responding for a user not found error
+//       logToAllSpecializedLoggers(
+//         'error',
+//         'User not found',
+//         { section: 'collections', status: 404, res },
+//         'response',
+//       );
+//       return;
+//     }
+
+//     // Logging and responding with the fetched collections
+//     logToAllSpecializedLoggers(
+//       'info',
+//       `Fetched ${user.allCollections.length} collections for user ${userId}`,
+//       { section: 'collections', status: 200, res, data: user.allCollections },
+//       'response',
+//     );
+//   } catch (error) {
+//     // Logging and responding for a server-side error
+//     logToAllSpecializedLoggers(
+//       'error',
+//       'Error fetching collections',
+//       { section: 'collections', status: 500, res, error },
+//       'response',
+//     );
+//   }
+// };
+// // Endpoint handler function that uses the above utility.
+// exports.updateAndSyncCollection = async (req, res) => {
+//   try {
+//     const { userId, collectionId } = req.params;
+
+//     // Validate the IDs before proceeding
+//     if (!isValidObjectId(userId) || !isValidObjectId(collectionId)) {
+//       return directError(res, 'Invalid user or collection ID', 'error', STATUS.BAD_REQUEST);
+//     }
+
+//     // Handle the update and synchronization process
+//     const updateResult = await handleUpdateAndSync({ userId, collectionId }, req.body);
+
+//     // Handle errors during update
+//     if (updateResult.errors) {
+//       console.error('Update errors:', updateResult.errors);
+//       return directError(res, 'Errors occurred during update and sync', 'error', {
+//         status: STATUS.INTERNAL_SERVER_ERROR,
+//         errors: updateResult.errors.map((e) => e.message),
+//       });
+//     }
+
+//     // Send a successful response
+//     directResponse(
+//       res,
+//       'UPDATE_AND_SYNC_COLLECTION',
+//       'info',
+//       `Collection ${collectionId} for user ${userId} updated successfully`,
+//       { data: updateResult.data },
+//     );
+//   } catch (error) {
+//     console.error('Unhandled error in updateAndSyncCollection:', error);
+//     directError(res, error.message, 'error', error.status || STATUS.INTERNAL_SERVER_ERROR);
+//   }
+// };
+
 // Ensure the ensureCollectionExists and handleUpdateAndSync functions are implemented elsewhere in the code.
 
 // exports.getAllCollectionsForUser = async (req, res, next) => {

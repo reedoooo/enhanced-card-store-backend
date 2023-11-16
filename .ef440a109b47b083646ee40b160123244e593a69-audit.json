@@ -1,0 +1,70 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": ".ef440a109b47b083646ee40b160123244e593a69-audit.json",
+    "files": [
+        {
+            "date": 1699162212772,
+            "name": "validateDataset-2023-11-04.log",
+            "hash": "1078e8dc4ed449cd5c9db3b1e0ed0ecc2ec690f2a869a6cac711956baf63b402"
+        },
+        {
+            "date": 1699175198482,
+            "name": "validateDataset-2023-11-05.log",
+            "hash": "cf03992dc71342f30ee14b4c96aa02986d90f3795865ce225c56f853013dbe85"
+        },
+        {
+            "date": 1699318207884,
+            "name": "validateDataset-2023-11-06.log",
+            "hash": "8012ae3ad10083afc6ee77fb79c17ebdac40b105244ea9baea4625b647d49e9a"
+        },
+        {
+            "date": 1699351916000,
+            "name": "validateDataset-2023-11-07.log",
+            "hash": "941aa81665e8632efe942052bf80507c2b3dca93ab504e3e27d308cd43d9500e"
+        },
+        {
+            "date": 1699432426880,
+            "name": "validateDataset-2023-11-08.log",
+            "hash": "2816c61cd879a81ca3a202ec93851d322ce8cc54530c35f7af2eb95a3374d159"
+        },
+        {
+            "date": 1699563145211,
+            "name": "validateDataset-2023-11-09.log",
+            "hash": "81597951395905600dbb350657eceb84b633db10cb9f4886e40137e0064a9d32"
+        },
+        {
+            "date": 1699603262189,
+            "name": "validateDataset-2023-11-10.log",
+            "hash": "4fd80ded3e4233648863f30eb0b960bff8449a1c6a777e65979348bc1276d519"
+        },
+        {
+            "date": 1699740858346,
+            "name": "validateDataset-2023-11-11.log",
+            "hash": "872e099251f2f332ea11ae23fd9fc7a25d40692694797bcd55d0f64b27dd0262"
+        },
+        {
+            "date": 1699780137514,
+            "name": "validateDataset-2023-11-12.log",
+            "hash": "b8048a43b3bf2810614a960c3db07c858e8ef89ccc54f466049506c36e1c6f59"
+        },
+        {
+            "date": 1699910062178,
+            "name": "validateDataset-2023-11-13.log",
+            "hash": "d0ed8b4ca9102caaf29c173effe1df4f0791bfad633b970e27f72fbfc7b66fff"
+        },
+        {
+            "date": 1700085278713,
+            "name": "validateDataset-2023-11-15.log",
+            "hash": "22bc5a04d4c55e4a0641ad57a5686d5b921a305184ca0445f9d3ed948032e8d8"
+        },
+        {
+            "date": 1700122007094,
+            "name": "validateDataset-2023-11-16.log",
+            "hash": "d6f531dd54c379c0bac8961e421253943bb2a2713d0c2648b6109c74baf08116"
+        }
+    ],
+    "hashType": "sha256"
+}

@@ -63,7 +63,7 @@ const updateUserCard = (card, pricingData) => {
   }
 };
 
-const updateCurrentChartDatasets = (collection) => {
+const updateCurrentChartDataSets = (collection) => {
   try {
     if (!collection) {
       console.error('Collection is not provided.');
@@ -78,16 +78,16 @@ const updateCurrentChartDatasets = (collection) => {
       },
     };
 
-    if (!collection.currentChartDatasets) {
-      collection.currentChartDatasets = [newDataset];
+    if (!collection.currentChartDataSets) {
+      collection.currentChartDataSets = [newDataset];
     } else {
-      const existingDatasetIndex = collection.currentChartDatasets.findIndex(
+      const existingDatasetIndex = collection.currentChartDataSets.findIndex(
         (ds) => ds.id === collectionIdStr,
       );
       if (existingDatasetIndex !== -1) {
-        collection.currentChartDatasets[existingDatasetIndex].data = newDataset.data;
+        collection.currentChartDataSets[existingDatasetIndex].data = newDataset.data;
       } else {
-        collection.currentChartDatasets.push(newDataset);
+        collection.currentChartDataSets.push(newDataset);
       }
     }
   } catch (error) {
@@ -131,14 +131,15 @@ const updateUserCollections = async (userId, updatedData) => {
 
       const previousDayTotalPrice = collection.previousDayTotalPrice || 0;
       collection.totalPrice = collection.cards.reduce((acc, card) => acc + (card?.price || 0), 0);
-      collection.dailyPriceChange = collection.totalPrice - previousDayTotalPrice;
+      collection.dailyPriceChange = (collection.totalPrice - previousDayTotalPrice).toString();
       collection.updatedAt = new Date();
 
       if (!collection.totalPrice && typeof collection.totalCost === 'string') {
         collection.totalPrice = parseFloat(collection.totalCost);
+        collection.dailyPriceChange = (collection.totalPrice - previousDayTotalPrice).toString();
       }
 
-      updateCurrentChartDatasets(collection);
+      updateCurrentChartDataSets(collection);
       await collection.save();
 
       io.emit('HANDLE_UPDATE_AND_SYNC_COLLECTION', {

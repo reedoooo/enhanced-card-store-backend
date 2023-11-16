@@ -33,6 +33,8 @@ const MESSAGES = {
   DUPLICATE_KEY_ERROR: 'Duplicate key error',
   INTERNAL_SERVER_ERROR: 'Internal Server Error',
   REQUIRED_FIELDS_MISSING: 'Required fields missing',
+  // CLIENT_MESSAGE_RECEIVED: 'Client message received',
+  // AN_ERROR_OCCURRED: 'An error has occurred',
 
   // Utility and Helper Functions messages
   NOT_FOUND: (resource) => `${resource} not found`,
@@ -128,8 +130,23 @@ const ERROR_SOURCES = {
   DELETE_COLLECTION: 'deleteCollection',
 };
 
+const GENERAL = {
+  // General
+  MAX_RETRIES: 3,
+  REQUIRED_FIELDS_MISSING: 'Required fields missing',
+  INVALID_USER_DATA: 'Invalid user data',
+  DUPLICATE_KEY_ERROR: 'Duplicate key error',
+  INTERNAL_SERVER_ERROR: 'Internal Server Error',
+  NOT_FOUND: (resource) => `${resource} not found`,
+  FAILED_TO_ENSURE_COLLECTION_EXISTS: 'Failed to ensure collection exists',
+  COLLECTION_CHART_DATA_UPDATED: 'Collection and ChartData successfully updated',
+  VALIDATION_ERROR: 'Validation Error',
+  SERVER_ERROR: (error) => `Server error: ${error.message}`,
+};
+
 module.exports = {
   STATUS: STATUS,
   MESSAGES: MESSAGES,
   ERROR_SOURCES: ERROR_SOURCES,
+  GENERAL: GENERAL,
 };

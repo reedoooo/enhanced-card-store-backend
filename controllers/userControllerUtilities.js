@@ -1,15 +1,16 @@
 const mongoose = require('mongoose');
-const winston = require('winston'); // Assuming winston is installed and configured
 const User = require('../models/User'); // Adjust the path as necessary
 const Collection = require('../models/Collection'); // Adjust the path as necessary
 const { logger, logToAllSpecializedLoggers } = require('../middleware/infoLogger');
 const { validationResult } = require('express-validator');
 const CustomError = require('../middleware/customError');
-const { STATUS, MESSAGES, ERROR_SOURCES } = require('../constants');
-const { validateCardInCollection } = require('./validateCollection');
+const { STATUS, MESSAGES, GENERAL } = require('../constants');
 const { validateXY } = require('./validateXY');
 const { validateDataset } = require('./validateDataset');
 const { validateCard } = require('./validateCard');
+const { error } = require('winston');
+const { logCollection } = require('../utils/collectionLogTracking');
+const { logData } = require('../utils/logPriceChanges');
 // const { validateCardBase } = require('./validateCardBase');
 // const { validateCard } = require('./validateCard');
 // const { validateCollection } = require('./validateCollection');
@@ -32,12 +33,47 @@ const { validateCard } = require('./validateCard');
 //   }
 //   return res.status(STATUS.INTERNAL_SERVER_ERROR).json({ message: MESSAGES.INTERNAL_SERVER_ERROR });
 // };
+// const directResponse = (res, action, level, message, data = {}) => {
+//   const statusCode = 200 || '200';
 
+//   // console.log('DIRECT RESPONSE CALLED:', res, action, level, message, data);
+//   const meta = {
+//     section: 'response',
+//     action,
+//     data,
+//   };
+
+//   // Log to console
+//   logToConsole(level, `${action}: ${message}`, meta);
+
+//   // Log to file
+//   logToFile('response', level, `${action}: ${message}`, meta);
+
+//   // Send response to the client
+//   respondToClient(res, statusCode, message, data);
+// };
+// const directError = (res, action, level, error) => {
+//   // Ensure the error object has a message and a statusCode
+//   const errorMessage = error.message || 'An error occurred';
+//   const statusCode = error.statusCode || 500;
+
+//   const meta = {
+//     section: 'errors',
+//     action,
+//     error: errorMessage,
+//   };
+//   // Log to console and file
+//   logToConsole(level, `${action}: ${errorMessage}`, meta);
+//   logToFile('error', level, `${action}: ${errorMessage}`, meta);
+
+//   // Send error response to the client
+//   respondToClient(res, statusCode, errorMessage, { error: errorMessage });
+// };
 exports.handleNotFound = (resource, res) => {
   logger.infoLogger(`${resource} not found`);
   throw new CustomError(`${resource} ${MESSAGES.NOT_FOUND}`, STATUS.NOT_FOUND);
 };
-exports.validObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+exports.validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 exports.handleValidationErrors = (req, res, next) => {
   // Handle validation errors which means that the request failed validation
   const errors = validationResult(req);
@@ -51,33 +87,6 @@ exports.handleValidationErrors = (req, res, next) => {
     next();
   }
 };
-// exports.logBodyDetails = (body) => {
-//   // Log the details of the request body
-//   try {
-//     const fieldsToLog = [
-//       'chartData',
-//       'allCardPrices',
-//       'userId',
-//       '_id',
-//       'name',
-//       'description',
-//       'totalCost',
-//       'totalPrice',
-//       'quantity',
-//       'totalQuantity',
-//       'xys',
-//       'dailyPriceChange',
-//     ];
-//     fieldsToLog.forEach((field) => logger.info(`${field}: ${JSON.stringify(body[field])}`));
-
-//     if (Array.isArray(body.cards) && body.cards.length > 0) {
-//       const firstCard = body.cards[0];
-//       logger.info('First Card:', firstCard);
-//     }
-//   } catch (error) {
-//     throw new CustomError(`Failed to log body details: ${error.message}`, 500, true, { body });
-//   }
-// };
 
 exports.handleDuplicateYValuesInDatasets = (card) => {
   // Filter out duplicate y values in datasets
@@ -172,58 +181,114 @@ exports.ensureCollectionExists = async (userId) => {
 // let validationErrors = [];
 
 // Assume validateDataset, validateXY, logToAllSpecializedLoggers, and other dependencies are defined elsewhere.
+// Utility function to append data to an existing dataset or add a new one
+
+const updateOrCreateDataset = (existingCollection, incomingDataset) => {
+  let datasetToUpdate = existingCollection.chartData.datasets.find(
+    (dataset) => dataset.name === incomingDataset.name,
+  );
+
+  if (datasetToUpdate) {
+    datasetToUpdate.data = datasetToUpdate.data.map((dataItem, index) => {
+      // Merge the xys data for the datasets
+      let updatedXYS = [...dataItem.xys, ...incomingDataset.data[index].xys];
+
+      // Update the corresponding entry in collection.xys
+      let collectionXYS = existingCollection.xys.find((xy) => xy.label === incomingDataset.name);
+      if (collectionXYS) {
+        collectionXYS.data = updatedXYS.map((xy) => ({ x: xy.x, y: xy.y }));
+      } else {
+        existingCollection.xys.push({
+          label: incomingDataset.name,
+          data: updatedXYS.map((xy) => ({ x: xy.x, y: xy.y })),
+        });
+      }
+
+      // Update the corresponding entry in chartData.xys
+      let chartXYS = existingCollection.chartData.xys.find(
+        (xy) => xy.label === incomingDataset.name,
+      );
+      if (chartXYS) {
+        chartXYS.data = updatedXYS.map((xy) => ({ x: xy.x, y: xy.y }));
+      } else {
+        existingCollection.chartData.xys.push({
+          label: incomingDataset.name,
+          data: updatedXYS.map((xy) => ({ x: xy.x, y: xy.y })),
+        });
+      }
+
+      // Update allXYValues
+      existingCollection.chartData.allXYValues.push(
+        ...updatedXYS.map((xy) => ({ label: incomingDataset.name, x: xy.x, y: xy.y })),
+      );
+
+      return {
+        ...dataItem,
+        xys: updatedXYS,
+      };
+    });
+  } else {
+    // If dataset does not exist, create new one and update corresponding xys in collection and chartData
+    const newDatasetData = incomingDataset.data.map((dataItem) => ({
+      xys: dataItem.xys.map((xy) => ({ label: xy.label, data: { x: xy.x, y: xy.y } })),
+    }));
+
+    const newDataset = {
+      name: incomingDataset.name,
+      data: newDatasetData,
+    };
+
+    existingCollection.chartData.datasets.push(newDataset);
+
+    // Create a new xys entry in the collection and chartData for the new dataset
+    existingCollection.xys.push({
+      label: incomingDataset.name,
+      data: newDatasetData.flatMap((dataItem) => dataItem.xys.map((xy) => xy.data)),
+    });
+
+    existingCollection.chartData.xys.push({
+      label: incomingDataset.name,
+      data: newDatasetData.flatMap((dataItem) => dataItem.xys.map((xy) => xy.data)),
+    });
+
+    // Add new xys to allXYValues
+    existingCollection.chartData.allXYValues.push(
+      ...newDatasetData.flatMap((dataItem) =>
+        dataItem.xys.map((xy) => ({ label: incomingDataset.name, x: xy.data.x, y: xy.data.y })),
+      ),
+    );
+  }
+};
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+const logError = (message, error) => {
+  logToAllSpecializedLoggers('error', message, { section: 'errors', error }, 'log');
+  if (error.data) {
+    logToAllSpecializedLoggers('info', message, { section: 'errors', data: error.data }, 'log');
+  }
+};
+const logInfo = (message, data) => {
+  logToAllSpecializedLoggers('info', message, { section: 'info', data: data }, 'log');
+};
 
 exports.handleIncomingDatasets = async (existingCollection, incomingDatasets) => {
   const validationErrors = [];
 
   for (const incomingDataset of incomingDatasets) {
-    if (!validateDataset(existingCollection, incomingDataset)) {
-      validationErrors.push({ message: 'Invalid Dataset', dataset: incomingDataset });
-      continue;
+    try {
+      if (validateDataset(existingCollection, incomingDataset)) {
+        updateOrCreateDataset(existingCollection, incomingDataset);
+      } else {
+        validationErrors.push({ message: 'Invalid Dataset', data: incomingDataset });
+      }
+    } catch (error) {
+      validationErrors.push({
+        message: 'Database operation failed',
+        data: incomingDataset,
+        error: error.message,
+      });
     }
-
-    let datasetToUpdate = existingCollection.chartData.datasets.find(
-      (dataset) => dataset.name === incomingDataset.name,
-    );
-
-    if (datasetToUpdate) {
-      datasetToUpdate.data = datasetToUpdate.data.map((dataItem, index) => ({
-        ...dataItem,
-        xys: [...dataItem.xys, ...incomingDataset.data[index].xys],
-      }));
-    } else {
-      const newDataset = {
-        name: incomingDataset.name,
-        data: incomingDataset.data.map((dataItem) => ({
-          xys: dataItem.xys.map((xy) => ({ label: xy.label, data: { x: xy.x, y: xy.y } })),
-        })),
-      };
-      existingCollection.chartData.datasets.push(newDataset);
-    }
-  }
-
-  try {
-    await existingCollection.save();
-    logToAllSpecializedLoggers(
-      'info',
-      'Successfully saved existingCollection',
-      {
-        section: 'info',
-        data: existingCollection,
-      },
-      'log',
-    );
-  } catch (err) {
-    logToAllSpecializedLoggers(
-      'error',
-      'Error occurred while saving existingCollection',
-      {
-        section: 'errors',
-        error: err,
-      },
-      'log',
-    );
-    validationErrors.push({ message: 'Error saving collection', error: err });
   }
 
   return validationErrors;
@@ -233,106 +298,338 @@ exports.handleIncomingXY = async (existingCollection, incomingXYS) => {
   const validationErrors = [];
   existingCollection.xys = existingCollection.xys || [];
 
+  // console.log('[1][EXISTING COLLECTION XYS] -->', existingCollection.xys);
+  // console.log('[1][EXISTING COLLECTION CHARTDATA XYS] -->', existingCollection.chartData.xys);
+  // console.log(
+  //   '[1][EXISTING COLLECTION CHARTDATA ALLXYVALUES] -->',
+  //   existingCollection.chartData.allXYValues,
+  // );
+  // console.log(
+  //   '[1][EXISTING COLLECTION CHARTDATA DATASETS] -->',
+  //   existingCollection.chartData.datasets,
+  // );
+  // console.log(
+  //   '[1][EXISTING COLLECTION CHARTDATA DATASETS DATA] -->',
+  //   existingCollection.chartData.datasets[0].data,
+  // );
+  // console.log(
+  //   '[1][EXISTING COLLECTION CHARTDATA DATASETS DATA XYS] -->',
+  //   existingCollection.chartData.datasets[0].data[0].xys,
+  // );
+  // console.log(
+  //   '[1][EXISTING COLLECTION CHARTDATA DATASETS DATA XYS DATA] -->',
+  //   existingCollection.chartData.datasets[0].data[0].xys[0].data,
+  // );
+  console.log('INCOMING XYZ', incomingXYS);
   for (const incomingXY of incomingXYS) {
+    console.log('INCOMING XY', incomingXY);
     const xyEntry = {
       label: incomingXY.label,
-      data: incomingXY.data.map((xy) => ({ x: xy.x, y: xy.y })),
+      data: incomingXY.data,
     };
 
     if (!validateXY(xyEntry)) {
-      validationErrors.push({ message: 'Invalid XY structure', xys: xyEntry });
+      validationErrors.push({ message: 'Invalid XY structure', data: xyEntry });
       continue;
     }
 
-    const existingXY = existingCollection.xys.find((xy) => xy.label === incomingXY.label);
-    if (existingXY) {
-      existingXY.data.push(...xyEntry.data);
+    // Update the corresponding entry in collection.xys
+    // let collectionXYS = existingCollection.xys.find((xy) => xy.label === incomingXY.label);
+    // if (collectionXYS) {
+    //   collectionXYS.data.push(xyEntry.data);
+    // } else {
+    //   existingCollection.xys.push({
+    //     label: incomingXY.label,
+    //     data: [xyEntry.data],
+    //   });
+    // }
+
+    // Update the corresponding entry in chartData.xys
+    let chartXYS = existingCollection.chartData.xys.find((xy) => xy.label === incomingXY.label);
+    if (chartXYS) {
+      console.log('CHART XYS FOUND', chartXYS);
+      // chartXYS.data.push(xyEntry.data);
     } else {
-      existingCollection.xys.push(xyEntry);
+      existingCollection.chartData.xys.push({
+        label: incomingXY.label,
+        data: [xyEntry.data],
+      });
     }
+
+    // Add new xys to allXYValues
+    existingCollection.chartData.allXYValues.push({
+      label: incomingXY.label,
+      x: xyEntry.data.x,
+      y: xyEntry.data.y,
+    });
   }
+
+  // Uncomment the following line if you want to save the changes to the database
+  await existingCollection.save();
 
   return validationErrors;
 };
 
-exports.processIncomingData = async (existingCollection, body) => {
+exports.processIncomingData = async (existingCollection, chartData) => {
   const processErrors = [];
-  const { cards, chartData } = body;
 
-  if (cards && !cards.every(validateCard)) {
-    processErrors.push({ message: 'Invalid card structure', cards });
-  }
+  // Process datasets and XYs asynchronously
+  const datasetErrors = chartData?.datasets
+    ? await this.handleIncomingDatasets(existingCollection, chartData.datasets)
+    : [];
+  // Assuming chartData.datasets is an array of datasets
+  const xyErrors = chartData?.datasets
+    ? await this.handleIncomingXY(
+        existingCollection,
+        chartData.datasets.flatMap((dataset) =>
+          dataset.data.flatMap(
+            (dataItem) => dataItem.xys,
+            // dataItem.xys.map((xy) => ({
+            //   label: dataset.name,
+            //   data: xy.data,
+            // })),
+          ),
+        ),
+      )
+    : [];
 
-  if (chartData?.datasets) {
-    processErrors.push(
-      ...(await this.handleIncomingDatasets(existingCollection, chartData.datasets)),
-    );
-  }
+  // Accumulate all errors
+  processErrors.push(...datasetErrors, ...xyErrors);
 
-  if (chartData?.xys) {
-    processErrors.push(...(await this.handleIncomingXY(existingCollection, chartData.xys)));
-  }
-
-  if (processErrors.length > 0) {
+  // Log and return errors if present
+  if (processErrors.length) {
+    processErrors.forEach((error) => logError(error.message, error));
     return { errors: processErrors };
   }
 
-  Object.assign(existingCollection, body, { xys: existingCollection.xys });
+  // Update chart data in the collection
+  existingCollection.chartData = { ...existingCollection.chartData, ...chartData };
 
-  return { updatedCollection: existingCollection };
+  let attempt = 0;
+  while (attempt < GENERAL.MAX_RETRIES) {
+    try {
+      await existingCollection.save();
+      return { status: 'success', data: existingCollection };
+    } catch (error) {
+      if (error.name === 'VersionError' && attempt < GENERAL.MAX_RETRIES - 1) {
+        await delay(1000);
+        attempt++;
+      } else {
+        return {
+          status: 'error',
+          message: 'Failed to update collection.',
+          errorDetails: error.message,
+        };
+      }
+    }
+  }
+  throw new Error('Update attempts exceeded');
+};
+
+exports.handleCardUpdate = async ({ userId, collectionId }, cardsToUpdate) => {
+  try {
+    // Assuming you have a Collection model (e.g., a Mongoose model if using MongoDB)
+    const collection = await Collection.findOne({ _id: collectionId, userId });
+
+    if (!collection) {
+      return { status: 'error', message: 'Collection not found' };
+    }
+
+    // Update cards in the collection
+    cardsToUpdate.forEach((cardUpdate) => {
+      // Find the index of the card to update in the collection
+      const cardIndex = collection.cards.findIndex((card) => card.id === cardUpdate.id);
+      if (cardIndex !== -1) {
+        // Update the card details
+        collection.cards[cardIndex] = { ...collection.cards[cardIndex], ...cardUpdate };
+      } else {
+        // Handle case where card is not found, if needed
+      }
+    });
+
+    // Save the updated collection
+    await collection.save();
+
+    return { status: 'success', data: collection };
+  } catch (error) {
+    console.error('Error updating cards in collection:', error);
+    return { status: 'error', message: 'Failed to update cards', errorDetails: error };
+  }
+};
+
+exports.handleChartDataUpdate = async (userId, collectionId, chartData) => {
+  try {
+    const existingCollection = await Collection.findOne({ _id: collectionId, userId });
+
+    if (!existingCollection) {
+      return { status: 'error', message: 'Collection not found or access denied.' };
+    }
+
+    const processedData = await this.processIncomingData(existingCollection, chartData);
+
+    logInfo('Processed incoming data', { processedData });
+    if (processedData.errors) {
+      logError('Failed to process incoming data', { errors: processedData.errors });
+      return {
+        status: 'error',
+        message: 'Failed to process incoming data',
+        error: processedData.errors,
+      };
+    }
+
+    const updatedCollection = await existingCollection.save();
+    return { status: 'success', data: updatedCollection };
+  } catch (error) {
+    console.error('Error updating chart data:', error);
+    return { status: 'error', message: 'Failed to update chart data.', errorDetails: error };
+  }
+};
+
+exports.updateCollectionFields = (collection, updateFields) => {
+  const fieldsToUpdate = [
+    'name',
+    'description',
+    'totalCost',
+    'totalPrice',
+    'quantity',
+    'totalQuantity',
+    'dailyPriceChange',
+    'dailyPercentChange',
+    'updatedAt',
+    'xys',
+    'collectionPriceHistory',
+    'priceDifference',
+    'priceChange',
+    'previousDayTotalPrice',
+    'allCardPrices',
+    'currentChartDataSets',
+    'currentChartDataSets2',
+  ];
+
+  fieldsToUpdate.forEach((field) => {
+    if (field in updateFields) {
+      collection[field] = updateFields[field];
+    }
+  });
+
+  // Deep merge chartData if it exists in updateFields
+  if ('chartData' in updateFields) {
+    collection.chartData = {
+      ...collection.chartData,
+      ...updateFields.chartData,
+      datasets: [
+        ...(collection.chartData.datasets || []),
+        ...(updateFields.chartData.datasets || []),
+      ],
+      xys: [...(collection.chartData.xys || []), ...(updateFields.chartData.xys || [])],
+    };
+  }
+
+  if ('cards' in updateFields) {
+    collection.cards = updateFields.cards;
+  }
+
+  return collection;
 };
 
 exports.handleUpdateAndSync = async (params, body) => {
-  try {
-    const { userId, collectionId } = params;
+  let attempt = 0;
+  while (attempt < GENERAL.MAX_RETRIES) {
+    try {
+      const { userId, collectionId } = params;
+      logger.debug(`Handling update and sync for userId: ${userId}, collectionId: ${collectionId}`);
 
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new CustomError('User not found', STATUS.NOT_FOUND);
-    }
+      const user = await User.findById(userId).populate('allCollections');
+      if (!user) {
+        logger.error('User not found', { userId });
+        throw new Error('User not found');
+      }
 
-    const existingCollection = await Collection.findOne({ _id: collectionId, userId });
-    if (!existingCollection) {
-      throw new CustomError('Collection not found', STATUS.NOT_FOUND);
-    }
-
-    // Ensure processIncomingData is awaited since it's potentially an asynchronous operation
-    const processData = await this.processIncomingData(existingCollection, body);
-    if (processData.errors && processData.errors.length) {
-      // Handle the errors case
-
-      // Log the errors
-      processData.errors.forEach((error) => {
-        logToAllSpecializedLoggers('error', error.message, { section: 'errors', error }, 'log');
-      });
-      logToAllSpecializedLoggers(
-        'info',
-        '[HANDLE UPDATE AND SYNC] --> Errors in processData',
-        { section: 'info', data: existingCollection },
-        'log',
+      const existingCollection = user.allCollections.find(
+        (collection) => collection._id.toString() === collectionId,
       );
-      return { errors: processData.errors };
+
+      if (!existingCollection || !isValidObjectId(collectionId)) {
+        logError('Collection not found or invalid ID', { data: { userId, collectionId } });
+        throw new Error('Collection not found or invalid ID');
+      }
+
+      const updatedCollection = this.updateCollectionFields(existingCollection, body);
+
+      // Save the updated collection
+      await updatedCollection.save();
+      logInfo('UPDATE AND SYNC SUCCESSFUL', {
+        data: updatedCollection.toObject(),
+      });
+      logCollection(updatedCollection);
+
+      // Update the user's allCollections with the updated collection
+      const updatedCollectionIndex = user.allCollections.findIndex(
+        (collection) => collection._id.toString() === collectionId,
+      );
+
+      if (updatedCollectionIndex !== -1) {
+        user.allCollections[updatedCollectionIndex] = updatedCollection;
+        await user.save();
+      }
+
+      return { status: 'success', data: updatedCollection.toObject() };
+    } catch (error) {
+      attempt++;
+      logData('error', 'Attempt to update and sync collection failed', {
+        error: error.toString(),
+        stack: error.stack,
+        attempt,
+        userId: params.userId,
+        collectionId: params.collectionId,
+        updateData: body,
+      });
+      logError('Attempt to update and sync collection failed', {
+        error: {
+          message: error.message,
+          stack: error.stack,
+          operationData: {
+            // Include any relevant data that could help in debugging
+            userId: params.userId,
+            collectionId: params.collectionId,
+            body: body,
+            attempt: attempt,
+          },
+        },
+        stack: error.stack,
+        attempt,
+        userId: params.userId,
+        collectionId: params.collectionId,
+        updateData: body,
+      });
+      if (!(error.name === 'VersionError' && attempt < GENERAL.MAX_RETRIES)) {
+        // Log the error with detailed information
+        return {
+          status: 'error',
+          message: 'Failed to update and sync collection.',
+          errorDetails: {
+            message: error.message,
+            stack: error.stack,
+            name: error.name,
+            operationData: params,
+            attempt: attempt,
+            body: body,
+          },
+        };
+      }
     }
-
-    await existingCollection.save();
-
-    if (user.allCollections && !user.allCollections.includes(collectionId)) {
-      user.allCollections.push(collectionId);
-      await user.save();
-    }
-
-    // Successful update
-    logToAllSpecializedLoggers(
-      'info',
-      'Update and sync successful',
-      { section: 'info', data: existingCollection },
-      'log',
-    );
-
-    return { updatedCollection: existingCollection };
-  } catch (error) {
-    // Log and re-throw the error for consistent error handling
-    logToAllSpecializedLoggers('error', error.message, { section: 'errors', error }, 'log');
-    throw error;
   }
+  logCollection('error', 'MAX ATTEMPTS EXCEEDED', {
+    userId: params.userId,
+    collectionId: params.collectionId,
+  });
+  logError('MAX ATTEMPTS EXCEEDED', {
+    userId: params.userId,
+    collectionId: params.collectionId,
+  });
+  // logger.error('Maximum attempts to update and sync collection exceeded', {
+  //   userId: params.userId,
+  //   collectionId: params.collectionId,
+  // });
+  throw new Error('Update and sync attempts exceeded');
 };

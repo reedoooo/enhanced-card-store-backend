@@ -1,39 +1,31 @@
+/* eslint-disable prettier/prettier */
 const winston = require('winston');
 require('winston-daily-rotate-file');
-const { createLogger, format, transports } = winston;
-// const { combine, timestamp, printf, colorize } = format;
+const colors = require('colors');
+const {
+  createLogger,
+  format: { combine, timestamp, printf, colorize, json },
+  transports,
+} = winston;
 
 const defaultLogLevel = 'error';
-
-// ANSI color codes for console output
-const colors = {
-  blue: '\x1b[34m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  red: '\x1b[31m',
-  purple: '\x1b[35m',
-  orange: '\x1b[38;5;208m',
-  // Add other custom colors here
-  reset: '\x1b[0m',
-};
-
-// Log level colors
+// Set colors for each log level
 const levelColors = {
-  error: colors.red,
-  warn: colors.yellow,
-  info: colors.green,
-  debug: colors.blue,
-  collection: colors.blue,
-  cardPrice: colors.yellow,
-  cronJob: colors.green,
-  response: colors.green,
-  general: colors.purple,
-  // Add other custom log levels here
+  error: '\x1b[31m', // Red
+  warn: '\x1b[33m', // Yellow
+  info: '\x1b[32m', // Green
+  verbose: '\x1b[36m', // Cyan
+  debug: '\x1b[35m', // Magenta
+  silly: '\x1b[37m', // White
+  log: '\x1b[37m', // White
 };
 
-const shouldColorKey = (key) => {
+// eslint-disable-next-line no-undef
+colors.setTheme(levelColors);
+
+// Utility to check if a key should be colored, and colorize it if so
+const colorizeKey = (key, value, colorCode) => {
   const keysToColor = [
-    // List of keys to apply blue color
     'chartData',
     'datasets',
     'xys',
@@ -48,45 +40,58 @@ const shouldColorKey = (key) => {
     'totalQuantity',
     'allCardPrices',
     'cards',
-    'currentChartDatasets',
+    'currentChartDataSets',
+    'currentChartDataSets2',
     '__v',
+
+    // cronjob keys
+    'testedItemCount',
+    'itemsWithoutValidID',
+    'cardsWithChangedPrices',
+    'pricingData',
+    'pricesUpdated',
+    'priceDifference',
+    'priceChange',
+    'allUpdatedCards',
+    'price',
+    'quantity',
+    'totalQuantity',
+    'allCardPrices',
   ];
-  return keysToColor.includes(key);
+  const colorReset = '\x1b[0m';
+  const color = colorCode || '\x1b[34m'; // Default to blue
+  return keysToColor.includes(key) ? `${color}${key}${colorReset}: ${value}` : `${key}: ${value}`;
+};
+const primaryLogLevels = ['error', 'warn', 'info', 'log', 'verbose', 'debug', 'silly'];
+
+const colorizeMessage = (level, message) => {
+  // const color = levelColors[level] || '\x1b[37m'; // Default to white if not found
+  const color = levelColors[level] || '\x1b[37m'; // Default to white if not found
+  const colorReset = '\x1b[0m';
+  return `${color}${message}${colorReset}`;
 };
 
-const consoleFormat = format.printf(({ level, message, timestamp, meta }) => {
-  const levelColor = levelColors[level] || colors.reset;
-  let formattedMessage = `[${timestamp}] ${levelColor}${level}${colors.reset}: `;
+// Array of primary log levels
 
-  // Check if message is an object and convert to string using JSON.stringify
-  if (typeof message === 'object') {
-    formattedMessage += JSON.stringify(message, null, 2);
-  } else {
-    formattedMessage += message;
+// Enhanced consoleFormat using colorizeMessage for color coding based on log level
+// To use this format, pass in the required parameters when creating your logger using
+const consoleFormat = printf(({ level, message, timestamp, meta }) => {
+  const coloredLevel = colorizeMessage(level, level.toUpperCase());
+  const coloredMessage = colorizeMessage(level, message);
+  let formattedMessage = `[${timestamp}] ${coloredLevel}: ${coloredMessage}`;
+
+  // Additional formatting for 'meta' if present
+  if (meta) formattedMessage += ` | Section: ${meta.section}`;
+  if (meta && meta.data) {
+    const dataString = Object.entries(meta.data)
+      .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+      .join(', ');
+    formattedMessage += ` | Data: {${dataString}}`;
   }
-
-  if (meta && meta.section) {
-    // const sectionColor = shouldColorKey('section') ? colors.blue : '';
-    // formattedMessage += ` | Section: ${sectionColor}${meta.section}${colors.reset}`;
-    formattedMessage += ` | Section: ${meta.section}`;
-
-    if (meta.data) {
-      const dataToFormat = meta.data._doc ? meta.data._doc : meta.data;
-      const coloredData = Object.entries(dataToFormat)
-        .map(([key, value]) => {
-          const coloredKey = shouldColorKey(key) ? `${colors.blue}${key}${colors.reset}` : key;
-          const stringValue =
-            typeof value === 'object' && value !== null ? JSON.stringify(value) : value;
-          return `${coloredKey}: ${stringValue}`;
-        })
-        .join(', ');
-      formattedMessage += ` | Data: [${typeof coloredData}] --> {${coloredData}}`;
-    }
-  }
-
   return formattedMessage;
 });
 
+// Simplified file transport creation
 const fileTransport = (label) =>
   new transports.DailyRotateFile({
     filename: `${label}-%DATE%.log`,
@@ -94,619 +99,228 @@ const fileTransport = (label) =>
     zippedArchive: true,
     maxSize: '20m',
     maxFiles: '14d',
-    format: format.combine(format.timestamp(), format.json()), // No color in file
+    format: combine(timestamp(), json()),
   });
 
+// Create transport sets with DRY principle in mind
 const createTransports = (label, level) => [
-  // Create transports for both console and file
   new transports.Console({
     level,
-    // format: format.combine(format.timestamp(), consoleFormat),
-    format: format.combine(format.timestamp(), format.colorize({ all: true }), consoleFormat),
+    format: combine(
+      timestamp(),
+      colorize({ all: true }),
+      printf(({ level, message, timestamp }) => {
+        return `[${timestamp}] ${level}: ${message}`;
+      }),
+    ),
   }),
   fileTransport(label),
 ];
 
+// Refactor createLoggerWithTransports to be DRY by reducing repeated code
 const createLoggerWithTransports = (label, level = defaultLogLevel) =>
-  createLogger({
-    level: level,
-    transports: createTransports(label, level),
-  });
+  createLogger({ level, transports: createTransports(label, level) });
 
-const specializedLoggers = {
-  collection: createLoggerWithTransports(
-    'collections',
-    process.env.COLLECTION_LOG_LEVEL || defaultLogLevel,
-  ),
-  cardPrice: createLoggerWithTransports(
-    'cardPrices',
-    process.env.CARD_PRICE_LOG_LEVEL || defaultLogLevel,
-  ),
-  cronJob: createLoggerWithTransports(
-    'cronJobs',
-    process.env.CRON_JOB_LOG_LEVEL || defaultLogLevel,
-  ),
-  error: createLoggerWithTransports('errors', process.env.ERROR_LOG_LEVEL || defaultLogLevel),
-  response: createLoggerWithTransports(
-    'responses',
-    process.env.RESPONSE_LOG_LEVEL || defaultLogLevel,
-  ),
-  decks: createLoggerWithTransports('decks', process.env.DECK_LOG_LEVEL || defaultLogLevel), // New 'decks' logger
+// Specialized loggers object created via a function to reduce repetition
+const initSpecializedLoggers = () => {
+  const sections = [
+    'collection',
+    'cardPrice',
+    'cronjob',
+    'error',
+    'request',
+    'response',
+    'general',
+    'decks',
+    'errors',
+    'warn',
+    'info',
+    'log',
+    'user',
+    'validateXY',
+    'validateDataset',
+    'console',
+    'file',
+    'end',
+    'start',
+  ];
+  return sections.reduce((acc, section) => {
+    acc[section] = createLoggerWithTransports(section);
+    return acc;
+  }, {});
 };
 
-function logToConsole(level, message, meta) {
-  // Fixed by initializing a default console logger if not present
-  const consoleLogger = specializedLoggers.console || createLoggerWithTransports('console');
-  consoleLogger.log({ level, message, ...meta });
-}
+const specializedLoggers = initSpecializedLoggers();
 
-function logToFile(label, level, message, meta) {
-  const logger = specializedLoggers[label] || createLoggerWithTransports(label);
-  logger.log({ level, message, ...meta });
-}
-// Function to respond to the client
-function respondToClient(res, status, message, data = {}) {
-  res.status(status).json({ status, message, data });
-}
-
-// Function to log messages with appropriate metadata
-// function logToAllSpecializedLoggers(level, message, meta, action) {
-//   // Ensure the provided level is a known level or fallback to default log level
-//   // level = levelColors[level] ? level : defaultLogLevel;
-//   level = levelColors.level ? level : defaultLogLevel;
-
-//   const logger = specializedLoggers[meta?.section] || createLoggerWithTransports(meta?.section);
-//   logger.log({ level, message, ...meta });
-//   if (meta?.error instanceof Error) {
-//     logger.log({
-//       level: 'error',
-//       message: meta.error.message,
-//       meta,
-//     });
-
-//     // If an error stack is present, log it separately at the 'error' level as well
-//     if (meta.error.stack) {
-//       logger.log({
-//         level: 'error',
-//         message: meta.error.stack,
-//         meta: { ...meta, stack: true }, // Indicate that this log is for the stack trace
-//       });
-//     }
-//   } else {
-//     // Log the message using the level provided to the function
-//     logger.log({
-//       level,
-//       message,
-//       meta,
-//     });
-//   }
-//   // Take appropriate action based on 'action' argument
-//   if (action === 'response') {
-//     respondToClient(meta.res, meta.status, message, meta.data || {});
-//   } else if (action === 'log') {
-//     logToConsole(level, message, meta);
-//   } else if (action === 'file') {
-//     logToFile(meta.section, level, message, meta);
-//   }
-// }
+// Unified logging function that decides based on action where to log
 function logToAllSpecializedLoggers(level, message, meta, action) {
-  // level = levelColors.level ? level : defaultLogLevel;
-  const logLevel = levelColors[level] ? level : defaultLogLevel;
-  const logger =
-    specializedLoggers[meta?.section] || createLoggerWithTransports(meta?.section, logLevel);
+  const logger = specializedLoggers[meta?.section] || createLoggerWithTransports(meta?.section);
+  logger.log({ level, message, ...meta });
 
-  // Prepare the metadata for logging
-  const logMeta = {
-    level: logLevel,
-    message,
-    meta: { ...meta, level: logLevel }, // include the level color in the meta
-  };
-
-  // Log the message and metadata
-  logger.log(logMeta);
-
-  // Log the error details separately if an error object is included
   if (meta?.error instanceof Error) {
-    logger.log({
-      level: 'error',
-      message: meta.error.message,
-      meta,
-    });
-
-    // Log the stack trace separately
+    logger.log({ level: 'error', message: meta.error.message, ...meta });
     if (meta.error.stack) {
-      logger.log({
-        level: 'error',
-        message: meta.error.stack,
-        meta: { ...meta, stack: true },
-      });
+      logger.log({ level: 'error', message: meta.error.stack, ...meta, stack: true });
     }
   }
 
-  // Execute the action based on the 'action' argument
   if (action === 'response') {
     respondToClient(meta.res, meta.status, message, meta.data || {});
   } else if (action === 'log') {
-    logToConsole(logLevel, message, meta);
+    specializedLoggers.console.log({ level, message, ...meta });
   } else if (action === 'file') {
-    logToFile(meta.section, logLevel, message, meta);
+    specializedLoggers.file.log({ level, message, ...meta });
+  }
+
+  // Additional handling for 'cronjob'
+  // Additional handling for 'cronjob'
+  // Additional handling for 'cronjob'
+  if (meta?.section === 'cronjob') {
+    const coloredLevel = colorizeMessage(level, level.toUpperCase());
+    const coloredMessage = colorizeMessage(level, message);
+    let formattedMessage = `[${timestamp}] ${coloredLevel}: ${coloredMessage}`;
+
+    // Additional formatting for 'meta' if present
+    if (meta) {
+      formattedMessage += ` | Section: ${meta.section}`;
+      if (meta.data) {
+        const dataString = JSON.stringify(meta.data);
+        // const dataObj = JSON.parse(dataString);
+
+        // Format price changes before appending to the message
+        // const priceChanges = formatPriceChanges(dataObj);
+        // const formattedPriceChanges = priceChanges.join(', ');
+        formattedMessage += ` | Data: {${dataString}}`;
+      }
+    }
+
+    specializedLoggers.cronjob.log({ level, message: formattedMessage, ...meta });
   }
 }
-// Export the main application logger and specialized loggers
-module.exports = {
-  logger: createLoggerWithTransports('application'),
-  ...specializedLoggers,
-  logToAllSpecializedLoggers,
-  logToConsole,
-  logToFile,
-  respondToClient,
+
+// The formatPriceChanges function can remain unchanged.
+// const formatPriceChanges = (data) => {
+//   let formattedOutput = [];
+//   Object.entries(data).forEach(([key, card]) => {
+//     // Check if the previousPrice differs from the updatedPrice
+//     if (card.previousPrice !== card.updatedPrice) {
+//       const priceChangeText = `\x1b[32m${card.name} (ID: ${card.id}) price changed from $${card.previousPrice} to $${card.updatedPrice}\x1b[0m`;
+//       formattedOutput.push(priceChangeText);
+//     } else {
+//       formattedOutput.push(
+//         `${card.name} (ID: ${card.id}) price remained the same at \x1b[36m$${card.updatedPrice}\x1b[0m`,
+//       );
+//     }
+//   });
+//   return formattedOutput;
+// };
+
+// const logSelectedList = (selectedList) => {
+//   if (Array.isArray(selectedList) && selectedList.length > 0) {
+//     console.log('Selected List of Cards:');
+//     selectedList.forEach((card, index) => {
+//       // Log the card details in the specified format: [index][name][id][totalPrice][price][quantity]
+//       console.log(`[${index}][${card.name}][${card.id}][${card.totalPrice.toFixed(2)}][${card.price.toFixed(2)}][${card.quantity}]`);
+//     });
+//   } else {
+//     console.log('No cards in selected list.');
+//   }
+// };
+
+// Refactored logSelectedList to log to the file as well
+const logSelectedList = (selectedList) => {
+  if (Array.isArray(selectedList) && selectedList.length > 0) {
+    const logger = specializedLoggers['cronjob'];
+    logger.info('Selected List of Cards:');
+    selectedList.forEach((card, index) => {
+      const cardDetails = `[${index}][${card.name}][${card._id}][${card.totalPrice.toFixed(
+        2,
+      )}][${card.price.toFixed(2)}][${card.quantity}]`;
+      logger.info(cardDetails);
+    });
+  } else {
+    specializedLoggers['cronjob'].warn('No cards in selected list.');
+  }
 };
 
-// const winston = require('winston');
-// require('winston-daily-rotate-file');
+// Function to handle responses to the client, abstracted to ensure DRY code
+function respondToClient(res, status, message, data = {}) {
+  if (res.headersSent) return;
+  res.status(status).json({ message, data });
+}
 
-// const logLevel = process.env.LOG_LEVEL || 'debug';
+// Function to handle direct response to the client
+const directResponse = (res, action, level, message, data = {}) => {
+  logToAllSpecializedLoggers(
+    level,
+    `${action}: ${message}`,
+    { section: 'response', action, data },
+    'response',
+  );
+  respondToClient(res, 200, message, data);
+};
 
-// const { createLogger, format, transports } = winston;
-// const { combine, timestamp, printf, colorize } = format;
+// Function to handle direct errors
+const directError = (res, code, level, error) => {
+  if (res.headersSent) return;
+  const status = error.status || 500;
+  console.error(`[${level.toUpperCase()}]: ${error.message}`);
+  logToAllSpecializedLoggers(level, error.message, { section: 'error', status, error }, 'error');
+  respondToClient(res, status, error.message);
+};
 
-// // Timestamp format
-// const timestampFormat = format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' });
+const priceLogger = createLoggerWithTransports(
+  'price',
+  process.env['PRICE_LOG_LEVEL'] || defaultLogLevel,
+);
 
-// // Colorized format for console logs
-// const colorizedFormat = printf(({ level, message, timestamp, meta }) => {
-//   let colorizedMessage = message;
-//   if (meta && meta.section) {
-//     const colorMap = {
-//       id: '\x1b[36m', // Cyan for 'id'
-//       price: '\x1b[33m', // Yellow for 'price'
-//       chart_datasets: '\x1b[32m', // Green for 'chart_datasets'
-//     };
-//     const color = colorMap[meta.section] || '';
-//     colorizedMessage = `${color}${message}\x1b[0m`;
-//   }
-//   return `[${timestamp}] ${level.toUpperCase()}: ${colorizedMessage}`;
-// });
+// Function to log price changes using a table format
+const logPriceChanges = (data) => {
+  if (!data || typeof data !== 'object') {
+    priceLogger.warn('Invalid data provided for logging price changes.');
+    return;
+  }
 
-// // Add colorize to the console transport if you want to use winston's colorize feature instead
-// const customColorize = colorize({
-//   all: false,
-//   colors: { id: 'cyan', price: 'yellow', chart_datasets: 'green' },
-// });
-// // Define a format for both file and console logs, which includes colorization
-// const logFormat = printf(({ level, message, timestamp, meta }) => {
-//   const baseMessage = `[${timestamp}] ${level.toUpperCase()}: ${message}`;
-//   if (!meta) return baseMessage;
+  priceLogger.info('Price Changes:');
+  priceLogger.info(
+    '+--------------------------------------+-------------------+-------------------+',
+  );
+  priceLogger.info(
+    '| Card Name                            | Previous Price    | Updated Price     |',
+  );
+  priceLogger.info(
+    '+--------------------------------------+-------------------+-------------------+',
+  );
 
-//   const metaString = JSON.stringify(meta, null, 2);
-//   let colorizedMessage = baseMessage;
+  Object.entries(data).forEach(([key, card]) => {
+    const previousPrice = card.previousPrice.toFixed(2);
+    const updatedPrice = card.updatedPrice.toFixed(2);
 
-//   // Define color mapping for console output
-//   if (meta.section) {
-//     const colorMap = {
-//       id: '\x1b[36m', // Cyan for 'id'
-//       price: '\x1b[33m', // Yellow for 'price'
-//       chart_datasets: '\x1b[32m', // Green for 'chart_datasets'
-//     };
-//     const color = colorMap[meta.section] || '';
-//     colorizedMessage = `${color}${baseMessage}\x1b[0m`;
-//   }
+    priceLogger.info(
+      `| ${card.name.padEnd(36)} | $${previousPrice.padStart(17)} | $${updatedPrice.padStart(
+        17,
+      )} |`,
+    );
+  });
 
-//   return process.env.NODE_ENV !== 'production' ? colorizedMessage : `${baseMessage} ${metaString}`;
-// });
-// // const consoleFormat = format.combine(
-// //   format.colorize(),
-// //   timestampFormat,
-// //   format.printf((info) => `${info.timestamp} ${info.level}: ${info.message}`),
-// // );
+  priceLogger.info(
+    '+--------------------------------------+-------------------+-------------------+',
+  );
+};
 
-// const dailyRotateFileOptions = {
-//   datePattern: 'YYYY-MM-DD',
-//   zippedArchive: true,
-//   maxSize: '20m',
-//   maxFiles: '14d',
-// };
-// const dailyRotateFileTransport = (fileLabel) =>
-//   new transports.DailyRotateFile({
-//     filename: `${fileLabel}-%DATE%.log`,
-//     datePattern: 'YYYY-MM-DD',
-//     zippedArchive: true,
-//     maxSize: '20m',
-//     maxFiles: '14d',
-//     format: combine(timestampFormat, format.json()),
-//   });
-
-// const customLogFormat = printf(({ timestamp, level, message, meta }) => {
-//   let output = `[${timestamp}] ${level.toUpperCase()}: ${message}`;
-//   if (meta) {
-//     output += ` ${JSON.stringify(meta, null, 2)}`;
-//   }
-//   return output;
-// });
-
-// // Define a format for console output
-// const consoleFormat = combine(timestampFormat, colorize(), colorizedFormat);
-
-// // Transport initialization with conditional console log
-// const initializeTransports = (fileLabel) => {
-//   const transportList = [dailyRotateFileTransport(fileLabel)];
-//   if (process.env.NODE_ENV !== 'production') {
-//     transportList.push(new transports.Console({ format: consoleFormat }));
-//   }
-//   return transportList;
-// };
-
-// // Initialize transports with file rotation and conditional console log
-// // const initializeTransports = (fileLabel) => {
-// //   const transports = [
-// //     new winston.transports.DailyRotateFile({
-// //       filename: `${fileLabel}-%DATE%.log`,
-// //       ...dailyRotateFileOptions,
-// //       format: combine(timestampFormat, customLogFormat),
-// //     }),
-// //   ];
-
-// //   if (process.env.NODE_ENV !== 'production') {
-// //     transports.push(
-// //       new winston.transports.Console({
-// //         format: consoleFormat,
-// //       }),
-// //     );
-// //   }
-
-// //   return transports;
-// // };
-
-// // Create logger with integrated transport initialization
-// // const createLoggerWithTransports = (fileLabel, level = 'info') => {
-// //   const transports = initializeTransports(fileLabel);
-// //   const logger = winston.createLogger({
-// //     level,
-// //     format: combine(timestampFormat, format.json()),
-// //     transports,
-// //   });
-
-// //   return {
-// //     logger,
-// //     info: (message, meta) => logger.info(message, { meta }),
-// //     warn: (message, meta) => logger.warn(message, { meta }),
-// //     error: (message, meta) => logger.error(message, { meta }),
-// //     // Other logging levels can be added as needed
-// //   };
-// // };
-// // Define the log level for the logger based on environment or default
-// const createLoggerWithTransports = (fileLabel, level = logLevel) => {
-//   return createLogger({
-//     level,
-//     format: combine(timestampFormat, format.json()),
-//     transports: initializeTransports(fileLabel),
-//   });
-// };
-
-// // const logger = createLoggerWithTransports('application');
-// const specializedLoggers = {
-//   collection: createLoggerWithTransports('collections'),
-//   cardPrice: createLoggerWithTransports('cardPrices'),
-//   cronJob: createLoggerWithTransports('cronJobs'),
-//   error: createLoggerWithTransports('errors'),
-//   response: createLoggerWithTransports('responses'),
-// };
-// // Define loggers for different purposes
-// // const logger = createLoggerWithTransports('application', logLevel);
-// // const collectionLogger = createLoggerWithTransports('collections', logLevel);
-// // const cardPriceLogger = createLoggerWithTransports('cardPrices', logLevel);
-// // const cronJobLogger = createLoggerWithTransports('cronJobs', logLevel);
-// // const errorLogger = createLoggerWithTransports('errors', logLevel);
-// // const responseLogger = createLoggerWithTransports('responses', logLevel);
-
-// // Example usage of specialized logging function
-// // Example usage of specialized logging function
-// function logChartDataDetails(label, data) {
-//   specializedLoggers.cardPrice.info(`[CHART DATA] ${label}: ${JSON.stringify(data)}`, {
-//     section: 'chart_datasets',
-//   });
-// }
-
-// module.exports = {
-//   logger: createLoggerWithTransports('application'),
-//   ...specializedLoggers,
-//   logChartDataDetails,
-//   responseLogger: specializedLoggers.response,
-//   // cardPriceLogger: specializedLoggers.cardPrice,
-//   // cronJobLogger: specializedLoggers.cronJob,
-//   // errorLogger: specializedLoggers.error,
-//   // logChartDataDetails,
-//   // collectionLogger: specializedLoggers.collection,
-//   // responseLogger: specializedLoggers.response,
-// };
-
-// Function to color specific keys
-// function colorizeKeys(obj) {
-//   const keysToColor = [
-//     'chartData',
-//     'datasets',
-//     'xys',
-//     'allXYValues',
-//     '_id',
-//     'userId',
-//     'name',
-//     'description',
-//     'totalCost',
-//     'totalPrice',
-//     'quantity',
-//     'totalQuantity',
-//     'allCardPrices',
-//     'cards',
-//     'xys',
-//     'currentChartDatasets',
-//     '__v',
-//   ]; // Keys to color blue
-//   return Object.entries(obj)
-//     .map(([key, value]) => {
-//       // Color the key if it's in the list of keys to color
-//       const coloredKey = keysToColor.includes(key) ? `${blue}${key}${reset}` : key;
-//       // Convert value to string for logging
-//       const stringValue = typeof value === 'object' ? JSON.stringify(value) : value;
-//       return `${coloredKey}: ${stringValue}`;
-//     })
-//     .join(', ');
-// }
-// Predicate function to determine if a key should be colored
-
-// Colorized format for console logs
-// const colorizedFormat = format.printf(({ level, message, timestamp, meta }) => {
-//   let formattedMessage = `[${timestamp}] ${level.toUpperCase()}: ${message}`;
-
-//   if (meta && meta.section) {
-//     const colorMap = {
-//       id: '\x1b[36m', // Cyan
-//       price: '\x1b[33m', // Yellow
-//       chart_datasets: '\x1b[32m', // Green
-//     };
-//     formattedMessage = `${colorMap[meta.section] || ''}${formattedMessage}${reset}`;
-
-//     // Add logging for meta.data if it exists
-//     if (meta.data) {
-//       const coloredData = Object.entries(meta.data)
-//         .map(([key, value]) => {
-//           return `${blue}${key}${reset}:${JSON.stringify(value)}`;
-//         })
-//         .join(', ');
-//       formattedMessage += ` | Data: {${coloredData}}`;
-//     }
-//   }
-
-//   return formattedMessage;
-// });
-// const winston = require('winston');
-// require('winston-daily-rotate-file');
-// const { createLogger, format, transports } = winston;
-
-// // Set default log level from environment variable or fall back to 'debug'
-// // const logLevel = process.env.LOG_LEVEL || 'error';
-// const defaultLogLevel = 'error';
-
-// // ANSI color codes for console output
-// const colors = {
-//   blue: '\x1b[34m',
-//   green: '\x1b[32m',
-//   yellow: '\x1b[33m',
-//   red: '\x1b[31m',
-//   reset: '\x1b[0m',
-// };
-
-// // Log level colors
-// const levelColors = {
-//   error: colors.red,
-//   warn: colors.yellow,
-//   info: colors.green,
-//   debug: colors.blue,
-
-//   // Add custom log levels here
-//   collection: colors.blue,
-//   cardPrice: colors.yellow,
-//   cronJob: colors.green,
-//   response: colors.green,
-// };
-
-// // Function to determine if a key should be colorized
-// const shouldColorKey = (key) => {
-//   const keysToColor = [
-//     // List of keys to apply blue color
-//     'chartData',
-//     'datasets',
-//     'xys',
-//     'allXYValues',
-//     '_id',
-//     'userId',
-//     'name',
-//     'description',
-//     'totalCost',
-//     'totalPrice',
-//     'quantity',
-//     'totalQuantity',
-//     'allCardPrices',
-//     'cards',
-//     'currentChartDatasets',
-//     '__v',
-//   ];
-//   return keysToColor.includes(key);
-// };
-
-// // Custom format for console logs with color
-// const consoleFormat = format.printf(({ level, message, timestamp, meta }) => {
-//   const levelColor = levelColors[level] || colors.reset;
-//   let formattedMessage = `[${timestamp}] ${levelColor}${level}${colors.reset}: ${message}`;
-
-//   if (meta && meta.section) {
-//     const sectionColor = shouldColorKey('section') ? colors.blue : '';
-//     formattedMessage += ` | Section: ${sectionColor}${meta.section}${colors.reset}`;
-
-//     if (meta.data) {
-//       const dataToFormat = meta.data._doc ? meta.data._doc : meta.data;
-//       const coloredData = Object.entries(dataToFormat)
-//         .map(([key, value]) => {
-//           const coloredKey = shouldColorKey(key) ? `${colors.blue}${key}${colors.reset}` : key;
-//           const stringValue =
-//             typeof value === 'object' && value !== null ? JSON.stringify(value) : value;
-//           return `${coloredKey}: ${stringValue}`;
-//         })
-//         .join(', ');
-//       formattedMessage += ` | Data: {${coloredData}}`;
-//     }
-//   }
-
-//   return formattedMessage;
-// });
-
-// // Create a rotating file transport with a daily rotation
-// const fileTransport = (label) =>
-//   new transports.DailyRotateFile({
-//     filename: `${label}-%DATE%.log`,
-//     datePattern: 'YYYY-MM-DD',
-//     zippedArchive: true,
-//     maxSize: '20m',
-//     maxFiles: '14d',
-//     format: format.combine(format.timestamp(), format.json()), // No color in file
-//   });
-
-// // Function to create an array of transports for different logging outputs
-// const transportList = (label, level) => [
-//   new transports.Console({
-//     level: level,
-//     format: format.combine(format.timestamp(), format.colorize({ all: true }), consoleFormat),
-//   }),
-//   fileTransport(label),
-// ];
-// // Factory function to create loggers with the appropriate transports
-// const createLoggerWithTransports = (label, level = defaultLogLevel) =>
-//   createLogger({
-//     level: level,
-//     transports: transportList(label, level),
-//   });
-// // Create specialized loggers for different parts of the application
-// const specializedLoggers = {
-//   collection: createLoggerWithTransports(
-//     'collections',
-//     process.env.COLLECTION_LOG_LEVEL || defaultLogLevel,
-//   ),
-//   cardPrice: createLoggerWithTransports(
-//     'cardPrices',
-//     process.env.CARD_PRICE_LOG_LEVEL || defaultLogLevel,
-//   ),
-//   cronJob: createLoggerWithTransports(
-//     'cronJobs',
-//     process.env.CRON_JOB_LOG_LEVEL || defaultLogLevel,
-//   ),
-//   error: createLoggerWithTransports('errors', process.env.ERROR_LOG_LEVEL || defaultLogLevel),
-//   response: createLoggerWithTransports(
-//     'responses',
-//     process.env.RESPONSE_LOG_LEVEL || defaultLogLevel,
-//   ),
-//   decks: createLoggerWithTransports('decks', process.env.DECK_LOG_LEVEL || defaultLogLevel), // New 'decks' logger
-// };
-
-// // Function to log messages with appropriate metadata
-// // function logToAllSpecializedLoggers(message, meta) {
-// //   const logger = specializedLoggers[meta?.section];
-// //   if (logger) {
-// //     logger.log({
-// //       level: logLevel,
-// //       message,
-// //       meta,
-// //     });
-// //   }
-// // }
-// // Function to log messages with appropriate metadata
-// // Creates a logger instance for console logging
-// const consoleLogger = createLoggerWithTransports('console');
-
-// // Function to log to the console with color formatting
-// function logToConsole(level, message, meta) {
-//   const consoleMeta = meta ? { ...meta, message } : { message };
-//   consoleLogger.log({ level, message: consoleMeta });
-// }
-
-// // Function to log to file without color
-// function logToFile(label, level, message, meta) {
-//   const fileLogger = specializedLoggers[label];
-//   if (fileLogger) {
-//     fileLogger.log({ level, message, meta });
-//   }
-// }
-
-// // Function to respond to the client
-// function respondToClient(res, status, message, data = {}) {
-//   const response = {
-//     status,
-//     message,
-//     data,
-//   };
-//   res.status(status).json(response);
-// }
-
-// function logToAllSpecializedLoggers(level, message, meta, action) {
-//   // Ensure the provided level is a known level or fallback to default log level
-//   level = levelColors[level] ? level : defaultLogLevel;
-
-//   const logger = specializedLoggers[meta?.section];
-//   if (logger) {
-//     // Log the message with the level provided to the function
-//     logger.log({
-//       level,
-//       message,
-//       meta,
-//     });
-
-//     // Respond to the client if the action is 'response'
-//     if (action === 'response') {
-//       respondToClient(meta.res, meta.status, message, meta.data || {});
-//     }
-//   }
-
-//   // Log to console with color formatting if the action is 'log'
-//   if (action === 'log') {
-//     logToConsole(level, message, meta);
-//   }
-
-//   // Log to file without color if the action is 'file'
-//   if (action === 'file') {
-//     logToFile(meta.section, level, message, meta);
-//   }
-// }
-// // if (logger) {
-// //   // If an error is present, log it at the 'error' level regardless of the passed level
-//   if (meta?.error instanceof Error) {
-//     logger.log({
-//       level: 'error',
-//       message: meta.error.message,
-//       meta,
-//     });
-
-//     // If an error stack is present, log it separately at the 'error' level as well
-//     if (meta.error.stack) {
-//       logger.log({
-//         level: 'error',
-//         message: meta.error.stack,
-//         meta: { ...meta, stack: true }, // Indicate that this log is for the stack trace
-//       });
-//     }
-//   } else {
-//     // Log the message using the level provided to the function
-//     logger.log({
-//       level,
-//       message,
-//       meta,
-//     });
-//   }
-// // }
-
-// // Export the main application logger and specialized loggers
-// module.exports = {
-//   logger: createLoggerWithTransports('application'),
-//   ...specializedLoggers,
-//   logToAllSpecializedLoggers,
-//   logToConsole,
-//   logToFile,
-//   respondToClient,
-// };
+module.exports = {
+  loggers: specializedLoggers,
+  logger: specializedLoggers.general,
+  directResponse,
+  directError,
+  logToAllSpecializedLoggers,
+  respondToClient,
+  colorizeKey,
+  fileTransport,
+  createTransports,
+  createLoggerWithTransports,
+  initSpecializedLoggers,
+  logSelectedList,
+  priceLogger,
+  logPriceChanges,
+};
