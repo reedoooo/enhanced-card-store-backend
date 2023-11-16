@@ -1,6 +1,14 @@
 const fs = require('fs');
 require('colors');
 
+// Directory for logs
+const logsDir = './logs';
+
+// Ensure logs directory exists
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir);
+}
+
 const processCollection = (collection) => {
   let logContent = '';
 
@@ -98,16 +106,20 @@ function logCollection(collection) {
     logContent += processCollection(collection);
     logContent += '----- End of Collection Data Log -----\n\n';
 
-    fs.appendFileSync('collection-data.log', logContent, (err) => {
+    fs.appendFileSync(`${logsDir}/collection-data-logs.log`, logContent, (err) => {
       if (err) throw err;
     });
 
     console.log('Collection data logged successfully.'.green);
   } catch (error) {
     console.error(`[ERROR] Failed to log collection data: ${error.message}`.red);
-    fs.appendFileSync('error.log', `[${new Date().toISOString()}] ${error.stack}\n`, (err) => {
-      if (err) console.error(`[ERROR] Failed to write to error log file: ${err.message}`.red);
-    });
+    fs.appendFileSync(
+      `${logsDir}/error.log`,
+      `[${new Date().toISOString()}] ${error.stack}\n`,
+      (err) => {
+        if (err) console.error(`[ERROR] Failed to write to error log file: ${err.message}`.red);
+      },
+    );
   }
 }
 module.exports = { logCollection };

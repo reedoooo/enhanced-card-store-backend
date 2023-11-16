@@ -9,13 +9,33 @@ const { logger, logToAllSpecializedLoggers, logPriceChanges } = require('../midd
 const { handleError } = require('../middleware/handleErrors');
 const { convertUserIdToObjectId } = require('./utils');
 const User = require('../models/User');
-const saveCardPriceHistory = require('./saveCardPriceHistory');
 
 require('colors');
 
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
+
+const saveCardPriceHistory = async (userId, cardId, priceHistory) => {
+  try {
+    const user = await User.findById(userId).populate('allCollections');
+    const collection = user.allCollections.find((col) => col.cards.includes(cardId));
+    if (!collection) {
+      throw new CustomError('Collection not found for this user.', 404);
+    }
+
+    const card = collection.cards.find((c) => c.id === cardId);
+    if (!card) {
+      throw new CustomError('Card not found in this collection.', 404);
+    }
+
+    card.priceHistory = priceHistory;
+    await user.save();
+  } catch (error) {
+    handleError(error);
+    throw error;
+  }
+};
 
 const logResults = async ({
   testedItemCount,
@@ -104,7 +124,8 @@ const processCardPrices = async (userId, selectedList) => {
           const newPriceEntry = { price: latestCardPrice, timestamp: new Date().toISOString() };
           priceHistory.push(newPriceEntry);
 
-          await saveCardPriceHistory(card.id, newPriceEntry); // Assuming this function only needs card ID and new price entry
+          // Save the price history to the database
+          await saveCardPriceHistory(userId, card.id, priceHistory);
         }
 
         cardsWithPriceHistory.push({

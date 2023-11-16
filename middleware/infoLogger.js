@@ -9,6 +9,14 @@ const {
 } = winston;
 
 const defaultLogLevel = 'error';
+
+// Directory for logs
+const logsDir = './logs';
+
+// Ensure logs directory exists
+// if (!fs.existsSync(logsDir)) {
+//   fs.mkdirSync(logsDir);
+// }
 // Set colors for each log level
 const levelColors = {
   error: '\x1b[31m', // Red
@@ -94,7 +102,7 @@ const consoleFormat = printf(({ level, message, timestamp, meta }) => {
 // Simplified file transport creation
 const fileTransport = (label) =>
   new transports.DailyRotateFile({
-    filename: `${label}-%DATE%.log`,
+    filename: `${logsDir}/${label}-%DATE%.log`,
     datePattern: 'YYYY-MM-DD',
     zippedArchive: true,
     maxSize: '20m',
@@ -118,7 +126,7 @@ const createTransports = (label, level) => [
 ];
 
 // Refactor createLoggerWithTransports to be DRY by reducing repeated code
-const createLoggerWithTransports = (label, level = defaultLogLevel) =>
+const createLoggerWithTransports = (label, level = process.env['LOG_LEVEL'] || defaultLogLevel) =>
   createLogger({ level, transports: createTransports(label, level) });
 
 // Specialized loggers object created via a function to reduce repetition
@@ -154,7 +162,8 @@ const specializedLoggers = initSpecializedLoggers();
 
 // Unified logging function that decides based on action where to log
 function logToAllSpecializedLoggers(level, message, meta, action) {
-  const logger = specializedLoggers[meta?.section] || createLoggerWithTransports(meta?.section);
+  const logger =
+    specializedLoggers[meta?.section] || createLoggerWithTransports(meta?.section, level);
   logger.log({ level, message, ...meta });
 
   if (meta?.error instanceof Error) {

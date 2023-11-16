@@ -12,6 +12,13 @@ const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
 
+const logsDir = './logs';
+
+// Ensure logs directory exists
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir);
+}
+
 async function getRandomCardInfo() {
   try {
     const response = await axiosInstance.get('/randomcard.php');
@@ -302,7 +309,7 @@ const logPriceChange = (card, latestPriceEntry, isNewCard = false, cardIndex = n
   }
 
   console.log(message);
-  fs.appendFileSync('price-changes.log', message + '\n');
+  fs.appendFileSync(`${logsDir}/price-changes.log`, message + '\n');
 };
 
 // const logPriceChange = (card, latestPriceEntry, isNewCard = false, cardIndex = null) => {

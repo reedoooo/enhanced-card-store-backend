@@ -1,10 +1,13 @@
 const fs = require('fs');
 require('colors');
 
-let initialTotalPrice = null;
-// let liveTotalPrice = 0;
-// let livePriceChangePercentage = 0;
+// Directory for logs
+const logsDir = './logs';
 
+// Ensure logs directory exists
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir);
+}
 function logData(data) {
   if (!data || !Array.isArray(data)) {
     console.error('Data must be an array.'.red);
@@ -37,7 +40,7 @@ function logData(data) {
   });
 
   logContent += '----- End of Log -----\n\n';
-  fs.appendFileSync('card-data.log', logContent, (err) => {
+  fs.appendFileSync(`${logsDir}/card-data.log`, logContent, (err) => {
     if (err) console.error('Error writing to log file'.red);
   });
 }
@@ -54,7 +57,7 @@ function logError(error, problematicValue = null) {
   errorContent += '----- End of Error Log -----\n\n';
 
   console.error(errorContent.red);
-  fs.appendFileSync('error.log', errorContent.replace(/\[\d+m/g, ''), (err) => {
+  fs.appendFileSync(`${logsDir}/error.log`, errorContent.replace(/\[\d+m/g, ''), (err) => {
     if (err) console.error('Error writing to error log file'.red);
   });
 }
@@ -77,3 +80,67 @@ module.exports = {
   //   livePriceChangePercentage = 0;
   // },
 };
+
+// function logDataInOrganizedFashion(data) {
+//   if (!data || !Array.isArray(data)) {
+//     console.error('[logDataInOrganizedFashion] -----> Invalid data provided for logging.');
+//     return;
+//   }
+
+//   let logContent = 'Logging Card Data:\n\n';
+
+//   data.forEach((card, index) => {
+//     const latestPrice =
+//       typeof card.latestPrice === 'object' && card.latestPrice.num
+//         ? parseFloat(card.latestPrice.num)
+//         : 0;
+//     const lastSavedPrice =
+//       typeof card.lastSavedPrice === 'object' && card.lastSavedPrice.num
+//         ? parseFloat(card.lastSavedPrice.num)
+//         : 0;
+//     const { name, id, tag, status } = card;
+//     const priceChange = latestPrice - (lastSavedPrice || latestPrice);
+//     // const priceDifference = latestPrice - lastSavedPrice;
+//     const priceChangeFormatted = priceChange.toFixed(2);
+//     const timestamp = new Date().toLocaleString();
+
+//     let statusMessage = `Status: ${status}`;
+//     let priceMessage = `Latest Price: $${latestPrice.toFixed(2)} (Change: ${priceChangeFormatted})`;
+
+//     switch (status) {
+//       case 'increased':
+//         statusMessage = statusMessage.green;
+//         priceMessage = priceMessage.green;
+//         break;
+//       case 'decreased':
+//         statusMessage = statusMessage.red;
+//         priceMessage = priceMessage.red;
+//         break;
+//       case 'unchanged':
+//         statusMessage = statusMessage.yellow;
+//         priceMessage = priceMessage.yellow;
+//         break;
+//       default:
+//         statusMessage = statusMessage.white;
+//         priceMessage = priceMessage.white;
+//     }
+
+//     console.log(`[${index}] Name: ${name} (ID: ${id}, Tag: ${tag})`.cyan);
+//     console.log(`    ${statusMessage}`);
+//     console.log(`    ${priceMessage}`);
+//     console.log(`    Logged at: ${timestamp}\n`);
+
+//     // For file logging (without color codes)
+//     logContent += `[${index}] Name: ${name} (ID: ${id}, Tag: ${tag})\n`;
+//     logContent += `    Status: ${status}\n`;
+//     logContent += `    Latest Price: $${latestPrice.toFixed(
+//       2,
+//     )} (Change: ${priceChangeFormatted})\n`;
+//     logContent += `    Logged at: ${timestamp}\n\n`;
+//   });
+
+//   // console.log(statusMessage);
+//   // Append additional data to the message if needed and log it to the file
+//   fs.appendFileSync(`${logsDir}/price-changes.log`, +logContent + '\n');
+//   // fs.appendFileSync(`${logsDir}/price-changes.log`, +logContent + '\n');
+// }

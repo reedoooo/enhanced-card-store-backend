@@ -32,69 +32,6 @@ const releaseLock = (userId) => {
   delete collectionLocks[userId];
 };
 
-function logDataInOrganizedFashion(data) {
-  if (!data || !Array.isArray(data)) {
-    console.error('[logDataInOrganizedFashion] -----> Invalid data provided for logging.');
-    return;
-  }
-
-  let logContent = 'Logging Card Data:\n\n';
-
-  data.forEach((card, index) => {
-    const latestPrice =
-      typeof card.latestPrice === 'object' && card.latestPrice.num
-        ? parseFloat(card.latestPrice.num)
-        : 0;
-    const lastSavedPrice =
-      typeof card.lastSavedPrice === 'object' && card.lastSavedPrice.num
-        ? parseFloat(card.lastSavedPrice.num)
-        : 0;
-    const { name, id, tag, status } = card;
-    const priceChange = latestPrice - (lastSavedPrice || latestPrice);
-    // const priceDifference = latestPrice - lastSavedPrice;
-    const priceChangeFormatted = priceChange.toFixed(2);
-    const timestamp = new Date().toLocaleString();
-
-    let statusMessage = `Status: ${status}`;
-    let priceMessage = `Latest Price: $${latestPrice.toFixed(2)} (Change: ${priceChangeFormatted})`;
-
-    switch (status) {
-      case 'increased':
-        statusMessage = statusMessage.green;
-        priceMessage = priceMessage.green;
-        break;
-      case 'decreased':
-        statusMessage = statusMessage.red;
-        priceMessage = priceMessage.red;
-        break;
-      case 'unchanged':
-        statusMessage = statusMessage.yellow;
-        priceMessage = priceMessage.yellow;
-        break;
-      default:
-        statusMessage = statusMessage.white;
-        priceMessage = priceMessage.white;
-    }
-
-    console.log(`[${index}] Name: ${name} (ID: ${id}, Tag: ${tag})`.cyan);
-    console.log(`    ${statusMessage}`);
-    console.log(`    ${priceMessage}`);
-    console.log(`    Logged at: ${timestamp}\n`);
-
-    // For file logging (without color codes)
-    logContent += `[${index}] Name: ${name} (ID: ${id}, Tag: ${tag})\n`;
-    logContent += `    Status: ${status}\n`;
-    logContent += `    Latest Price: $${latestPrice.toFixed(
-      2,
-    )} (Change: ${priceChangeFormatted})\n`;
-    logContent += `    Logged at: ${timestamp}\n\n`;
-  });
-
-  // console.log(statusMessage);
-  // Append additional data to the message if needed and log it to the file
-  fs.appendFileSync('price-changes.log', +logContent + '\n');
-}
-
 const emittedResponses = [];
 const cronQueue = [];
 let responseIndex = 0;
@@ -103,8 +40,9 @@ let isJobRunning = false;
 const emitResponse = (io, eventType, { message, data, status = STATUS.SUCCESS, error = null }) => {
   // Log only the first 5 items of the data array
   const dataToLog = Array.isArray(data) ? data.slice(0, 5) : data;
-  logDataInOrganizedFashion(dataToLog);
+  // logDataInOrganizedFashion(dataToLog);
 
+  logData(dataToLog);
   const response = { status, message, data, error };
   io.emit(eventType, response);
   emittedResponses.push({ index: responseIndex, eventType, timestamp: new Date(), response });
@@ -206,8 +144,8 @@ const handleSimulationUpdateRequest = (socket, io) => {
 
     try {
       const updates = await trackCardPrices([], listOfSimulatedCards);
-      logDataInOrganizedFashion(updates);
-      logData(updates, 0);
+      // logDataInOrganizedFashion(updates);
+      logData(updates);
 
       emitResponse(io, 'STATUS_UPDATE_CHARTS', {
         message: message || 'Simulation update processed',
@@ -238,7 +176,7 @@ const handleCheckCardPrices = (socket, io) => {
     const monitoredCards = selectedList;
     try {
       const updates = await trackCardPrices(monitoredCards, []);
-      logDataInOrganizedFashion(updates);
+      // logDataInOrganizedFashion(updates);
       logData(updates);
 
       emitResponse(io, 'SEND_PRICING_DATA_TO_CLIENT', {
