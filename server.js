@@ -30,6 +30,16 @@ const corsOptions = {
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
   optionsSuccessStatus: 204,
   allowedHeaders: ['Content-Type', 'Authorization', 'User-Agent'],
+  // allowedHeaders: [
+  //   'Content-Type',
+  //   'access-control-allow-origin',
+  //   'Access-Control-Allow-Headers',
+  //   'card-name',
+  //   'Authorization',
+  //   'User-Agent',
+  //   'text/plain',
+  //   'application/json',
+  // ],
 };
 
 app.use(cors(corsOptions));
@@ -47,7 +57,7 @@ app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
 app.use(cookieParser());
-applyCustomMiddleware(app, server);
+applyCustomMiddleware(app);
 
 // Socket Initialization
 initSocket(server);
