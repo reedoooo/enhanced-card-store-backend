@@ -282,7 +282,9 @@ exports.getAllDecksForUser = async (req, res, next) => {
     console.log('User:', user.allDecks);
 
     user.allDecks = user.allDecks || [];
-    const decks = await Deck.find({ _id: { $in: user.allDecks } });
+
+    let decks = await Deck.find({ _id: { $in: user.allDecks } });
+    // const decks = await Deck.find({ _id: { $in: user.allDecks } });
 
     // console.log('Decks:', decks);
     if (decks.length === 0) {
@@ -295,10 +297,17 @@ exports.getAllDecksForUser = async (req, res, next) => {
 
       await newDeck.save();
       user?.allDecks.push(newDeck._id);
+
+      // await user?.save();
       // await user?.save();
       decks.push(newDeck);
+
+      // console.log('New deck:', newDeck);
     }
 
+    // console.log('Decks:', decks);
+
+    // await user?.save();
     // Directly send a successful response
     res.status(200).json({
       message: 'Fetched all decks successfully',
