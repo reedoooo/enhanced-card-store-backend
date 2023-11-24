@@ -177,7 +177,10 @@ const GENERAL = {
 const FILE_CONSTANTS = {
   CARDINFO_PHP_JSON: 'cardinfo.php.json',
   CARDINFO_PHP_JSON__PATH: path.join(__dirname, '..', 'data', 'cardinfo.php.json'),
-  DOWNLOADED_IMAGES_PATH: path.join(__dirname, '..', 'data', 'cards'),
+  DOWNLOADED_IMAGES_PATH:
+    process.env.NODE_ENV === 'production'
+      ? path.join(__dirname, '..', 'public', 'images', 'cards')
+      : path.join(__dirname, '..', 'data', 'cards'),
 };
 
 module.exports = {
