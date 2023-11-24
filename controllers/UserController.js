@@ -268,7 +268,7 @@ exports.getAllDecksForUser = async (req, res, next) => {
     // Pass the error to the next middleware, which is the unified error handler
     return next(new CustomError('User ID is required', 400));
   }
-  console.log('User:', userId);
+  console.log('User1:', userId);
 
   try {
     const user = await User.find({ _id: userId }).populate('allDecks');
@@ -278,8 +278,8 @@ exports.getAllDecksForUser = async (req, res, next) => {
       throw new CustomError(MESSAGES.USER_NOT_FOUND, STATUS.NOT_FOUND);
     }
 
-    console.log('User:', user);
-    console.log('User:', user.allDecks);
+    console.log('User2:', user);
+    console.log('User3:', user.allDecks);
 
     user.allDecks = user.allDecks || [];
 
