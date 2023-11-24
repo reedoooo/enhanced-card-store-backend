@@ -60,22 +60,13 @@ exports.signup = async (req, res, next) => {
     const { name } = basic_info || {};
 
     if (!name || !email || !username || !password) {
-      logToAllSpecializedLoggers('error', { section: 'signup' });
-      return directError(
-        res,
-        'SIGNUP',
-        new CustomError(MESSAGES.REQUIRED_FIELDS_MISSING, STATUS.BAD_REQUEST),
-      );
+      logInfo('Missing required fields', STATUS.BAD_REQUEST, { login_data, basic_info });
     }
 
     const existingUser = await User.findOne({ 'login_data.username': username.trim() });
     if (existingUser) {
-      logToAllSpecializedLoggers('error', { section: 'signup' });
-      return directError(
-        res,
-        'SIGNUP',
-        new CustomError(`${MESSAGES.USER_ALREADY_EXISTS} ${username}`, STATUS.CONFLICT),
-      );
+      logInfo('User already exists', STATUS.CONFLICT, { username });
+      throw new CustomError(MESSAGES.USER_ALREADY_EXISTS, STATUS.CONFLICT);
     }
 
     const hashedPassword = await bcrypt.hash(password.trim(), 10);
@@ -98,17 +89,14 @@ exports.signup = async (req, res, next) => {
       capabilities: newUser.login_data.role_data.capabilities,
     });
 
-    logToAllSpecializedLoggers('info', { section: 'signup', user: username });
-    return directResponse(res, 'SIGNUP', {
-      status: STATUS.SUCCESS,
-      message: MESSAGES.SIGNUP_SUCCESS,
+    logInfo('User created successfully', STATUS.SUCCESS, { username });
+    res.status(201).json({
+      message: 'User created successfully',
       data: { token },
     });
   } catch (error) {
-    logToAllSpecializedLoggers('error', {
-      section: 'signup',
-      error: error.toString(),
-    });
+    console.log('Signup Error: ', error);
+    logError('Signup Error: ', error);
     next(error);
   }
 };
@@ -126,15 +114,13 @@ exports.signin = async (req, res, next) => {
 
     const user = await User.findOne({ 'login_data.username': username.trim() });
     if (!user) {
-      logToAllSpecializedLoggers('error', `Invalid username for signin: ${username}`, {
-        section: 'signin',
-      });
+      logError('User not found', new Error(MESSAGES.USER_NOT_FOUND));
       throw new CustomError(MESSAGES.INVALID_USERNAME, STATUS.NOT_FOUND);
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.login_data.password);
     if (!isPasswordValid) {
-      logToAllSpecializedLoggers('error', { section: 'signin', username });
+      logError('Invalid password', new Error(MESSAGES.INVALID_PASSWORD));
       throw new CustomError(MESSAGES.INVALID_PASSWORD, STATUS.UNAUTHORIZED);
     }
 
@@ -144,17 +130,13 @@ exports.signin = async (req, res, next) => {
       capabilities: user.login_data.role_data.capabilities,
     });
 
-    logToAllSpecializedLoggers('info', { section: 'signin', user: username });
-    return directResponse(res, 'SIGNIN', {
-      status: STATUS.SUCCESS,
-      message: MESSAGES.SIGNIN_SUCCESS,
+    logInfo('User signed in successfully', STATUS.SUCCESS, { username });
+    res.status(200).json({
+      message: 'Fetched user data successfully',
       data: { token },
     });
   } catch (error) {
-    logToAllSpecializedLoggers('error', {
-      section: 'signin',
-      error: error.toString(),
-    });
+    console.log('Signin Error: ', error);
     // Use headersSent to check if headers are already sent to the client
     if (!res.headersSent) {
       next(error);
