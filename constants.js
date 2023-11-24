@@ -135,6 +135,7 @@ const ERROR_SOURCES = {
 const ERROR_TYPES = {
   SERVER_ERROR: (error) => `Server error: ${error.message}`,
   VALIDATION_ERROR: 'Validation Error',
+  SECRET_KEY_MISSING: 'Secret key missing',
   UNDEFINED_DATASET: 'Undefined or null dataset',
   UNDEFINED_DATASET_DATA: 'Undefined or null dataset data',
   UNDEFINED_DATASET_NAME: 'Undefined or null dataset name',

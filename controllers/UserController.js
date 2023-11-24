@@ -13,7 +13,7 @@ const {
   handleChartDataUpdate,
 } = require('./userControllerUtilities');
 const CustomError = require('../middleware/customError');
-const { STATUS, MESSAGES, ERROR_SOURCES } = require('../constants');
+const { STATUS, MESSAGES, ERROR_SOURCES, ERROR_TYPES } = require('../constants');
 const {
   logToAllSpecializedLoggers,
   directError,
@@ -60,7 +60,7 @@ exports.signup = async (req, res, next) => {
     const { name } = basic_info || {};
 
     if (!name || !email || !username || !password) {
-      logToAllSpecializedLoggers('Required fields are missing for signup.', { section: 'signup' });
+      logToAllSpecializedLoggers('error', { section: 'signup' });
       return directError(
         res,
         'SIGNUP',
@@ -70,7 +70,7 @@ exports.signup = async (req, res, next) => {
 
     const existingUser = await User.findOne({ 'login_data.username': username.trim() });
     if (existingUser) {
-      logToAllSpecializedLoggers(`User already exists: ${username}`, { section: 'signup' });
+      logToAllSpecializedLoggers('error', { section: 'signup' });
       return directError(
         res,
         'SIGNUP',
@@ -98,14 +98,14 @@ exports.signup = async (req, res, next) => {
       capabilities: newUser.login_data.role_data.capabilities,
     });
 
-    logToAllSpecializedLoggers('New user signup successful', { section: 'signup', user: username });
+    logToAllSpecializedLoggers('info', { section: 'signup', user: username });
     return directResponse(res, 'SIGNUP', {
       status: STATUS.SUCCESS,
       message: MESSAGES.SIGNUP_SUCCESS,
       data: { token },
     });
   } catch (error) {
-    logToAllSpecializedLoggers('Error during signup', {
+    logToAllSpecializedLoggers('error', {
       section: 'signup',
       error: error.toString(),
     });
@@ -120,19 +120,21 @@ exports.signin = async (req, res, next) => {
     const { username, password } = req.body;
 
     if (!process.env.SECRET_KEY) {
-      logToAllSpecializedLoggers('Secret key is not set for signin.', { section: 'signin' });
-      throw new CustomError(MESSAGES.SECRET_KEY_MISSING, STATUS.INTERNAL_SERVER_ERROR);
+      logToAllSpecializedLoggers('info', { section: 'signin' });
+      throw new CustomError(ERROR_TYPES.SECRET_KEY_MISSING, STATUS.INTERNAL_SERVER_ERROR);
     }
 
     const user = await User.findOne({ 'login_data.username': username.trim() });
     if (!user) {
-      logToAllSpecializedLoggers(`Invalid username for signin: ${username}`, { section: 'signin' });
+      logToAllSpecializedLoggers('error', `Invalid username for signin: ${username}`, {
+        section: 'signin',
+      });
       throw new CustomError(MESSAGES.INVALID_USERNAME, STATUS.NOT_FOUND);
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.login_data.password);
     if (!isPasswordValid) {
-      logToAllSpecializedLoggers('Invalid password for signin.', { section: 'signin', username });
+      logToAllSpecializedLoggers('error', { section: 'signin', username });
       throw new CustomError(MESSAGES.INVALID_PASSWORD, STATUS.UNAUTHORIZED);
     }
 
@@ -142,14 +144,14 @@ exports.signin = async (req, res, next) => {
       capabilities: user.login_data.role_data.capabilities,
     });
 
-    logToAllSpecializedLoggers('User signin successful', { section: 'signin', user: username });
+    logToAllSpecializedLoggers('info', { section: 'signin', user: username });
     return directResponse(res, 'SIGNIN', {
       status: STATUS.SUCCESS,
       message: MESSAGES.SIGNIN_SUCCESS,
       data: { token },
     });
   } catch (error) {
-    logToAllSpecializedLoggers('Error during signin', {
+    logToAllSpecializedLoggers('error', {
       section: 'signin',
       error: error.toString(),
     });
