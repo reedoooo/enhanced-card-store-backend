@@ -1,20 +1,57 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
+// const CardInCartSchema = new Schema({
+//   card: { type: Schema.Types.ObjectId, ref: 'CardBase' },
+//   // id: {
+//   //   type: Schema.Types.ObjectId,
+//   //   required: true,
+//   //   unique: true,
+//   //   sparse: true,
+//   // },
+//   id: Number, // Assuming id is a number as per your data
+//   quantity: {
+//     type: Number,
+//     required: true,
+//   },
+// });
 const CardInCartSchema = new Schema({
-  card: { type: Schema.Types.ObjectId, ref: 'CardBase' },
-  cardId: {
-    type: Schema.Types.ObjectId,
+  id: {
+    // type: Number,
+    type: String,
     required: true,
-    unique: true,
-    sparse: true,
+    // unique: true,
   },
+  name: {
+    type: String,
+    required: true,
+  },
+  type: String,
+  frameType: String,
+  description: String,
+  archetype: [String],
+  atk: Number,
+  def: Number,
+  level: Number,
+  race: String,
+  attribute: String,
+  card_images: [
+    {
+      id: Number,
+      image_url: String,
+    },
+  ],
+  card_prices: [
+    {
+      tcgplayer_price: Number,
+    },
+  ],
   quantity: {
     type: Number,
-    required: true,
+    // required: true,
   },
+  price: { type: Number, required: false },
 });
-
 const CartSchema = new Schema({
   userId: {
     type: Schema.Types.ObjectId,

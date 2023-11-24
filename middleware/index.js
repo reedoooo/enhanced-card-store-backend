@@ -1,54 +1,72 @@
 const express = require('express');
 const path = require('path');
-// const winston = require('winston');
-const handleErrors = require('./errorMiddleware');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { v4: uuidv4 } = require('uuid');
+const unifiedErrorHandler = require('./unifiedErrorHandler');
+const { logToAllSpecializedLoggers } = require('./infoLogger');
 
-const connectionLogger = (req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${req.method} ${req.originalUrl}`);
+// Middleware to add a unique identifier to each request
+const addRequestId = (req, res, next) => {
+  req.id = uuidv4();
   next();
 };
 
-const handleStripeWebhook = async (req, res) => {
-  const sig = req.headers['stripe-signature'];
+// Helper function to log request details
+const logRequestDetails = (req, eventType, message, duration = null) => {
+  const logInfo = {
+    requestId: req.id,
+    method: req.method,
+    url: req.originalUrl,
+    section: eventType,
+    message: message,
+  };
 
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+  if (duration !== null) {
+    logInfo.duration = `${duration}ms`;
   }
 
-  switch (event.type) {
-    case 'payment_intent.succeeded':
-      console.log('Payment succeeded!');
-      break;
-    case 'payment_intent.payment_failed':
-      console.log('Payment failed!');
-      break;
-    default:
-      return res.status(400).end();
-  }
-
-  res.json({ received: true });
+  logToAllSpecializedLoggers(
+    'info',
+    `Request ${eventType}: ${req.method} ${req.originalUrl}`,
+    { data: logInfo, section: 'request' },
+    'log',
+  );
 };
 
-module.exports = function applyCustomMiddleware(app, server) {
-  // app.use(logger('dev'));
-  app.use(connectionLogger);
+// Helper function to get duration in milliseconds
+const getDurationInMilliseconds = (start) => {
+  const NS_PER_SEC = 1e9;
+  const NS_TO_MS = 1e6;
+  const diff = process.hrtime(start);
+  return (diff[0] * NS_PER_SEC + diff[1]) / NS_TO_MS;
+};
+
+// Function to apply custom middleware to the express app
+const applyCustomMiddleware = (app, server) => {
+  app.use(addRequestId);
+
   app.use(express.static(path.join(__dirname, '../public')));
   app.use(express.json());
+
+  // Middleware to log request on start and finish with duration
+  app.use((req, res, next) => {
+    const start = process.hrtime();
+    logRequestDetails(req, 'start', '[START]');
+
+    res.on('finish', () => {
+      const durationInMilliseconds = getDurationInMilliseconds(start);
+      logRequestDetails(req, 'end', '[END]', durationInMilliseconds);
+    });
+
+    next();
+  });
+
+  // Unified error-handling middleware
   app.use((err, req, res, next) => {
     if (res.headersSent) {
       return next(err);
     }
-    handleErrors(err, req, res, next);
-
-    res.status(500).json({ error: err.message });
+    unifiedErrorHandler(err, req, res, next);
   });
-
-  app.post('/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
-  app.use(handleErrors);
 };
+
+module.exports = applyCustomMiddleware;

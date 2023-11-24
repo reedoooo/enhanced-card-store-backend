@@ -1,45 +1,56 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
+const CardBaseSchema = require('./CardBase').schema;
+
+const CardInDeckSchema = new Schema({
+  id: {
+    // type: Number,
+    type: String,
+    required: true,
+    // unique: true,
+  },
+  name: {
+    type: String,
+    required: true,
+  },
+  type: String,
+  frameType: String,
+  description: String,
+  archetype: [String],
+  atk: Number,
+  def: Number,
+  level: Number,
+  race: String,
+  attribute: String,
+  card_images: [
+    {
+      id: Number,
+      image_url: String,
+    },
+  ],
+  card_prices: [
+    {
+      tcgplayer_price: Number,
+    },
+  ],
+  quantity: {
+    type: Number,
+    // required: true,
+  },
+  price: { type: Number, required: false },
+});
 // const CardInDeckSchema = new Schema({
-//   id: {
-//     // type: Number,
-//     type: String,
-//     required: true,
-//     // unique: true,
-//   },
+//   ...CardBaseSchema.obj,
 //   name: {
 //     type: String,
 //     required: true,
 //   },
-//   type: String,
-//   frameType: String,
-//   description: String,
-//   card_images: [CardImageSchema],
-//   archetype: [String],
-//   atk: Number,
-//   def: Number,
-//   level: Number,
-//   race: String,
-//   attribute: String,
-//   card_prices: [CardPriceSchema],
+//   id: { type: String, required: true },
 //   quantity: {
 //     type: Number,
 //     // required: true,
 //   },
 // });
-const CardInDeckSchema = new Schema({
-  card: { type: Schema.Types.ObjectId, ref: 'CardBase' },
-  cardId: {
-    type: Schema.Types.ObjectId,
-    required: true,
-    unique: true,
-    sparse: true,
-  },
-  quantity: {
-    type: Number,
-    // required: true,
-  },
-});
 const deckSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   name: String,

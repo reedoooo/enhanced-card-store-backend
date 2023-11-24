@@ -1,5 +1,4 @@
 const CustomError = require('../../middleware/customError');
-const { handleError } = require('../../middleware/handleErrors');
 const User = require('../../models/User');
 const { getIO } = require('../../socket');
 
@@ -23,8 +22,12 @@ const validateInput = (userId, pricingData) => {
       }
     });
   } catch (error) {
-    handleError(error);
-    throw error;
+    const errorResponse = new CustomError(
+      'Failed to validate user input. Please try again later.',
+      500,
+    );
+    throw errorResponse; // Rethrow the error to be caught by the Express error middleware
+    // return undefined;
   }
 };
 
@@ -58,12 +61,16 @@ const updateUserCard = (card, pricingData) => {
 
     return updatedCard;
   } catch (error) {
-    handleError(error, { card, pricingData });
-    return undefined;
+    const errorResponse = new CustomError(
+      'Failed to update current chart datasets. Please try again later.',
+      500,
+    );
+    throw errorResponse; // Rethrow the error to be caught by the Express error middleware
+    // return undefined;
   }
 };
 
-const updateCurrentChartDatasets = (collection) => {
+const updateCurrentChartDataSets = (collection) => {
   try {
     if (!collection) {
       console.error('Collection is not provided.');
@@ -78,21 +85,25 @@ const updateCurrentChartDatasets = (collection) => {
       },
     };
 
-    if (!collection.currentChartDatasets) {
-      collection.currentChartDatasets = [newDataset];
+    if (!collection.currentChartDataSets) {
+      collection.currentChartDataSets = [newDataset];
     } else {
-      const existingDatasetIndex = collection.currentChartDatasets.findIndex(
+      const existingDatasetIndex = collection.currentChartDataSets.findIndex(
         (ds) => ds.id === collectionIdStr,
       );
       if (existingDatasetIndex !== -1) {
-        collection.currentChartDatasets[existingDatasetIndex].data = newDataset.data;
+        collection.currentChartDataSets[existingDatasetIndex].data = newDataset.data;
       } else {
-        collection.currentChartDatasets.push(newDataset);
+        collection.currentChartDataSets.push(newDataset);
       }
     }
   } catch (error) {
-    handleError(error, { collection });
-    return undefined;
+    const errorResponse = new CustomError(
+      'Failed to update current chart datasets. Please try again later.',
+      500,
+    );
+    throw errorResponse; // Rethrow the error to be caught by the Express error middleware
+    // return undefined;
   }
 };
 
@@ -131,14 +142,15 @@ const updateUserCollections = async (userId, updatedData) => {
 
       const previousDayTotalPrice = collection.previousDayTotalPrice || 0;
       collection.totalPrice = collection.cards.reduce((acc, card) => acc + (card?.price || 0), 0);
-      collection.dailyPriceChange = collection.totalPrice - previousDayTotalPrice;
+      collection.dailyPriceChange = (collection.totalPrice - previousDayTotalPrice).toString();
       collection.updatedAt = new Date();
 
       if (!collection.totalPrice && typeof collection.totalCost === 'string') {
         collection.totalPrice = parseFloat(collection.totalCost);
+        collection.dailyPriceChange = (collection.totalPrice - previousDayTotalPrice).toString();
       }
 
-      updateCurrentChartDatasets(collection);
+      updateCurrentChartDataSets(collection);
       await collection.save();
 
       io.emit('HANDLE_UPDATE_AND_SYNC_COLLECTION', {
@@ -153,8 +165,12 @@ const updateUserCollections = async (userId, updatedData) => {
       collections: user.allCollections,
     };
   } catch (error) {
-    handleError(error, { userId, updatedData });
-    return undefined;
+    const errorResponse = new CustomError(
+      'Failed to update user collections. Please try again later.',
+      500,
+    );
+    throw errorResponse; // Rethrow the error to be caught by the Express error middleware
+    // return undefined;
   }
 };
 

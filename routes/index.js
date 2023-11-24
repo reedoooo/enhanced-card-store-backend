@@ -11,7 +11,7 @@ const deckRoutes = require('./api/deck');
 const stripeRoutes = require('./other/stripe');
 // const tcgScraperRoutes = require('../scrape');
 const cardImageRoutes = require('./api/cardimage');
-const directedResponsesRoutes = require('./api/general');
+// const directedResponsesRoutes = require('./api/general');
 // const cronRoutes = require('./other/cronRoutes');
 
 // router.use('/orders', orderRoutes);
@@ -23,9 +23,9 @@ router.use('/decks', deckRoutes);
 router.use('/cards/ygopro', ygoproRoutes);
 router.use('/stripe', stripeRoutes);
 // router.use('/scrape', tcgScraperRoutes);
-router.use('/card-images', cardImageRoutes);
+router.use('/card-image', cardImageRoutes);
 
-router.use('/directedResponses', directedResponsesRoutes);
+// router.use('/directedResponses', directedResponsesRoutes);
 // router.use('/chart-data', cronRoutes);
 // router.use('/cron', cronRoutes);
 

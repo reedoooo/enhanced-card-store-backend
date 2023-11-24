@@ -1,6 +1,10 @@
 // utils.js
 // const { default: rateLimit } = require('express-rate-limit');
+const { default: mongoose } = require('mongoose');
+const { GENERAL } = require('../constants');
+const CustomError = require('../middleware/customError');
 const User = require('../models/User');
+const { logError } = require('./loggingUtils');
 
 // // rateLimiter Middleware
 // const postLimiter = rateLimit({
@@ -16,6 +20,19 @@ function asyncHandler(fn) {
     });
   };
 }
+
+const convertUserIdToObjectId = (userId) => {
+  try {
+    return mongoose.Types.ObjectId(userId);
+  } catch (error) {
+    throw new CustomError('Failed to convert user ID to ObjectId', 400, true, {
+      function: 'convertUserIdToObjectId',
+      userId,
+      error: error.message,
+      stack: error.stack,
+    });
+  }
+};
 
 const roundMoney = (value) => {
   return parseFloat(value.toFixed(2));
@@ -45,6 +62,39 @@ const splitDateTime = (date) => {
   };
 };
 
+async function updateDocumentWithRetry(model, update, options = {}, retryCount = 0) {
+  try {
+    // Try to update the document
+    const updated = await model.findOneAndUpdate({ _id: update._id }, update, {
+      new: true,
+      runValidators: true,
+      ...options,
+    });
+    return updated;
+  } catch (error) {
+    if (error.name === 'VersionError' && retryCount < GENERAL.MAX_RETRIES) {
+      // Fetch the latest document and apply your update again
+      const doc = await model.findById(update._id);
+      if (doc) {
+        // Reapply the updates to the document...
+        return updateDocumentWithRetry(
+          model,
+          { ...doc.toObject(), ...update },
+          options,
+          retryCount + 1,
+        );
+      }
+    }
+    throw error;
+  }
+}
+
+const respondWithError = (res, status, message, errorDetails) => {
+  console.error(message, errorDetails);
+  logError(message, errorDetails);
+  res.status(status).json({ message, errorDetails });
+};
+
 module.exports = {
   // postLimiter,
   findUser,
@@ -55,4 +105,7 @@ module.exports = {
   findUserById,
   calculatePriceDifference,
   calculateNewTotalPrice,
+  updateDocumentWithRetry,
+  convertUserIdToObjectId,
+  respondWithError,
 };

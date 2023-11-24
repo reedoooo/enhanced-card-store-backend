@@ -56,6 +56,7 @@ const cardController = {
             race: card.race,
             attribute: card.attribute,
             card_images: card.card_images,
+            image: card.card_images[0].image_url,
             card_prices: card.card_prices,
           });
 

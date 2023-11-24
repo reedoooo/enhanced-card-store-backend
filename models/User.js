@@ -37,8 +37,8 @@ const UserSchema = new Schema(
     // cards: [{ type: Schema.Types.ObjectId, ref: 'CardBase' }],
     allDecks: [{ type: Schema.Types.ObjectId, ref: 'Deck' }],
     allCollections: [{ type: Schema.Types.ObjectId, ref: 'Collection' }],
-    allChartData: [{ type: Schema.Types.ObjectId, ref: 'ChartData' }],
-    allCronData: [{ type: Schema.Types.ObjectId, ref: 'CronData' }],
+    allChartDatas: [{ type: Schema.Types.ObjectId, ref: 'ChartData' }],
+    allCronDatas: [{ type: Schema.Types.ObjectId, ref: 'CronData' }],
     cart: { type: Schema.Types.ObjectId, ref: 'Cart' }, // Added this line
 
     // allCronData: [CronDataSchema],

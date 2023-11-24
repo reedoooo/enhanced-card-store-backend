@@ -1,98 +1,335 @@
+/* eslint-disable prettier/prettier */
 const winston = require('winston');
 require('winston-daily-rotate-file');
+const colors = require('colors');
+const {
+  createLogger,
+  format: { combine, timestamp, printf, colorize, json },
+  transports,
+} = winston;
 
-const format = winston.format;
-const logLevel = process.env.LOG_LEVEL || 'info';
+const defaultLogLevel = 'error';
 
-// Common timestamp format
-const timestampFormat = format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' });
+// Directory for logs
+const logsDir = './logs';
 
-// Custom format for console output
-const consoleFormat = format.combine(
-  format.colorize(),
-  timestampFormat,
-  format.printf((info) => `${info.timestamp} ${info.level}: ${info.message}`),
-);
-
-// Transport configuration
-const dailyRotateFileOptions = {
-  datePattern: 'YYYY-MM-DD',
-  zippedArchive: true,
-  maxSize: '20m',
-  maxFiles: '14d',
+// Ensure logs directory exists
+// if (!fs.existsSync(logsDir)) {
+//   fs.mkdirSync(logsDir);
+// }
+// Set colors for each log level
+const levelColors = {
+  error: '\x1b[31m', // Red
+  warn: '\x1b[33m', // Yellow
+  info: '\x1b[32m', // Green
+  verbose: '\x1b[36m', // Cyan
+  debug: '\x1b[35m', // Magenta
+  silly: '\x1b[37m', // White
+  log: '\x1b[37m', // White
 };
 
-const transports = {
-  dailyRotate: new winston.transports.DailyRotateFile({
-    filename: 'application-%DATE%.log',
-    ...dailyRotateFileOptions,
-  }),
-  errorDailyRotate: new winston.transports.DailyRotateFile({
-    filename: 'error-%DATE%.log',
-    level: 'error',
-    ...dailyRotateFileOptions,
-  }),
-  console: new winston.transports.Console({ format: consoleFormat }),
+// eslint-disable-next-line no-undef
+colors.setTheme(levelColors);
+
+// Utility to check if a key should be colored, and colorize it if so
+const colorizeKey = (key, value, colorCode) => {
+  const keysToColor = [
+    'chartData',
+    'datasets',
+    'xys',
+    'allXYValues',
+    '_id',
+    'userId',
+    'name',
+    'description',
+    'totalCost',
+    'totalPrice',
+    'quantity',
+    'totalQuantity',
+    'allCardPrices',
+    'cards',
+    'currentChartDataSets',
+    'currentChartDataSets2',
+    '__v',
+
+    // cronjob keys
+    'testedItemCount',
+    'itemsWithoutValidID',
+    'cardsWithChangedPrices',
+    'pricingData',
+    'pricesUpdated',
+    'priceDifference',
+    'priceChange',
+    'allUpdatedCards',
+    'price',
+    'quantity',
+    'totalQuantity',
+    'allCardPrices',
+  ];
+  const colorReset = '\x1b[0m';
+  const color = colorCode || '\x1b[34m'; // Default to blue
+  return keysToColor.includes(key) ? `${color}${key}${colorReset}: ${value}` : `${key}: ${value}`;
+};
+const primaryLogLevels = ['error', 'warn', 'info', 'log', 'verbose', 'debug', 'silly'];
+
+const colorizeMessage = (level, message) => {
+  // const color = levelColors[level] || '\x1b[37m'; // Default to white if not found
+  const color = levelColors[level] || '\x1b[37m'; // Default to white if not found
+  const colorReset = '\x1b[0m';
+  return `${color}${message}${colorReset}`;
 };
 
-// Main Logger
-const logger = winston.createLogger({
-  level: logLevel,
-  format: format.combine(timestampFormat, format.json()),
-  defaultMeta: { service: 'user-service' },
-  transports: [transports.dailyRotate, transports.errorDailyRotate, transports.console],
+// Array of primary log levels
+
+// Enhanced consoleFormat using colorizeMessage for color coding based on log level
+// To use this format, pass in the required parameters when creating your logger using
+const consoleFormat = printf(({ level, message, timestamp, meta }) => {
+  const coloredLevel = colorizeMessage(level, level.toUpperCase());
+  const coloredMessage = colorizeMessage(level, message);
+  let formattedMessage = `[${timestamp}] ${coloredLevel}: ${coloredMessage}`;
+
+  // Additional formatting for 'meta' if present
+  if (meta) formattedMessage += ` | Section: ${meta.section}`;
+  if (meta && meta.data) {
+    const dataString = Object.entries(meta.data)
+      .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+      .join(', ');
+    formattedMessage += ` | Data: {${dataString}}`;
+  }
+  return formattedMessage;
 });
-// Ensure at least one transport is always available
-if (logger.transports.length === 0) {
-  logger.add(transports.console);
-}
-// Custom logger functions
-logger.errorLogger = (message, error) => {
-  logger.error(message, { error: error.toString(), stack: error.stack });
-};
 
-logger.infoLogger = (message, data) => {
-  logger.info(message, { data });
-};
-
-logger.debugLogger = (message, data) => {
-  logger.debug(message, { data });
-};
-
-// Additional Loggers
-const createAdditionalLogger = (filename) =>
-  winston.createLogger({
-    level: 'info',
-    format: format.combine(timestampFormat, format.json()),
-    transports: [
-      new winston.transports.DailyRotateFile({
-        filename: `${filename}-%DATE%.log`,
-        ...dailyRotateFileOptions,
-      }),
-    ],
+// Simplified file transport creation
+const fileTransport = (label) =>
+  new transports.DailyRotateFile({
+    filename: `${logsDir}/${label}-%DATE%.log`,
+    datePattern: 'YYYY-MM-DD',
+    zippedArchive: true,
+    maxSize: '20m',
+    maxFiles: '14d',
+    format: combine(timestamp(), json()),
   });
 
-const cardPriceLogger = createAdditionalLogger('cardPrices');
-const cronJobLogger = createAdditionalLogger('cronJobs');
-const errorLogger = createAdditionalLogger('errors');
-const responseLogger = createAdditionalLogger('responses');
+// Create transport sets with DRY principle in mind
+const createTransports = (label, level) => [
+  new transports.Console({
+    level,
+    format: combine(
+      timestamp(),
+      colorize({ all: true }),
+      printf(({ level, message, timestamp }) => {
+        return `[${timestamp}] ${level}: ${message}`;
+      }),
+    ),
+  }),
+  fileTransport(label),
+];
 
-// Function to log chart data details
-function logChartDataDetails(label, data) {
-  cardPriceLogger.info(`[CHART DATA] ${label}: ${JSON.stringify(data)}`);
+// Refactor createLoggerWithTransports to be DRY by reducing repeated code
+const createLoggerWithTransports = (label, level = process.env['LOG_LEVEL'] || defaultLogLevel) =>
+  createLogger({ level, transports: createTransports(label, level) });
+
+// Specialized loggers object created via a function to reduce repetition
+const initSpecializedLoggers = () => {
+  const sections = [
+    'collection',
+    'cardPrice',
+    'cronjob',
+    'error',
+    'request',
+    'response',
+    'general',
+    'decks',
+    'errors',
+    'warn',
+    'info',
+    'log',
+    'user',
+    'validateXY',
+    'validateDataset',
+    'console',
+    'file',
+    'end',
+    'start',
+  ];
+  return sections.reduce((acc, section) => {
+    acc[section] = createLoggerWithTransports(section);
+    return acc;
+  }, {});
+};
+
+const specializedLoggers = initSpecializedLoggers();
+
+// Unified logging function that decides based on action where to log
+function logToAllSpecializedLoggers(level, message, meta, action) {
+  const logger =
+    specializedLoggers[meta?.section] || createLoggerWithTransports(meta?.section, level);
+  logger.log({ level, message, ...meta });
+
+  if (meta?.error instanceof Error) {
+    logger.log({ level: 'error', message: meta.error.message, ...meta });
+    if (meta.error.stack) {
+      logger.log({ level: 'error', message: meta.error.stack, ...meta, stack: true });
+    }
+  }
+
+  if (action === 'response') {
+    respondToClient(meta.res, meta.status, message, meta.data || {});
+  } else if (action === 'log') {
+    specializedLoggers.console.log({ level, message, ...meta });
+  } else if (action === 'file') {
+    specializedLoggers.file.log({ level, message, ...meta });
+  }
+
+  // Additional handling for 'cronjob'
+  // Additional handling for 'cronjob'
+  // Additional handling for 'cronjob'
+  if (meta?.section === 'cronjob') {
+    const coloredLevel = colorizeMessage(level, level.toUpperCase());
+    const coloredMessage = colorizeMessage(level, message);
+    let formattedMessage = `[${timestamp}] ${coloredLevel}: ${coloredMessage}`;
+
+    // Additional formatting for 'meta' if present
+    if (meta) {
+      formattedMessage += ` | Section: ${meta.section}`;
+      if (meta.data) {
+        const dataString = JSON.stringify(meta.data);
+        // const dataObj = JSON.parse(dataString);
+
+        // Format price changes before appending to the message
+        // const priceChanges = formatPriceChanges(dataObj);
+        // const formattedPriceChanges = priceChanges.join(', ');
+        formattedMessage += ` | Data: {${dataString}}`;
+      }
+    }
+
+    specializedLoggers.cronjob.log({ level, message: formattedMessage, ...meta });
+  }
 }
 
-// Add console transport in non-production environments
-if (process.env.NODE_ENV !== 'production') {
-  const loggers = [logger, cardPriceLogger, cronJobLogger, errorLogger, responseLogger];
-  loggers.forEach((lgr) => lgr.add(transports.console));
+// The formatPriceChanges function can remain unchanged.
+// const formatPriceChanges = (data) => {
+//   let formattedOutput = [];
+//   Object.entries(data).forEach(([key, card]) => {
+//     // Check if the previousPrice differs from the updatedPrice
+//     if (card.previousPrice !== card.updatedPrice) {
+//       const priceChangeText = `\x1b[32m${card.name} (ID: ${card.id}) price changed from $${card.previousPrice} to $${card.updatedPrice}\x1b[0m`;
+//       formattedOutput.push(priceChangeText);
+//     } else {
+//       formattedOutput.push(
+//         `${card.name} (ID: ${card.id}) price remained the same at \x1b[36m$${card.updatedPrice}\x1b[0m`,
+//       );
+//     }
+//   });
+//   return formattedOutput;
+// };
+
+// const logSelectedList = (selectedList) => {
+//   if (Array.isArray(selectedList) && selectedList.length > 0) {
+//     console.log('Selected List of Cards:');
+//     selectedList.forEach((card, index) => {
+//       // Log the card details in the specified format: [index][name][id][totalPrice][price][quantity]
+//       console.log(`[${index}][${card.name}][${card.id}][${card.totalPrice.toFixed(2)}][${card.price.toFixed(2)}][${card.quantity}]`);
+//     });
+//   } else {
+//     console.log('No cards in selected list.');
+//   }
+// };
+
+// Refactored logSelectedList to log to the file as well
+const logSelectedList = (selectedList) => {
+  if (Array.isArray(selectedList) && selectedList.length > 0) {
+    const logger = specializedLoggers['cronjob'];
+    logger.info('Selected List of Cards:');
+    selectedList.forEach((card, index) => {
+      const cardDetails = `[${index}][${card.name}][${card._id}][${card.totalPrice.toFixed(
+        2,
+      )}][${card.price.toFixed(2)}][${card.quantity}]`;
+      logger.info(cardDetails);
+    });
+  } else {
+    specializedLoggers['cronjob'].warn('No cards in selected list.');
+  }
+};
+
+// Function to handle responses to the client, abstracted to ensure DRY code
+function respondToClient(res, status, message, data = {}) {
+  if (res.headersSent) return;
+  res.status(status).json({ message, data });
 }
+
+// Function to handle direct response to the client
+const directResponse = (res, action, level, message, data = {}) => {
+  logToAllSpecializedLoggers(
+    level,
+    `${action}: ${message}`,
+    { section: 'response', action, data },
+    'response',
+  );
+  respondToClient(res, 200, message, data);
+};
+
+// Function to handle direct errors
+const directError = (res, code, level, error) => {
+  if (res.headersSent) return;
+  const status = error.status || 500;
+  console.error(`[${level.toUpperCase()}]: ${error.message}`);
+  logToAllSpecializedLoggers(level, error.message, { section: 'error', status, error }, 'error');
+  respondToClient(res, status, error.message);
+};
+
+const priceLogger = createLoggerWithTransports(
+  'price',
+  process.env['PRICE_LOG_LEVEL'] || defaultLogLevel,
+);
+
+// Function to log price changes using a table format
+const logPriceChanges = (data) => {
+  if (!data || typeof data !== 'object') {
+    priceLogger.warn('Invalid data provided for logging price changes.');
+    return;
+  }
+
+  priceLogger.info('Price Changes:');
+  priceLogger.info(
+    '+--------------------------------------+-------------------+-------------------+',
+  );
+  priceLogger.info(
+    '| Card Name                            | Previous Price    | Updated Price     |',
+  );
+  priceLogger.info(
+    '+--------------------------------------+-------------------+-------------------+',
+  );
+
+  Object.entries(data).forEach(([key, card]) => {
+    const previousPrice = card.previousPrice.toFixed(2);
+    const updatedPrice = card.updatedPrice.toFixed(2);
+
+    priceLogger.info(
+      `| ${card.name.padEnd(36)} | $${previousPrice.padStart(17)} | $${updatedPrice.padStart(
+        17,
+      )} |`,
+    );
+  });
+
+  priceLogger.info(
+    '+--------------------------------------+-------------------+-------------------+',
+  );
+};
 
 module.exports = {
-  logger,
-  cardPriceLogger,
-  cronJobLogger,
-  errorLogger,
-  logChartDataDetails,
-  responseLogger,
+  loggers: specializedLoggers,
+  logger: specializedLoggers.general,
+  directResponse,
+  directError,
+  logToAllSpecializedLoggers,
+  respondToClient,
+  colorizeKey,
+  fileTransport,
+  createTransports,
+  createLoggerWithTransports,
+  initSpecializedLoggers,
+  logSelectedList,
+  priceLogger,
+  logPriceChanges,
 };

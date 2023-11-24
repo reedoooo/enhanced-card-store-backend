@@ -2,16 +2,41 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 const CardBaseSchema = require('./CardBase').schema;
 
+const priceEntrySchema = new mongoose.Schema({
+  num: {
+    type: Number,
+    // required: true,
+  },
+  timestamp: {
+    type: Date,
+    required: true,
+  },
+});
+
 const CardInCollectionSchema = new Schema({
   ...CardBaseSchema.obj,
   id: { type: String, required: true },
-  price: Number,
+  collectionId: { type: String, required: false },
+  tag: {
+    type: String,
+    required: false,
+  },
+  price: { type: Number, required: false },
   totalPrice: Number,
-  quantity: { type: Number, required: true },
+  name: {
+    type: String,
+    required: true,
+  },
+  quantity: {
+    type: Number,
+    required: false,
+  },
+  latestPrice: priceEntrySchema,
+  lastSavedPrice: priceEntrySchema,
+  priceHistory: [priceEntrySchema],
   chart_datasets: [
-    // This field matches the schema
     {
-      x: { type: Date, required: true },
+      x: { type: String, required: true },
       y: { type: Number, required: true },
     },
   ],
@@ -19,13 +44,6 @@ const CardInCollectionSchema = new Schema({
 
 const DatasetSchema = new Schema({
   name: String,
-  // priceChangeDetails: {
-  //   priceChanged: Boolean,
-  //   initialPrice: Number,
-  //   updatedPrice: Number,
-  //   priceDifference: Number,
-  //   priceChange: Number,
-  // },
   data: [
     {
       xys: [
@@ -36,7 +54,6 @@ const DatasetSchema = new Schema({
       ],
       additionalPriceData: [
         {
-          // New field to store extra data
           priceChanged: Boolean,
           initialPrice: Number,
           updatedPrice: Number,
@@ -44,16 +61,19 @@ const DatasetSchema = new Schema({
           priceChange: Number,
         },
       ],
-      // additionalPriceData: {
-      //   // New field to store extra data
-      //   priceChanged: Boolean,
-      //   initialPrice: Number,
-      //   updatedPrice: Number,
-      //   priceDifference: Number,
-      //   priceChange: Number,
-      // },
     },
   ],
+});
+
+const collectionPriceHistorySchema = new mongoose.Schema({
+  timestamp: {
+    type: Date,
+    required: true,
+  },
+  num: {
+    type: Number,
+    required: false,
+  },
 });
 
 const collectionSchema = new mongoose.Schema({
@@ -65,23 +85,31 @@ const collectionSchema = new mongoose.Schema({
   quantity: Number,
   totalQuantity: Number,
   previousDayTotalPrice: Number,
-  dailyPriceChange: Number,
+  dailyPriceChange: String,
   priceDifference: Number,
   priceChange: Number,
-  allCardPrices: [
+  allCardPrices: Array,
+  latestPrice: priceEntrySchema,
+  lastSavedPrice: priceEntrySchema,
+  collectionPriceHistory: [collectionPriceHistorySchema],
+  cards: [CardInCollectionSchema],
+  currentChartDataSets: [
+    // id: String,
+    // data: {
+    //   x: Date,
+    //   y: Number,
+    // },
     {
-      // cardName: String,
-      cardPrice: Number,
+      label: String,
+      x: Date,
+      y: Number,
     },
   ],
-  cards: [CardInCollectionSchema],
-  currentChartDatasets: [
+  currentChartDataSets2: [
     {
-      id: String,
-      data: {
-        x: Date,
-        y: Number,
-      },
+      label: String,
+      x: Date,
+      y: Number,
     },
   ],
   xys: [
@@ -90,10 +118,6 @@ const collectionSchema = new mongoose.Schema({
       data: { x: Date, y: Number },
     },
   ],
-  // {
-  //   x: Date,
-  //   y: Number,
-  // },
   chartData: {
     name: String,
     userId: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -105,7 +129,6 @@ const collectionSchema = new mongoose.Schema({
       },
     ],
     allXYValues: [
-      // New field to store all xy values
       {
         label: String,
         x: Date,
@@ -114,5 +137,14 @@ const collectionSchema = new mongoose.Schema({
     ],
   },
 });
+
+// collectionSchema.pre('save', function (next) {
+//   if (!this.cards.every(validateCardInCollection)) {
+//     console.error('Validation failed for one or more cards in the collection');
+//     next(new Error('Validation failed'));
+//   } else {
+//     next();
+//   }
+// });
 
 module.exports = mongoose.model('Collection', collectionSchema);
