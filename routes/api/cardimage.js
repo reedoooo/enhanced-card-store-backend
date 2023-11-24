@@ -1,33 +1,54 @@
 const express = require('express');
 const CardImageController = require('../../controllers/CardImageController');
+const { asyncHandler } = require('../../utils/utils');
 
 const router = express.Router();
-
+// Download card images route
+router.get(
+  '/download',
+  // validateObjectId,
+  asyncHandler(CardImageController.startDownload),
+);
+// router.get(
+//   '/list',
+//   // validateObjectId,
+//   asyncHandler(CardImageController.getDownloadedImages),
+// );
+router.get(
+  '/random?numImages=10',
+  // validateObjectId,
+  asyncHandler(CardImageController.getRandomCardImages),
+);
+router.get(
+  '/:filename',
+  // validateObjectId,
+  asyncHandler(CardImageController.getCardImageByFilename),
+);
 // Express route to retrieve random card image URLs
-router.get('/random', (req, res) => {
-  const numRandomImages = 10; // Adjust the number as needed
-  const imageURLs = CardImageController.getRandomCardImages(numRandomImages);
-  res.json(imageURLs);
-});
+// router.get('/random', (req, res) => {
+//   const numRandomImages = 10; // Adjust the number as needed
+//   const imageURLs = CardImageController.getRandomCardImages(numRandomImages);
+//   res.json(imageURLs);
+// });
 
-// Express route to retrieve the list of downloaded images
-router.get('/downloaded-images', (req, res) => {
-  const downloadedImages = CardImageController.getDownloadedImages();
-  console.log('DOWNLOADED IMAGES ________________', downloadedImages);
-  res.json(downloadedImages);
-});
+// // Express route to retrieve the list of downloaded images
+// router.get('/downloaded-images', (req, res) => {
+//   const downloadedImages = CardImageController.getDownloadedImages();
+//   console.log('DOWNLOADED IMAGES ________________', downloadedImages);
+//   res.json(downloadedImages);
+// });
 
-// Express route to retrieve a specific image by filename
-router.get('/image/:filename', (req, res) => {
-  const filename = req.params.filename;
-  const imagePath = CardImageController.getCardImageByFilename(filename);
+// // Express route to retrieve a specific image by filename
+// router.get('/image/:filename', (req, res) => {
+//   const filename = req.params.filename;
+//   const imagePath = CardImageController.getCardImageByFilename(filename);
 
-  if (imagePath) {
-    res.sendFile(imagePath);
-  } else {
-    res.status(404).json({ error: 'Image not found' });
-  }
-});
+//   if (imagePath) {
+//     res.sendFile(imagePath);
+//   } else {
+//     res.status(404).json({ error: 'Image not found' });
+//   }
+// });
 
 module.exports = router;
 // const fs = require('fs');

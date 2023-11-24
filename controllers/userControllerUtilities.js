@@ -5,70 +5,11 @@ const { logger, logToAllSpecializedLoggers } = require('../middleware/infoLogger
 const { validationResult } = require('express-validator');
 const CustomError = require('../middleware/customError');
 const { STATUS, MESSAGES, GENERAL } = require('../constants');
-const { validateXY } = require('./validateXY');
-const { validateDataset } = require('./validateDataset');
-const { validateCard } = require('./validateCard');
-const { error } = require('winston');
+const { validateDataset } = require('../middleware/validation/validateDataset');
+const { validateXY } = require('../middleware/validation/validateXY');
 const { logCollection } = require('../utils/collectionLogTracking');
 const { logData } = require('../utils/logPriceChanges');
-// const { validateCardBase } = require('./validateCardBase');
-// const { validateCard } = require('./validateCard');
-// const { validateCollection } = require('./validateCollection');
-// const { validateUser } = require('./validateUser');
-
-// exports.handleErrors = (res, error, next) => {
-//   winston.error('Error:', error);
-//   if (error instanceof mongoose.Error.ValidationError) {
-//     return res
-//       .status(STATUS.BAD_REQUEST)
-//       .json({ message: MESSAGES.INVALID_DATA, error: error.errors });
-//   }
-//   if (error.code === 11000) {
-//     return res
-//       .status(STATUS.CONFLICT)
-//       .json({ message: MESSAGES.DUPLICATE_KEY_ERROR, error: error.keyValue });
-//   }
-//   if (error instanceof CustomError) {
-//     return res.status(error.statusCode).json({ message: error.message, details: error.details });
-//   }
-//   return res.status(STATUS.INTERNAL_SERVER_ERROR).json({ message: MESSAGES.INTERNAL_SERVER_ERROR });
-// };
-// const directResponse = (res, action, level, message, data = {}) => {
-//   const statusCode = 200 || '200';
-
-//   // console.log('DIRECT RESPONSE CALLED:', res, action, level, message, data);
-//   const meta = {
-//     section: 'response',
-//     action,
-//     data,
-//   };
-
-//   // Log to console
-//   logToConsole(level, `${action}: ${message}`, meta);
-
-//   // Log to file
-//   logToFile('response', level, `${action}: ${message}`, meta);
-
-//   // Send response to the client
-//   respondToClient(res, statusCode, message, data);
-// };
-// const directError = (res, action, level, error) => {
-//   // Ensure the error object has a message and a statusCode
-//   const errorMessage = error.message || 'An error occurred';
-//   const statusCode = error.statusCode || 500;
-
-//   const meta = {
-//     section: 'errors',
-//     action,
-//     error: errorMessage,
-//   };
-//   // Log to console and file
-//   logToConsole(level, `${action}: ${errorMessage}`, meta);
-//   logToFile('error', level, `${action}: ${errorMessage}`, meta);
-
-//   // Send error response to the client
-//   respondToClient(res, statusCode, errorMessage, { error: errorMessage });
-// };
+const MonitoredCard = require('../models/MonitoredCard');
 exports.handleNotFound = (resource, res) => {
   logger.infoLogger(`${resource} not found`);
   throw new CustomError(`${resource} ${MESSAGES.NOT_FOUND}`, STATUS.NOT_FOUND);
@@ -320,9 +261,9 @@ exports.handleIncomingXY = async (existingCollection, incomingXYS) => {
   //   '[1][EXISTING COLLECTION CHARTDATA DATASETS DATA XYS DATA] -->',
   //   existingCollection.chartData.datasets[0].data[0].xys[0].data,
   // );
-  console.log('INCOMING XYZ', incomingXYS);
+  // console.log('INCOMING XYZ', incomingXYS);
   for (const incomingXY of incomingXYS) {
-    console.log('INCOMING XY', incomingXY);
+    // console.log('INCOMING XY', incomingXY);
     const xyEntry = {
       label: incomingXY.label,
       data: incomingXY.data,
@@ -347,7 +288,7 @@ exports.handleIncomingXY = async (existingCollection, incomingXYS) => {
     // Update the corresponding entry in chartData.xys
     let chartXYS = existingCollection.chartData.xys.find((xy) => xy.label === incomingXY.label);
     if (chartXYS) {
-      console.log('CHART XYS FOUND', chartXYS);
+      // console.log('CHART XYS FOUND', chartXYS);
       // chartXYS.data.push(xyEntry.data);
     } else {
       existingCollection.chartData.xys.push({
@@ -428,27 +369,111 @@ exports.processIncomingData = async (existingCollection, chartData) => {
 
 exports.handleCardUpdate = async ({ userId, collectionId }, cardsToUpdate) => {
   try {
-    // Assuming you have a Collection model (e.g., a Mongoose model if using MongoDB)
     const collection = await Collection.findOne({ _id: collectionId, userId });
-
     if (!collection) {
-      return { status: 'error', message: 'Collection not found' };
+      throw new Error('Collection not found');
     }
 
-    // Update cards in the collection
-    cardsToUpdate.forEach((cardUpdate) => {
-      // Find the index of the card to update in the collection
+    const user = await User.findById(userId).populate('allCollections');
+
+    for (const cardUpdate of cardsToUpdate) {
+      let monitoredCard = await MonitoredCard.findOne({ id: cardUpdate.id });
+
+      if (monitoredCard) {
+        monitoredCard.quantity = cardUpdate.quantity;
+        monitoredCard.latestPrice = {
+          num: cardUpdate?.latestPrice?.num || 0,
+          timestamp: cardUpdate?.latestPrice?.timestamp || new Date(),
+        };
+        monitoredCard.lastSavedPrice = {
+          num: cardUpdate?.lastSavedPrice?.num || 0,
+          timestamp: cardUpdate?.lastSavedPrice?.timestamp || new Date(),
+        };
+        monitoredCard.tag = 'monitored';
+        monitoredCard.name = cardUpdate.name;
+        monitoredCard.id = cardUpdate.id;
+        monitoredCard.collectionId = collection._id;
+        // monitoredCard.priceHistory.push({ num: cardUpdate.latestPrice, timestamp: new Date() });
+        await monitoredCard.save();
+      } else {
+        monitoredCard = new MonitoredCard({
+          id: cardUpdate.id,
+          name: cardUpdate.name,
+          collectionId: collection._id,
+          tag: 'monitored',
+          latestPrice: {
+            num: isNaN(parseFloat(cardUpdate?.latestPrice?.num))
+              ? 0
+              : parseFloat(cardUpdate?.latestPrice?.num),
+            timestamp: new Date(),
+          },
+          lastSavedPrice: {
+            num: isNaN(parseFloat(cardUpdate?.lastSavedPrice?.num))
+              ? 0
+              : parseFloat(cardUpdate?.lastSavedPrice?.num),
+            timestamp: new Date(),
+          },
+          // priceHistory: [{ num: cardUpdate.latestPrice.num, timestamp: new Date() }],
+          quantity: cardUpdate.quantity,
+        });
+        await monitoredCard.save();
+      }
+
       const cardIndex = collection.cards.findIndex((card) => card.id === cardUpdate.id);
       if (cardIndex !== -1) {
-        // Update the card details
-        collection.cards[cardIndex] = { ...collection.cards[cardIndex], ...cardUpdate };
-      } else {
-        // Handle case where card is not found, if needed
-      }
-    });
+        const parsedLatestPrice = parseFloat(cardUpdate.latestPrice) || 0;
+        const parsedQuantity = parseInt(cardUpdate.quantity) || 0;
+        // const totalCardPrice = parsedLatestPrice * parsedQuantity;
 
-    // Save the updated collection
-    await collection.save();
+        collection.cards[cardIndex] = {
+          ...collection.cards[cardIndex],
+          name: cardUpdate.name,
+          id: cardUpdate.id,
+          price: isNaN(parseFloat(cardUpdate?.latestPrice?.num))
+            ? collection.cards[cardIndex].price
+            : parseFloat(cardUpdate?.latestPrice?.num),
+          totalPrice: isNaN(parseFloat(cardUpdate?.latestPrice?.num * cardUpdate.quantity))
+            ? collection.cards[cardIndex].totalPrice
+            : parseFloat(cardUpdate?.latestPrice?.num * cardUpdate.quantity),
+          quantity: parsedQuantity,
+          latestPrice: parsedLatestPrice,
+          lastSavedPrice: parseFloat(cardUpdate?.lastSavedPrice?.num) || 0,
+          priceHistory: [
+            ...collection.cards[cardIndex].priceHistory,
+            { num: cardUpdate?.latestPrice?.num, timestamp: new Date() } || {
+              num: 0,
+              timestamp: new Date(),
+            },
+          ],
+          tag: 'monitored',
+          chart_datasets: this.handleDuplicateYValuesInDatasets({
+            ...collection.cards[cardIndex],
+            chart_datasets: cardUpdate.chart_datasets,
+          }),
+          card_images: cardUpdate.card_images,
+          image: cardUpdate.image,
+          card_prices: cardUpdate.card_prices,
+          archetype: cardUpdate.archetype,
+          atk: cardUpdate.atk,
+          attribute: cardUpdate.attribute,
+          def: cardUpdate.def,
+          description: cardUpdate.description,
+          frameType: cardUpdate.frameType,
+        };
+      }
+    }
+
+    // await collection.save();
+
+    // Update the user's allCollections with the updated collection
+    const updatedCollectionIndex = user.allCollections.findIndex(
+      (collection) => collection._id.toString() === collectionId,
+    );
+
+    if (updatedCollectionIndex !== -1) {
+      user.allCollections[updatedCollectionIndex] = collection;
+      await user.save();
+    }
 
     return { status: 'success', data: collection };
   } catch (error) {

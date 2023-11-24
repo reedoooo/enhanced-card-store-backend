@@ -4,6 +4,7 @@ const { default: mongoose } = require('mongoose');
 const { GENERAL } = require('../constants');
 const CustomError = require('../middleware/customError');
 const User = require('../models/User');
+const { logError } = require('./loggingUtils');
 
 // // rateLimiter Middleware
 // const postLimiter = rateLimit({
@@ -88,6 +89,12 @@ async function updateDocumentWithRetry(model, update, options = {}, retryCount =
   }
 }
 
+const respondWithError = (res, status, message, errorDetails) => {
+  console.error(message, errorDetails);
+  logError(message, errorDetails);
+  res.status(status).json({ message, errorDetails });
+};
+
 module.exports = {
   // postLimiter,
   findUser,
@@ -100,4 +107,5 @@ module.exports = {
   calculateNewTotalPrice,
   updateDocumentWithRetry,
   convertUserIdToObjectId,
+  respondWithError,
 };

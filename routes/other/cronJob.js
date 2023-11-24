@@ -1,5 +1,4 @@
 const CustomError = require('../../middleware/customError');
-const { handleError } = require('../../middleware/handleErrors');
 const User = require('../../models/User');
 const { getIO } = require('../../socket');
 
@@ -23,8 +22,12 @@ const validateInput = (userId, pricingData) => {
       }
     });
   } catch (error) {
-    handleError(error);
-    throw error;
+    const errorResponse = new CustomError(
+      'Failed to validate user input. Please try again later.',
+      500,
+    );
+    throw errorResponse; // Rethrow the error to be caught by the Express error middleware
+    // return undefined;
   }
 };
 
@@ -58,8 +61,12 @@ const updateUserCard = (card, pricingData) => {
 
     return updatedCard;
   } catch (error) {
-    handleError(error, { card, pricingData });
-    return undefined;
+    const errorResponse = new CustomError(
+      'Failed to update current chart datasets. Please try again later.',
+      500,
+    );
+    throw errorResponse; // Rethrow the error to be caught by the Express error middleware
+    // return undefined;
   }
 };
 
@@ -91,8 +98,12 @@ const updateCurrentChartDataSets = (collection) => {
       }
     }
   } catch (error) {
-    handleError(error, { collection });
-    return undefined;
+    const errorResponse = new CustomError(
+      'Failed to update current chart datasets. Please try again later.',
+      500,
+    );
+    throw errorResponse; // Rethrow the error to be caught by the Express error middleware
+    // return undefined;
   }
 };
 
@@ -154,8 +165,12 @@ const updateUserCollections = async (userId, updatedData) => {
       collections: user.allCollections,
     };
   } catch (error) {
-    handleError(error, { userId, updatedData });
-    return undefined;
+    const errorResponse = new CustomError(
+      'Failed to update user collections. Please try again later.',
+      500,
+    );
+    throw errorResponse; // Rethrow the error to be caught by the Express error middleware
+    // return undefined;
   }
 };
 

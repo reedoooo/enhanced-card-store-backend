@@ -1,4 +1,6 @@
 require('colors');
+const path = require('path');
+
 // Constants for status of a response
 // Constants for status of a response
 // const STATUS = {
@@ -130,6 +132,34 @@ const ERROR_SOURCES = {
   DELETE_COLLECTION: 'deleteCollection',
 };
 
+const ERROR_TYPES = {
+  SERVER_ERROR: (error) => `Server error: ${error.message}`,
+  VALIDATION_ERROR: 'Validation Error',
+  UNDEFINED_DATASET: 'Undefined or null dataset',
+  UNDEFINED_DATASET_DATA: 'Undefined or null dataset data',
+  UNDEFINED_DATASET_NAME: 'Undefined or null dataset name',
+  INVALID_COLLECTION_NAME: 'Invalid collection name',
+  NON_ARRAY_DATA: 'Data field is not an array',
+  INVALID_XY_STRUCTURE: 'Invalid XY structure',
+  MISMATCHED_DATA_LENGTH: 'Mismatched data array length',
+  INVALID_COLLECTION_STRUCTURE: 'Invalid existing collection structure',
+  VERSION_ERROR: 'Version error - no matching document found',
+  NOT_FOUND: (resource) => `${resource} not found`,
+  DUPLICATE_KEY_ERROR: 'Duplicate key error',
+  INTERNAL_SERVER_ERROR: 'Internal Server Error',
+  REQUIRED_FIELDS_MISSING: 'Required fields missing',
+  INVALID_USER_DATA: 'Invalid user data',
+};
+
+// Log Types
+const LOG_TYPES = {
+  CARD: 'card',
+  CARDS: 'cards',
+  COLLECTION: 'collection',
+  COLLECTIONS: 'collections',
+  OTHER: 'other',
+};
+
 const GENERAL = {
   // General
   MAX_RETRIES: 3,
@@ -144,9 +174,18 @@ const GENERAL = {
   SERVER_ERROR: (error) => `Server error: ${error.message}`,
 };
 
+const FILE_CONSTANTS = {
+  CARDINFO_PHP_JSON: 'cardinfo.php.json',
+  CARDINFO_PHP_JSON__PATH: path.join(__dirname, '..', 'data', 'cardinfo.php.json'),
+  DOWNLOADED_IMAGES_PATH: path.join(__dirname, '..', 'data', 'cards'),
+};
+
 module.exports = {
   STATUS: STATUS,
   MESSAGES: MESSAGES,
-  ERROR_SOURCES: ERROR_SOURCES,
+  SOURCES: ERROR_SOURCES,
   GENERAL: GENERAL,
+  ERROR_TYPES: ERROR_TYPES,
+  LOG_TYPES: LOG_TYPES,
+  FILE_CONSTANTS: FILE_CONSTANTS,
 };

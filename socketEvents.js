@@ -1,205 +1,164 @@
 const { getIO } = require('./socket');
-const { updateUserCollections } = require('./routes/other/cronJob');
-const {
-  scheduleCheckCardPrices,
-  stopCheckCardPrices,
-  checkCardPrices,
-  createPricingData,
-} = require('./utils/cardUtils');
-const { handleError } = require('./middleware/handleErrors');
-const CustomError = require('./middleware/customError');
 const { handleUpdateAndSync } = require('./controllers/userControllerUtilities');
-const { MESSAGES, STATUS, ERROR_SOURCES } = require('./constants');
-const cron = require('node-cron');
-const { loggers, logToAllSpecializedLoggers, logSelectedList } = require('./middleware/infoLogger');
-const { trackCardPrices } = require('./utils/cronPriceTracking');
-const SimulatedCard = require('./models/SimulatedCard');
+const { MESSAGES, SOURCES } = require('./constants');
 require('colors');
-const fs = require('fs');
-const { logData, logError } = require('./utils/logPriceChanges');
+const {
+  processCardPriceRequest,
+  setupCronJob,
+  emitError,
+  emitResponse,
+} = require('./utils/cronUtils');
+const { trackCardPrices } = require('./utils/cronPriceTracking');
 
-const collectionLocks = {};
-
-const acquireLock = (userId) => {
-  if (collectionLocks[userId]) {
-    return false;
-  }
-  collectionLocks[userId] = true;
-  return true;
-};
-
-const releaseLock = (userId) => {
-  delete collectionLocks[userId];
-};
-
-const emittedResponses = [];
-const cronQueue = [];
-let responseIndex = 0;
-let isJobRunning = false;
-
-const emitResponse = (io, eventType, { message, data, status = STATUS.SUCCESS, error = null }) => {
-  // Log only the first 5 items of the data array
-  const dataToLog = Array.isArray(data) ? data.slice(0, 5) : data;
-  // logDataInOrganizedFashion(dataToLog);
-
-  logData(dataToLog);
-  const response = { status, message, data, error };
-  io.emit(eventType, response);
-  emittedResponses.push({ index: responseIndex, eventType, timestamp: new Date(), response });
-
-  if (!error) {
-    status = status || STATUS.SUCCESS;
-  } else {
-    status = status || STATUS.ERROR;
-  }
-
-  logToAllSpecializedLoggers(
-    'info',
-    `[SOCK]-->[${status}] ${eventType} (Index: ${responseIndex})`,
-    { data: { message, data }, section: 'cronjob', action: 'log' },
-  );
-
-  responseIndex++;
-  // filterOldEventTypes();
-  io.emit('EMITTED_RESPONSES', { message: 'YES', data: emittedResponses.slice(-25) });
-};
-
-const emitError = (io, errorType, error) => {
-  const errorDetails =
-    error instanceof CustomError
-      ? error
-      : new CustomError(error.message || 'An error occurred', 500, true, error);
-
-  logToAllSpecializedLoggers('error', errorDetails.message, {
-    section: 'error',
-    action: 'logs',
-    error: errorDetails,
-  });
-  logToAllSpecializedLoggers('error', errorDetails.message, {
-    section: 'error',
-    action: 'file',
-    error: errorDetails,
-  });
-  emitResponse(io, errorType, {
-    status: 'ERROR',
-    message: 'An error has occurred',
-    error: errorDetails,
-  });
-};
-
-const executeNextCronJob = async (io) => {
-  if (cronQueue.length === 0 || isJobRunning) {
-    return;
-  }
-
-  isJobRunning = true;
-  const nextJob = cronQueue.shift(); // Remove the first job from the queue
-
+// Helper Functions
+function handleClientMessage(data, io) {
   try {
-    const updates = await nextJob();
-    io.emit('STATUS_UPDATE_CRON', {
-      message: 'Cron job completed',
-      data: updates,
-    });
+    console.log('Received from client:', data);
+    io.emit('MESSAGE_TO_CLIENT', { message: 'Client message received', data });
   } catch (error) {
-    console.error('Error during scheduled price tracking:', error);
-  } finally {
-    isJobRunning = false;
-    executeNextCronJob(io); // Execute the next job in the queue, if any
+    emitError(io, 'ERROR', error);
   }
-};
-
-const filterOldEventTypes = () => {
-  const latestResponses = {};
-  emittedResponses.forEach((response) => {
-    latestResponses[response.eventType] = response.index;
-  });
-
-  const filteredResponses = emittedResponses.filter(
-    (response) => latestResponses[response.eventType] === response.index,
-  );
-  emittedResponses.length = 0;
-  emittedResponses.push(...filteredResponses);
-};
+}
 
 // Event Handlers
 const handleMessageFromClient = (socket, io) => {
-  socket.on('MESSAGE_FROM_CLIENT', (data) => {
-    try {
-      console.log('Received from client:', data);
-      io.emit('MESSAGE_TO_CLIENT', { message: 'Client message received', data });
-    } catch (error) {
-      emitError(io, 'ERROR', error);
-    }
-  });
-};
-
-const handleSimulationUpdateRequest = (socket, io) => {
-  socket.on('STATUS_UPDATE_REQUEST', async (data) => {
-    data = data || {};
-    let { message, listOfSimulatedCards = [] } = data;
-    if (listOfSimulatedCards.length === 0) {
-      listOfSimulatedCards = await SimulatedCard.find();
-    }
-
-    try {
-      const updates = await trackCardPrices([], listOfSimulatedCards);
-      // logDataInOrganizedFashion(updates);
-      logData(updates);
-
-      emitResponse(io, 'STATUS_UPDATE_CHARTS', {
-        message: message || 'Simulation update processed',
-        data: {
-          message: 'Updated card prices',
-          data: updates, // Send the updated listOfSimulatedCards
-        },
-      });
-    } catch (error) {
-      console.error('Error on simulation update request:', error);
-      // logData.logError(error);
-      emitError(io, 'ERROR', error);
-    }
-  });
-
-  cron.schedule('*/2 * * * *', () => {
-    if (!isJobRunning) {
-      cronQueue.push(() => trackCardPrices());
-      executeNextCronJob(io);
-    }
-  });
+  socket.on('MESSAGE_FROM_CLIENT', (data) => handleClientMessage(data, io));
 };
 
 const handleCheckCardPrices = (socket, io) => {
   socket.on('REQUEST_CRON_UPDATED_CARDS_IN_COLLECTION', async (data) => {
-    const userId = data.userId;
-    const selectedList = data.data.selectedList;
-    const monitoredCards = selectedList;
-    try {
-      const updates = await trackCardPrices(monitoredCards, []);
-      // logDataInOrganizedFashion(updates);
-      logData(updates);
-
-      emitResponse(io, 'SEND_PRICING_DATA_TO_CLIENT', {
-        message: 'Card prices checked',
-        data: {
-          message: userId,
-          data: updates,
-        },
-      });
-    } catch (error) {
-      console.error('Error during scheduled card price tracking:', error);
-      logError(error);
-      emitError(io, 'ERROR', error);
-    }
+    await processCardPriceRequest(data, io);
   });
+  setupCronJob(getIO(), trackCardPrices, '*/2 * * * *'); // Tracks card prices every 2 minutes
+};
 
-  cron.schedule('*/2 * * * *', () => {
-    if (!isJobRunning) {
-      cronQueue.push(() => trackCardPrices());
-      executeNextCronJob(io);
+const handleDisconnect = (socket) => {
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
+};
+
+const handleGenericEvent = (socket, eventType) => {
+  socket.on(eventType, (newData) => {
+    if (Array.isArray(newData)) {
+      console.log(`[AUTOMATED SERVER MESSAGE] Received data for event ${eventType}:`, newData[0]);
+      return;
+    }
+    console.log(`[AUTOMATED SERVER MESSAGE] Received data for event ${eventType}:`, newData || {});
+  });
+};
+
+const handleUpdateAndSyncCollectionSocket = (socket, io) => {
+  socket.on('HANDLE_UPDATE_AND_SYNC_COLLECTION', async ({ userId, collectionId, body }) => {
+    try {
+      const result = await handleUpdateAndSync(userId, collectionId, body);
+      emitResponse(io, 'COLLECTION_SYNCED', MESSAGES.COLLECTION_SYNCED, result);
+    } catch (error) {
+      emitError(io, 'ERROR', error, SOURCES.HANDLE_UPDATE_AND_SYNC_COLLECTION_SOCKET);
     }
   });
 };
+
+const setupSocketEvents = () => {
+  const io = getIO();
+  io.on('connection', (socket) => {
+    console.log('User connected:', socket.id);
+
+    const events = [
+      'REQUEST_CRON_UPDATED_CARDS_IN_COLLECTION',
+      'REQUEST_PRICES_ACTIVATE_CRON',
+      'MESSAGE_FROM_CLIENT',
+      'STATUS_UPDATE_REQUEST',
+      'STOP_CRON_JOB',
+      'HANDLE_UPDATE_USER_DATA',
+      'HANDLE_UPDATE_USER_COLLECTION',
+      'HANDLE_UPDATE_AND_SYNC_COLLECTION',
+      'UPDATED_MONITORED_CARDS',
+      'disconnect',
+    ];
+
+    events.forEach((eventType) => handleGenericEvent(socket, eventType));
+    handleCheckCardPrices(socket, io);
+    handleUpdateAndSyncCollectionSocket(socket, io);
+    handleMessageFromClient(socket, io);
+    handleDisconnect(socket);
+  });
+};
+
+module.exports = { setupSocketEvents };
+
+// const handleSimulationUpdateRequest = (socket, io) => {
+//   socket.on('STATUS_UPDATE_REQUEST', async (data) => {
+//     data = data || {};
+//     let { message, listOfMonitoredCards = [] } = data;
+//     if (listOfMonitoredCards.length === 0) {
+//       listOfMonitoredCards = await MonitoredCard.find();
+//     }
+
+//     console.log('listOfMonitoredCards:', listOfMonitoredCards);
+
+//     try {
+//       const updates = await trackCardPrices(listOfMonitoredCards, []);
+//       // logDataInOrganizedFashion(updates);
+//       logData(updates);
+
+//       emitResponse(io, 'STATUS_UPDATE_CHARTS', {
+//         message: message || 'Simulation update processed',
+//         data: {
+//           message: 'Updated card prices',
+//           data: updates, // Send the updated listOfSimulatedCards
+//         },
+//       });
+//     } catch (error) {
+//       console.error('Error on simulation update request:', error);
+//       // logData.logError(error);
+//       emitError(io, 'ERROR', error);
+//     }
+//   });
+
+//   cron.schedule('*/2 * * * *', () => {
+//     if (!isJobRunning) {
+//       cronQueue.push(() => trackCardPrices());
+//       executeNextCronJob(io);
+//     }
+//   });
+// };
+
+// const handleSimulationUpdateRequest = (socket, io) => {
+//   socket.on('STATUS_UPDATE_REQUEST', async (data) => {
+//     data = data || {};
+//     let { message, listOfSimulatedCards = [] } = data;
+//     if (listOfSimulatedCards.length === 0) {
+//       listOfSimulatedCards = await SimulatedCard.find();
+//     }
+
+//     try {
+//       const updates = await trackCardPrices([], listOfSimulatedCards);
+//       // logDataInOrganizedFashion(updates);
+//       logData(updates);
+
+//       emitResponse(io, 'STATUS_UPDATE_CHARTS', {
+//         message: message || 'Simulation update processed',
+//         data: {
+//           message: 'Updated card prices',
+//           data: updates, // Send the updated listOfSimulatedCards
+//         },
+//       });
+//     } catch (error) {
+//       console.error('Error on simulation update request:', error);
+//       // logData.logError(error);
+//       emitError(io, 'ERROR', error);
+//     }
+//   });
+
+//   cron.schedule('*/2 * * * *', () => {
+//     if (!isJobRunning) {
+//       cronQueue.push(() => trackCardPrices());
+//       executeNextCronJob(io);
+//     }
+//   });
+// };
+
 // const handleCheckCardPrices = (io, socket) => {
 //   // io.on('connection', (socket) => {
 //   socket.on('REQUEST_CRON_UPDATED_CARDS_IN_COLLECTION', async (data) => {
@@ -236,31 +195,6 @@ const handleCheckCardPrices = (socket, io) => {
 //   });
 //   // });
 // };
-
-const handleStopCronJob = (socket, io) => {
-  socket.on('STOP_CRON_JOB', async (data) => {
-    try {
-      if (!data || !data.userId) {
-        throw new CustomError('Invalid data received', 400, false, {
-          source: 'handleStopCronJob',
-        });
-      }
-      stopCheckCardPrices(data.userId);
-    } catch (error) {
-      emitError(
-        io,
-        'ERROR',
-        error instanceof CustomError
-          ? error
-          : new CustomError('Failed to stop cron job', 500, true, {
-              source: ERROR_SOURCES.HANDLE_STOP_CRON_JOB,
-              detail: error.message,
-              stack: error.stack,
-            }),
-      );
-    }
-  });
-};
 
 // const handleUpdateRequest = async (socket, io) => {
 //   socket.on('STATUS_UPDATE_REQUEST', async (payload) => {
@@ -301,204 +235,61 @@ const handleStopCronJob = (socket, io) => {
 //   });
 // };
 
-const handleUpdateUserData = (socket, io) => {
-  socket.on('HANDLE_UPDATE_USER_DATA', async ({ userId, pricingData }) => {
-    try {
-      // Acquire lock
-      if (!acquireLock(userId)) {
-        logToAllSpecializedLoggers('error', `Lock acquisition failed for user ${userId}`, {
-          section: 'socket-events',
-          action: 'HANDLE_UPDATE_USER_DATA',
-        });
-        emitResponse(io, 'ERROR', {
-          message: 'User data is currently being updated. Please try again later.',
-        });
-        return;
-      }
-      logToAllSpecializedLoggers('info', 'HANDLE UPDATE USER', {
-        section: 'socket-events',
-        action: 'HANDLE_UPDATE_USER_DATA',
-      });
-      const cardsArray = Object.values(pricingData.updatedPrices);
-      const newPricingData = createPricingData(cardsArray);
-      const updatedUserData = { userId, newPricingData };
-      if (
-        !updatedUserData.newPricingData ||
-        Object.keys(updatedUserData.newPricingData).length === 0
-      ) {
-        throw new CustomError('Failed to update user data', 500, true, {
-          source: 'handleUpdateUserData',
-        });
-      }
-      emitResponse(io, 'USER_DATA_UPDATED', {
-        message: MESSAGES.USER_DATA_UPDATED,
-        data: { updatedUserData },
-      });
-      emitResponse(io, 'INITIATE_UPDATE_USER_COLLECTIONS_SOCKET', {
-        message: MESSAGES.USER_DATA_UPDATED,
-        data: { userId, updatedUserData },
-      });
-    } catch (error) {
-      emitError(
-        io,
-        'ERROR',
-        error instanceof CustomError
-          ? error
-          : new CustomError('Failed to update user data', 500, true, {
-              source: ERROR_SOURCES.HANDLE_UPDATE_USER_DATA,
-              detail: error.message,
-              stack: error.stack,
-            }),
-      );
-    } finally {
-      // Release lock
-      releaseLock(userId);
-    }
-  });
-};
-
-const handleUpdateUserCollectionsSocket = (socket, io) => {
-  socket.on('HANDLE_UPDATE_USER_COLLECTION', async ({ userId, updatedData }) => {
-    try {
-      logToAllSpecializedLoggers('info', 'HANDLE UPDATE USER COLLECTION', {
-        section: 'cronjob',
-        action: 'log',
-      });
-      const result = await updateUserCollections(userId, updatedData);
-      if (!result) {
-        logToAllSpecializedLoggers('info', 'Update skipped. No updated prices.', {
-          section: 'socket-events',
-          action: 'HANDLE_UPDATE_USER_COLLECTION',
-          data: result,
-        });
-        emitResponse(io, 'USER_COLLECTION_UPDATE_SKIPPED', {
-          message: MESSAGES.NO_PRICE_CHANGES,
-        });
-        return;
-      }
-
-      emitResponse(io, 'SEND_FINAL_UPDATE_TO_CLIENT', {
-        message: MESSAGES.USER_COLLECTION_UPDATED,
-        data: { userId, updatedData },
-      });
-    } catch (error) {
-      emitError(
-        io,
-        'ERROR',
-        error instanceof CustomError
-          ? error
-          : new CustomError(MESSAGES.AN_ERROR_OCCURRED, 500, true, {
-              source: ERROR_SOURCES.HANDLE_UPDATE_USER_COLLECTIONS_SOCKET,
-              detail: error.message,
-              stack: error.stack,
-            }),
-      );
-    }
-  });
-};
-
-const handleUpdateAndSyncCollectionSocket = (socket, io) => {
-  socket.on('HANDLE_UPDATE_AND_SYNC_COLLECTION', async ({ userId, collectionId, body }) => {
-    try {
-      logToAllSpecializedLoggers('info', 'HANDLE UPDATE AND SYNC COLLECTION', {
-        section: 'socket-events',
-        action: 'HANDLE_UPDATE_AND_SYNC_COLLECTION',
-      });
-      const result = await handleUpdateAndSync(userId, collectionId, body);
-      emitResponse(io, 'COLLECTION_SYNCED', {
-        message: MESSAGES.COLLECTION_SYNCED,
-        data: result,
-      });
-    } catch (error) {
-      emitError(
-        io,
-        'ERROR',
-        error instanceof CustomError
-          ? error
-          : new CustomError(
-              'An error occurred while updating and syncing collections.',
-              500,
-              true,
-              {
-                source: ERROR_SOURCES.HANDLE_UPDATE_AND_SYNC_COLLECTION_SOCKET,
-                detail: error.message,
-                stack: error.stack,
-              },
-            ),
-      );
-    }
-  });
-};
-
-const handleDisconnect = (socket) => {
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
-};
-
-const handleGenericEvent = (socket, eventType) => {
-  socket.on(eventType, (newData) => {
-    const { userId, data } = newData;
-    // logToAllSpecializedLoggers('info', `[X] handleGenericEvent: ${eventType}`, {
-    //   section: 'cronjob',
-    //   action: 'log',
-    //   data: data,
-    // });
-    if (data?.selectedList) {
-      console.log(
-        `[AUTOMATED SERVER MESSAGE] Received data for event ${eventType}:`,
-        data.selectedList[0],
-      );
-    } else if (data?.listOfSimulatedCards) {
-      console.log(
-        `[AUTOMATED SERVER MESSAGE] Received data for event ${eventType}:`,
-        data.listOfSimulatedCards,
-      );
-    } else {
-      console.log(`[AUTOMATED SERVER MESSAGE] Received data for event ${eventType}:`, data);
-    }
-    // socket.emit('EVENT_RESPONSE', {
-    //   message: `[AUTOMATED SERVER MESSAGE] Received data for event ${eventType}: ${data}`,
-    //   data: data,
-    // });
-  });
-};
-
-const setupSocketEvents = () => {
-  const io = getIO();
-  io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
-
-    const events = [
-      'REQUEST_CRON_UPDATED_CARDS_IN_COLLECTION',
-      'REQUEST_PRICES_ACTIVATE_CRON',
-      'MESSAGE_FROM_CLIENT',
-      'STATUS_UPDATE_REQUEST',
-      'STOP_CRON_JOB',
-      'HANDLE_UPDATE_USER_DATA',
-      'HANDLE_UPDATE_USER_COLLECTION',
-      'HANDLE_UPDATE_AND_SYNC_COLLECTION',
-      'disconnect',
-    ];
-
-    events.forEach((eventType) => {
-      handleGenericEvent(socket, eventType);
-    });
-
-    handleCheckCardPrices(socket, io);
-    handleUpdateUserData(socket, io);
-    handleUpdateUserCollectionsSocket(socket, io);
-    handleUpdateAndSyncCollectionSocket(socket, io);
-    handleDisconnect(socket);
-    handleStopCronJob(socket, io);
-    handleMessageFromClient(socket, io);
-    handleSimulationUpdateRequest(socket, io);
-
-    // If you have other specific event handlers, add them here in a similar manner.
-  });
-};
-
-module.exports = { setupSocketEvents };
+// const handleUpdateUserData = (socket, io) => {
+//   socket.on('HANDLE_UPDATE_USER_DATA', async ({ userId, pricingData }) => {
+//     try {
+//       // Acquire lock
+//       if (!acquireLock(userId)) {
+//         logToAllSpecializedLoggers('error', `Lock acquisition failed for user ${userId}`, {
+//           section: 'socket-events',
+//           action: 'HANDLE_UPDATE_USER_DATA',
+//         });
+//         emitResponse(io, 'ERROR', {
+//           message: 'User data is currently being updated. Please try again later.',
+//         });
+//         return;
+//       }
+//       logToAllSpecializedLoggers('info', 'HANDLE UPDATE USER', {
+//         section: 'socket-events',
+//         action: 'HANDLE_UPDATE_USER_DATA',
+//       });
+//       // const cardsArray = Object.values(pricingData.updatedPrices);
+//       // const newPricingData = createPricingData(cardsArray);
+//       // const updatedUserData = { userId, newPricingData };
+//       if (
+//         !updatedUserData.newPricingData ||
+//         Object.keys(updatedUserData.newPricingData).length === 0
+//       ) {
+//         throw new CustomError('Failed to update user data', 500, true, {
+//           source: 'handleUpdateUserData',
+//         });
+//       }
+//       emitResponse(io, 'USER_DATA_UPDATED', {
+//         message: MESSAGES.USER_DATA_UPDATED,
+//         data: { updatedUserData },
+//       });
+//       emitResponse(io, 'INITIATE_UPDATE_USER_COLLECTIONS_SOCKET', {
+//         message: MESSAGES.USER_DATA_UPDATED,
+//         data: { userId, updatedUserData },
+//       });
+//     } catch (error) {
+//       emitError(
+//         io,
+//         'ERROR',
+//         error instanceof CustomError
+//           ? error
+//           : new CustomError('Failed to update user data', 500, true, {
+//               source: ERROR_SOURCES.HANDLE_UPDATE_USER_DATA,
+//               detail: error.message,
+//               stack: error.stack,
+//             }),
+//       );
+//     } finally {
+//       // Release lock
+//       releaseLock(userId);
+//     }
+//   });
+// };
 
 // Function to handle update requests via socket communication
 

@@ -1,16 +1,6 @@
-const { logToAllSpecializedLoggers } = require('../middleware/infoLogger');
+const { logToAllSpecializedLoggers } = require('../infoLogger');
+const ERROR_TYPES = require('../../constants');
 require('colors');
-
-// Constants for error types
-const ERROR_TYPES = {
-  UNDEFINED_DATASET: 'Undefined or null dataset',
-  INVALID_COLLECTION_NAME: 'Invalid collection name',
-  NON_ARRAY_DATA: 'Data field is not an array',
-  INVALID_XY_STRUCTURE: 'Invalid XY structure',
-  MISMATCHED_DATA_LENGTH: 'Mismatched data array length',
-  INVALID_COLLECTION_STRUCTURE: 'Invalid existing collection structure',
-  VERSION_ERROR: 'Version error - no matching document found',
-};
 
 // Function to log validation errors
 function logValidationError(error, errorIndex) {

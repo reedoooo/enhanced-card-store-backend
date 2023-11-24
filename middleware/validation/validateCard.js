@@ -1,4 +1,4 @@
-const { logToAllSpecializedLoggers } = require('../middleware/infoLogger');
+const { logToAllSpecializedLoggers } = require('../infoLogger');
 
 function logValidationError(message, card) {
   logToAllSpecializedLoggers('error', message, { section: 'errors', data: card }, 'log');

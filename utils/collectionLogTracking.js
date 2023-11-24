@@ -9,89 +9,102 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir);
 }
 
-const processCollection = (collection) => {
+const processCollection = (data) => {
   let logContent = '';
+  const collections = Array.isArray(data) ? data : [data]; // Handle both single and multiple collections
 
-  // Append structured log entry for the file
-  console.log(`[COLLECTION NAME] ${collection.name}`.blue);
-  logContent += `[COLLECTION NAME] ${collection.name}\n`;
+  collections.forEach((collection, index) => {
+    console.log(`[COLLECTION ${index + 1}] ${collection.name}`.blue);
+    logContent += `[COLLECTION ${index + 1}] ${collection.name}\n`;
 
-  // Append structured log entry for the file
-  console.log(`[DESCRIPTION] ${collection.description}`);
-  logContent += `[DESCRIPTION] ${collection.description}\n`;
+    // Append structured log entry for the file
+    console.log(`[DESCRIPTION] ${collection.description}`);
+    logContent += `[DESCRIPTION] ${collection.description}\n`;
 
-  // Append structured log entry for the file
-  console.log(`[TOTAL COST] $${collection.totalCost}`);
-  logContent += `[TOTAL COST] $${collection.totalCost}\n`;
+    // Append structured log entry for the file
+    console.log(`[TOTAL COST] $${collection.totalCost}`);
+    logContent += `[TOTAL COST] $${collection.totalCost}\n`;
 
-  // Append structured log entry for the file
-  console.log(`[TOTAL PRICE] $${collection.totalPrice}`);
-  logContent += `[TOTAL PRICE] $${collection.totalPrice.toFixed(2)}\n`;
+    // Append structured log entry for the file
+    console.log(`[TOTAL PRICE] $${collection.totalPrice}`);
+    logContent += `[TOTAL PRICE] $${collection.totalPrice.toFixed(2)}\n`;
 
-  // Append structured log entry for the file
-  console.log(`[QUANTITY] ${collection.quantity}`);
-  logContent += `[QUANTITY] ${collection.quantity}\n`;
+    // Append structured log entry for the file
+    console.log(`[QUANTITY] ${collection.quantity}`);
+    logContent += `[QUANTITY] ${collection.quantity}\n`;
 
-  // Append structured log entry for the file
-  console.log(`[TOTAL QUANTITY] ${collection.totalQuantity}`);
-  logContent += `[TOTAL QUANTITY] ${collection.totalQuantity}\n`;
+    // Append structured log entry for the file
+    console.log(`[TOTAL QUANTITY] ${collection.totalQuantity}`);
+    logContent += `[TOTAL QUANTITY] ${collection.totalQuantity}\n`;
 
-  // Append structured log entry for the file
-  console.log(`[PREVIOUS DAY TOTAL PRICE] $${collection.previousDayTotalPrice}`);
-  logContent += `[PREVIOUS DAY TOTAL PRICE] $${collection.previousDayTotalPrice.toFixed(2)}\n`;
+    // Append structured log entry for the file
+    console.log(`[PREVIOUS DAY TOTAL PRICE] $${collection.previousDayTotalPrice}`);
+    logContent += `[PREVIOUS DAY TOTAL PRICE] $${collection.previousDayTotalPrice}\n`;
 
-  // Append structured log entry for the file
-  console.log(`[DAILY PRICE CHANGE] $${collection.dailyPriceChange}`);
-  logContent += `[DAILY PRICE CHANGE] $${collection.dailyPriceChange.toString()}\n`;
+    // Append structured log entry for the file
+    console.log(`[DAILY PRICE CHANGE] $${collection.dailyPriceChange}`);
+    logContent += `[DAILY PRICE CHANGE] $${collection.dailyPriceChange}\n`;
 
-  // Append structured log entry for the file
-  console.log(`[PRICE DIFFERENCE] $${collection.priceDifference}`);
-  logContent += `[PRICE DIFFERENCE] $${collection.priceDifference.toFixed(2)}\n`;
+    // Append structured log entry for the file
+    console.log(`[PRICE DIFFERENCE] $${collection.priceDifference}`);
+    logContent += `[PRICE DIFFERENCE] $${collection.priceDifference}\n`;
 
-  // Append structured log entry for the file
-  console.log(`[PRICE CHANGE] ${collection.priceChange}%\n`);
-  logContent += `[PRICE CHANGE] ${collection.priceChange.toFixed(2)}%\n\n`;
+    // Append structured log entry for the file
+    console.log(`[PRICE CHANGE] ${collection.priceChange}%\n`);
+    logContent += `[PRICE CHANGE] ${collection.priceChange}%\n\n`;
 
-  console.log('[CARDS IN COLLECTION]'.magenta);
-  logContent += '[CARDS IN COLLECTION]\n';
+    console.log('[CARDS IN COLLECTION]'.magenta);
+    logContent += '[CARDS IN COLLECTION]\n';
 
-  let cardsChanged = false;
-  collection.cards.forEach((card, index) => {
-    const latestPrice = parseFloat(card.latestPrice?.num ?? 0).toFixed(2);
-    const lastSavedPrice = parseFloat(card.lastSavedPrice?.num ?? 0).toFixed(2);
+    let cardsChanged = false;
+    collection.cards.forEach((card, index) => {
+      const latestPrice = parseFloat(card?.latestPrice?.num ?? 0).toFixed(2);
+      const lastSavedPrice = parseFloat(card?.lastSavedPrice?.num ?? 0).toFixed(2);
 
-    // Only log if the price has changed
-    if (latestPrice !== lastSavedPrice) {
-      cardsChanged = true;
-      const priceChange = (latestPrice - lastSavedPrice).toFixed(2);
-      const status = priceChange > 0 ? 'increased' : priceChange < 0 ? 'decreased' : 'unchanged';
-      const statusColor =
-        status === 'increased' ? 'green' : status === 'decreased' ? 'red' : 'grey';
+      // Only log if the price has changed
+      if (latestPrice !== lastSavedPrice) {
+        cardsChanged = true;
+        const priceChange = (latestPrice - lastSavedPrice).toFixed(2);
+        const status = priceChange > 0 ? 'increased' : priceChange < 0 ? 'decreased' : 'unchanged';
+        const statusColor =
+          status === 'increased' ? 'green' : status === 'decreased' ? 'red' : 'grey';
 
-      console.log(`    [CARD ${index}] ${card.name}`[statusColor]);
-      logContent += `    [CARD ${index}] ${card.name}\n`;
-      logContent += `        [LATEST PRICE] $${latestPrice}\n`;
-      logContent += `        [LAST SAVED PRICE] $${lastSavedPrice}\n`;
-      logContent += `        [CHANGE] ${priceChange} (${status})\n`;
-      logContent += `        [QUANTITY] ${card.quantity}\n\n`;
+        console.log(`    [CARD ${index}] ${card.name}`[statusColor]);
+        logContent += `    [CARD ${index}] ${card.name}\n`;
+
+        console.log(`        [LATEST PRICE] $${latestPrice}`);
+        logContent += `        [LATEST PRICE] $${latestPrice}\n`;
+
+        console.log(`        [LAST SAVED PRICE] $${lastSavedPrice}`);
+        logContent += `        [LAST SAVED PRICE] $${lastSavedPrice}\n`;
+
+        console.log(`        [CHANGE] ${priceChange} (${status})`);
+        logContent += `        [CHANGE] ${priceChange} (${status})\n`;
+
+        console.log(`        [STATUS] ${status}\n`);
+        logContent += `        [STATUS] ${status}\n\n`;
+
+        console.log(`        [QUANTITY] ${card?.quantity}\n`);
+        logContent += `        [QUANTITY] ${card?.quantity}\n\n`;
+      }
+    });
+
+    if (!cardsChanged) {
+      console.log('No changes in card prices.');
+      logContent += 'No changes in card prices.\n';
     }
+
+    console.log('[CHART DATA]'.cyan);
+    // collection.chartData.datasets.forEach((dataset, index) => {
+    //   console.log(`    [DATASET ${index}] ${dataset.name}`);
+    //   dataset.data.forEach((dataEntry, dataIndex) => {
+    //     // Note: Assuming dataEntry is an object containing an array 'xys'
+    //     dataEntry.xys.forEach((xy, xyIndex) => {
+    //       console.log(`        [DATA ${dataIndex} - XY ${xyIndex}] x: ${xy.data.x}, y: ${xy.data.y}`);
+    //     });
+    //   });
+    // });
   });
-
-  if (!cardsChanged) {
-    console.log('No changes in card prices.');
-    logContent += 'No changes in card prices.\n';
-  }
-
-  console.log('[CHART DATA]'.cyan);
-  // collection.chartData.datasets.forEach((dataset, index) => {
-  //   console.log(`    [DATASET ${index}] ${dataset.name}`);
-  //   dataset.data.forEach((dataEntry, dataIndex) => {
-  //     // Note: Assuming dataEntry is an object containing an array 'xys'
-  //     dataEntry.xys.forEach((xy, xyIndex) => {
-  //       console.log(`        [DATA ${dataIndex} - XY ${xyIndex}] x: ${xy.data.x}, y: ${xy.data.y}`);
-  //     });
-  //   });
-  // });
 
   return logContent;
 };
@@ -122,4 +135,4 @@ function logCollection(collection) {
     );
   }
 }
-module.exports = { logCollection };
+module.exports = { logCollection, processCollection };

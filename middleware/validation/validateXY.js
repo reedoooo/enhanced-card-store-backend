@@ -1,4 +1,4 @@
-const { logToAllSpecializedLoggers } = require('../middleware/infoLogger');
+const { logToAllSpecializedLoggers } = require('../infoLogger');
 let errors = [];
 
 function logValidationError(message, dataset) {

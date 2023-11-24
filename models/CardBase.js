@@ -37,6 +37,7 @@ const CardBaseSchema = new mongoose.Schema({
   race: String,
   attribute: String,
   archetype: [String],
+  image: String,
   card_images: [CardImageSchema],
   card_prices: [CardPriceSchema],
 });

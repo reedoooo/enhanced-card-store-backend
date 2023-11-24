@@ -16,11 +16,12 @@ const priceEntrySchema = new mongoose.Schema({
 const CardInCollectionSchema = new Schema({
   ...CardBaseSchema.obj,
   id: { type: String, required: true },
+  collectionId: { type: String, required: false },
   tag: {
     type: String,
-    required: true,
+    required: false,
   },
-  price: Number,
+  price: { type: Number, required: false },
   totalPrice: Number,
   name: {
     type: String,
@@ -71,7 +72,7 @@ const collectionPriceHistorySchema = new mongoose.Schema({
   },
   num: {
     type: Number,
-    required: true,
+    required: false,
   },
 });
 
@@ -88,6 +89,8 @@ const collectionSchema = new mongoose.Schema({
   priceDifference: Number,
   priceChange: Number,
   allCardPrices: Array,
+  latestPrice: priceEntrySchema,
+  lastSavedPrice: priceEntrySchema,
   collectionPriceHistory: [collectionPriceHistorySchema],
   cards: [CardInCollectionSchema],
   currentChartDataSets: [

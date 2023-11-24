@@ -29,6 +29,21 @@ router.get(
   // validateObjectId,
   asyncHandler(UserController.getAllCollectionsForUser),
 );
+router.post(
+  '/:userId/collections/:collectionId/updateCards',
+  // validateObjectId,
+  asyncHandler(UserController.addCardsToCollection),
+);
+// router.post(
+//   '/:userId/collections/:collectionId/removeCards',
+//   asyncHandler(UserController.removeCardsFromCollection),
+// );
+
+router.delete(
+  '/:userId/collections/:collectionId/removeCards',
+  asyncHandler(UserController.removeCardsFromCollection),
+);
+
 router.put(
   '/:userId/collections/:collectionId/updateCards',
   // validateObjectId,
