@@ -232,9 +232,11 @@ exports.getAllDecksForUser = async (req, res, next) => {
   console.log('User:', userId);
 
   try {
-    const user = await User.findById(userId).populate('allDecks');
+    const user = await User.find({ _id: userId }).populate('allDecks');
+    // const user = await User.findById(userId).populate('allDecks');
     if (!user) {
-      throw new CustomError('User not found', 404);
+      logError('User not found', new Error(MESSAGES.USER_NOT_FOUND));
+      throw new CustomError(MESSAGES.USER_NOT_FOUND, STATUS.NOT_FOUND);
     }
 
     console.log('User:', user);
