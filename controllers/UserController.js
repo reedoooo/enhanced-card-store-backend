@@ -368,7 +368,7 @@ exports.getAllCollectionsForUser = async (req, res, next) => {
     const userId = req.params.userId; // Already validated by middleware
     const user = await User.findById(userId).populate('allCollections');
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: 'User not found', data: user });
     }
 
     logInfo('Fetched all collections for user', { userId });
