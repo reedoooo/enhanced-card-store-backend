@@ -249,9 +249,11 @@ exports.getAllDecksForUser = async (req, res, next) => {
       throw new CustomError('User not found', 404);
     }
 
+    console.log('User:', user);
     user.allDecks = user.allDecks || [];
     const decks = await Deck.find({ _id: { $in: user.allDecks } });
 
+    console.log('Decks:', decks);
     if (decks.length === 0) {
       const newDeck = new Deck({
         userId: user._id,
@@ -279,17 +281,33 @@ exports.getAllDecksForUser = async (req, res, next) => {
 exports.updateAndSyncDeck = async (req, res, next) => {
   try {
     const { userId, deckId } = req.params;
-    const { cards, description, name, totalPrice } = req.body;
+    let { cards, description, name, totalPrice } = req.body;
+    const user = await User.findById(req.params.userId).populate('allDecks');
+
+    console.log('Request body:', req.body);
+
+    // Ensure cards is an array
+    if (!Array.isArray(cards)) {
+      console.error('cards is not an array:', cards);
+      throw new CustomError('Invalid cards format. Expected an array.', 400);
+    }
+
+    // cards = [{}]
+    console.log('CARDS', cards);
 
     const updatedDeck = await Deck.findOneAndUpdate(
       { _id: deckId, userId },
-      { $set: { cards, name, description, totalPrice } },
+      { $set: { cards: cards, name, description, totalPrice } },
       { new: true },
     );
 
     if (!updatedDeck) {
       throw new CustomError('Deck not found', 404);
     }
+
+    await updatedDeck.save();
+
+    await user.save();
 
     // Directly send a successful response
     res.status(200).json({
@@ -305,9 +323,15 @@ exports.createNewDeck = async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { name, description, cards, totalPrice } = req.body;
+    const user = await User.findById(req.params.userId);
 
+    console.log('Request body:', req.body);
+    console.log('Request body:', req.body.name);
     const newDeck = new Deck({ userId, name, description, cards, totalPrice });
     await newDeck.save();
+
+    user.allDecks.push(newDeck._id);
+    await user.save();
 
     // Directly send a successful response
     res.status(201).json({
