@@ -13,7 +13,7 @@ const {
   handleChartDataUpdate,
 } = require('./userControllerUtilities');
 const CustomError = require('../middleware/customError');
-const { STATUS, MESSAGES, ERROR_SOURCES } = require('../constants');
+const { STATUS, MESSAGES, ERROR_SOURCES, ERROR_TYPES } = require('../constants');
 const {
   logToAllSpecializedLoggers,
   directError,
@@ -98,14 +98,14 @@ exports.signup = async (req, res, next) => {
       capabilities: newUser.login_data.role_data.capabilities,
     });
 
-    logToAllSpecializedLoggers('New user signup successful', { section: 'signup', user: username });
+    logToAllSpecializedLoggers('info', { section: 'signup', user: username });
     return directResponse(res, 'SIGNUP', {
       status: STATUS.SUCCESS,
       message: MESSAGES.SIGNUP_SUCCESS,
       data: { token },
     });
   } catch (error) {
-    logToAllSpecializedLoggers('Error during signup', {
+    logToAllSpecializedLoggers('error', {
       section: 'signup',
       error: error.toString(),
     });
@@ -120,8 +120,8 @@ exports.signin = async (req, res, next) => {
     const { username, password } = req.body;
 
     if (!process.env.SECRET_KEY) {
-      logToAllSpecializedLoggers('Secret key is not set for signin.', { section: 'signin' });
-      throw new CustomError(MESSAGES.SECRET_KEY_MISSING, STATUS.INTERNAL_SERVER_ERROR);
+      logToAllSpecializedLoggers('info', { section: 'signin' });
+      throw new CustomError(ERROR_TYPES.SECRET_KEY_MISSING, STATUS.INTERNAL_SERVER_ERROR);
     }
 
     const user = await User.findOne({ 'login_data.username': username.trim() });
@@ -142,14 +142,14 @@ exports.signin = async (req, res, next) => {
       capabilities: user.login_data.role_data.capabilities,
     });
 
-    logToAllSpecializedLoggers('User signin successful', { section: 'signin', user: username });
+    logToAllSpecializedLoggers('info', { section: 'signin', user: username });
     return directResponse(res, 'SIGNIN', {
       status: STATUS.SUCCESS,
       message: MESSAGES.SIGNIN_SUCCESS,
       data: { token },
     });
   } catch (error) {
-    logToAllSpecializedLoggers('Error during signin', {
+    logToAllSpecializedLoggers('error', {
       section: 'signin',
       error: error.toString(),
     });
