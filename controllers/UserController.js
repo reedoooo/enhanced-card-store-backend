@@ -223,12 +223,16 @@ exports.getUserById = async (req, res, next) => {
 };
 
 exports.getAllDecksForUser = async (req, res, next) => {
-  if (!req.params.userId) {
+  const userId = req.params.userId; // Already validated by middleware
+
+  if (!userId) {
     // Pass the error to the next middleware, which is the unified error handler
     return next(new CustomError('User ID is required', 400));
   }
+  console.log('User:', userId);
+
   try {
-    const user = await User.findById(req.params.userId);
+    const user = await User.findById(userId).populate('allDecks');
     if (!user) {
       throw new CustomError('User not found', 404);
     }
@@ -237,7 +241,7 @@ exports.getAllDecksForUser = async (req, res, next) => {
     user.allDecks = user.allDecks || [];
     const decks = await Deck.find({ _id: { $in: user.allDecks } });
 
-    console.log('Decks:', decks);
+    // console.log('Decks:', decks);
     if (decks.length === 0) {
       const newDeck = new Deck({
         userId: user._id,
@@ -258,6 +262,8 @@ exports.getAllDecksForUser = async (req, res, next) => {
       data: decks,
     });
   } catch (error) {
+    console.error('Error fetching decks:', error);
+    logError('Error fetching decks:', error);
     next(error); // Let the unified error handler deal with it
   }
 };

@@ -4,6 +4,7 @@ const User = require('../models/User');
 exports.getUserCart = async (req, res, next) => {
   const { userId } = req.params;
 
+  console.log('userId', userId);
   try {
     const user = await User.findById(userId).populate('cart');
     if (!user || !user.cart) {
