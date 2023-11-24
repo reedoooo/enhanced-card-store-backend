@@ -60,7 +60,7 @@ exports.signup = async (req, res, next) => {
     const { name } = basic_info || {};
 
     if (!name || !email || !username || !password) {
-      logToAllSpecializedLoggers('Required fields are missing for signup.', { section: 'signup' });
+      logToAllSpecializedLoggers('error', { section: 'signup' });
       return directError(
         res,
         'SIGNUP',
@@ -70,7 +70,7 @@ exports.signup = async (req, res, next) => {
 
     const existingUser = await User.findOne({ 'login_data.username': username.trim() });
     if (existingUser) {
-      logToAllSpecializedLoggers(`User already exists: ${username}`, { section: 'signup' });
+      logToAllSpecializedLoggers('error', { section: 'signup' });
       return directError(
         res,
         'SIGNUP',
@@ -126,13 +126,15 @@ exports.signin = async (req, res, next) => {
 
     const user = await User.findOne({ 'login_data.username': username.trim() });
     if (!user) {
-      logToAllSpecializedLoggers(`Invalid username for signin: ${username}`, { section: 'signin' });
+      logToAllSpecializedLoggers('error', `Invalid username for signin: ${username}`, {
+        section: 'signin',
+      });
       throw new CustomError(MESSAGES.INVALID_USERNAME, STATUS.NOT_FOUND);
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.login_data.password);
     if (!isPasswordValid) {
-      logToAllSpecializedLoggers('Invalid password for signin.', { section: 'signin', username });
+      logToAllSpecializedLoggers('error', { section: 'signin', username });
       throw new CustomError(MESSAGES.INVALID_PASSWORD, STATUS.UNAUTHORIZED);
     }
 
