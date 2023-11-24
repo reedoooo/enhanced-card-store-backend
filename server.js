@@ -1,60 +1,65 @@
-// 'use strict';
 'use strict';
 
 // Dependencies
 const express = require('express');
-require('dotenv').config(); // directly call config here
 const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const { initSocket } = require('./socket');
-const { setupSocketEvents } = require('./socketEvents.js');
-const applyCustomMiddleware = require('./middleware/index');
-const routes = require('./routes/index');
+const http = require('http');
 
-// Configuration
-const port = process.env.PORT || 3001;
+// Custom modules
+const { initSocket } = require('./socket');
+const { setupSocketEvents } = require('./socketEvents');
+const applyCustomMiddleware = require('./middleware');
+const routes = require('./routes');
+
+// Load environment variables
+require('dotenv').config();
+
+// Constants
+const PORT = process.env.PORT || 3001;
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/myapp';
 
 // App Initialization
 const app = express();
 
-// Configure CORS
+// CORS Configuration
 const corsOptions = {
-  origin: 'http://localhost:3000', // Adjust according to your front-end origin
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true,
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   optionsSuccessStatus: 204,
   allowedHeaders: ['Content-Type', 'Authorization', 'User-Agent'],
 };
-
 app.use(cors(corsOptions));
 
-// Database Connection
-mongoose
-  .connect(process.env.MONGO_URI || 'mongodb://localhost:27017/yugioh')
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error(err));
-
 // Middleware Application
-app.use(express.json());
-app.use(bodyParser.json({ limit: '50mb' }));
+app.use(express.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 applyCustomMiddleware(app);
 
 // Socket Initialization
-const server = require('http').Server(app);
+const server = http.createServer(app);
 initSocket(server);
 setupSocketEvents();
 
-// Routes
+// API Routes
 app.use('/api', routes);
+
+// Basic routes for testing
 app.get('/', (req, res) => res.send('This is the beginning....'));
 app.get('/test', (req, res) => res.send('This is the test....'));
 
-// Start the server
-server.listen(port, () => console.log(`Server is up on port ${port}`));
+// Connect to MongoDB and start the server
+mongoose
+  .connect(MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => server.listen(PORT, () => console.log(`Server listening on port ${PORT}`)))
+  .catch((error) => console.error('MongoDB connection error:', error));
 
 module.exports = { app };
 
