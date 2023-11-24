@@ -253,8 +253,8 @@ exports.getAllDecksForUser = async (req, res, next) => {
       });
 
       await newDeck.save();
-      user.allDecks.push(newDeck._id);
-      await user.save();
+      user?.allDecks.push(newDeck._id);
+      await user?.save();
       decks.push(newDeck);
     }
 
