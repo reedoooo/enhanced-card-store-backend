@@ -19,16 +19,7 @@ const initSocket = (server) => {
       ],
       methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
       credentials: true,
-      allowedHeaders: [
-        'Content-Type',
-        'access-control-allow-origin',
-        'Access-Control-Allow-Headers',
-        'card-name',
-        'Authorization',
-        'User-Agent',
-        'text/plain',
-        'application/json',
-      ],
+      allowedHeaders: ['Content-Type', 'Authorization', 'User-Agent'],
     },
   });
 
