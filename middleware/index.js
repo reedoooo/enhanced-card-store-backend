@@ -33,28 +33,32 @@ const logRequestDetails = (req, eventType, message, duration = null) => {
 };
 
 // Helper function to get duration in milliseconds
-const getDurationInMilliseconds = (start) => {
-  const NS_PER_SEC = 1e9;
-  const NS_TO_MS = 1e6;
-  const diff = process.hrtime(start);
-  return (diff[0] * NS_PER_SEC + diff[1]) / NS_TO_MS;
-};
+// const getDurationInMilliseconds = (start) => {
+//   const NS_PER_SEC = 1e9;
+//   const NS_TO_MS = 1e6;
+//   const diff = process.hrtime(start);
+//   return (diff[0] * NS_PER_SEC + diff[1]) / NS_TO_MS;
+// };
 
 // Function to apply custom middleware to the express app
-const applyCustomMiddleware = (app, server) => {
-  app.use(addRequestId);
+function applyCustomMiddleware(app) {
+  // Add a unique identifier to each request
+  app.use((req, res, next) => {
+    req.id = uuidv4();
+    next();
+  });
 
-  app.use(express.static(path.join(__dirname, '../public')));
-  app.use(express.json());
+  // Serve static files
+  app.use(express.static(path.join(__dirname, 'public')));
 
-  // Middleware to log request on start and finish with duration
+  // Log each request
   app.use((req, res, next) => {
     const start = process.hrtime();
-    logRequestDetails(req, 'start', '[START]');
+    console.log(`[START] Request ${req.id}: ${req.method} ${req.originalUrl}`);
 
     res.on('finish', () => {
-      const durationInMilliseconds = getDurationInMilliseconds(start);
-      logRequestDetails(req, 'end', '[END]', durationInMilliseconds);
+      const duration = getDurationInMilliseconds(start);
+      console.log(`[END] Request ${req.id}: ${duration}ms`);
     });
 
     next();
@@ -67,6 +71,13 @@ const applyCustomMiddleware = (app, server) => {
     }
     unifiedErrorHandler(err, req, res, next);
   });
-};
+}
 
+// Helper function to get duration in milliseconds
+function getDurationInMilliseconds(start) {
+  const NS_PER_SEC = 1e9;
+  const NS_TO_MS = 1e6;
+  const diff = process.hrtime(start);
+  return (diff[0] * NS_PER_SEC + diff[1]) / NS_TO_MS;
+}
 module.exports = applyCustomMiddleware;
