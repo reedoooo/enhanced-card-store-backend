@@ -24,7 +24,7 @@ const { logCollection } = require('../utils/collectionLogTracking');
 const { logData } = require('../utils/logPriceChanges');
 const validateCollectionUpdate = require('../middleware/validation/validateCollectionUpdate');
 const { isObjectIdOrHexString } = require('mongoose');
-const { respondWithError } = require('../utils/utils');
+const { respondWithError, getCardInfo } = require('../utils/utils');
 const SECRET_KEY = process.env.SECRET_KEY;
 
 // const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -504,11 +504,26 @@ exports.createNewCollection = async (req, res, next) => {
 //   }
 // };
 // Function to add cards to a collection
+const removeDuplicateCards = (cards) => {
+  const cardMap = new Map();
+
+  cards.forEach((card) => {
+    const uniqueKey = `${card.id}-${card.name}`;
+    if (!cardMap.has(uniqueKey)) {
+      cardMap.set(uniqueKey, card);
+    } else {
+      // If duplicate, update with the latest card data (optional)
+      cardMap.set(uniqueKey, { ...cardMap.get(uniqueKey), ...card });
+    }
+  });
+
+  return Array.from(cardMap.values());
+};
+
 exports.addCardsToCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
-  console.log('UserId:', userId); // Debugging
-  const { cards } = req.body; // Expecting an array of card objects
-  // const user = await User?.findById({ _id: userId }).populate('allCollections');
+  const { cards } = req.body;
+
   const user = await User?.findOne({ _id: userId }).populate('allCollections');
 
   if (!Array.isArray(cards)) {
@@ -516,38 +531,56 @@ exports.addCardsToCollection = async (req, res, next) => {
   }
 
   try {
-    // Find the collection by its ID and the user's ID
     const collection = await Collection.findOne({ _id: collectionId, userId: userId });
     if (!collection) {
       return res.status(404).json({ message: 'Collection not found' });
     }
 
-    // Update or add cards to the collection
-    cards.forEach((cardUpdate) => {
-      const existingCardIndex = collection?.cards.findIndex((card) => card?.id === cardUpdate.id);
+    const existingCardsMap = new Map(
+      collection.cards.map((card) => [`${card.id}-${card.name}`, card]),
+    );
 
-      if (existingCardIndex >= 0) {
-        // Update existing card
-        collection.cards[existingCardIndex] = {
-          ...collection.cards[existingCardIndex],
-          ...cardUpdate,
-          price: cardUpdate.price || collection.cards[existingCardIndex].price,
-        };
+    for (let cardUpdate of cards) {
+      const uniqueKey = `${cardUpdate.id}-${cardUpdate.name}`;
+      let card = existingCardsMap.get(uniqueKey);
+
+      if (card) {
+        // Card exists in the collection
+        card = { ...card, ...cardUpdate };
+
+        if (card.quantity !== cardUpdate.quantity) {
+          // Quantity change detected
+          if (
+            !cardUpdate.name ||
+            !cardUpdate.id ||
+            !cardUpdate.type ||
+            !cardUpdate.desc ||
+            !cardUpdate.card_images[0] ||
+            !cardUpdate.card_prices
+          ) {
+            try {
+              const updatedCardData = await getCardInfo(cardUpdate.id);
+              cardUpdate = { ...cardUpdate, ...updatedCardData };
+            } catch (error) {
+              console.error(`Error fetching card data for card ID ${cardUpdate.id}:`, error);
+              continue;
+            }
+          }
+        }
+
+        // Update the existing card in the map
+        existingCardsMap.set(uniqueKey, card);
       } else {
-        // Add new card
-        collection.cards.push({
-          ...cardUpdate,
-          price: cardUpdate.price || cardUpdate.card_prices?.[0]?.tcgplayer_price,
-        });
+        // Card does not exist, add as new
+        card = { ...cardUpdate };
+        existingCardsMap.set(uniqueKey, card);
       }
-    });
+    }
 
-    // Save the updated collection
+    collection.cards = Array.from(existingCardsMap.values());
+
     await collection.save();
-
-    // Re-populate allCollections to return full collection data
-    await user.populate('allCollections'); // Correct way
-
+    await user.populate('allCollections');
     res.status(200).json({ message: 'Cards updated successfully', cards: collection.cards });
   } catch (error) {
     console.error('Error updating cards in addCardsToCollection: ', error);
@@ -555,6 +588,126 @@ exports.addCardsToCollection = async (req, res, next) => {
     next(error);
   }
 };
+// exports.addCardsToCollection = async (req, res, next) => {
+//   const { userId, collectionId } = req.params;
+//   console.log('UserId:', userId); // Debugging
+//   const { cards } = req.body; // Expecting an array of card objects
+
+//   const user = await User?.findOne({ _id: userId }).populate('allCollections');
+
+//   if (!Array.isArray(cards)) {
+//     return res.status(400).json({ message: 'Invalid card data, expected an array' });
+//   }
+
+//   try {
+//     const collection = await Collection.findOne({ _id: collectionId, userId: userId });
+//     if (!collection) {
+//       return res.status(404).json({ message: 'Collection not found' });
+//     }
+
+//     for (let cardUpdate of cards) {
+//       if (existingCardIndex >= 0) {
+
+//       // Check for missing or empty values
+//       if (collection.cards[existingCardIndex].quantity !== cardUpdate.quantity) {
+//         if (
+//           !cardUpdate.id ||
+//           !cardUpdate.name ||
+//           !cardUpdate.type ||
+//           !cardUpdate.desc ||
+//           !cardUpdate.card_images[0] ||
+//           !cardUpdate.card_prices
+//         ) {
+//           try {
+//             // Fetch the card data again
+//             const updatedCardData = await getCardInfo(cardUpdate.id);
+//             cardUpdate = { ...cardUpdate, ...updatedCardData };
+//           } catch (error) {
+//             console.error(`Error fetching card data for card ID ${cardUpdate.id}:`, error);
+//             continue; // Skip to the next card if unable to fetch data
+//           }
+//         }
+//       }
+
+//       const existingCardIndex = collection?.cards.findIndex((card) => card?.id === cardUpdate.id);
+
+//       // if (existingCardIndex >= 0) {
+//       //   // Update existing card
+//       //   collection.cards[existingCardIndex] = {
+//       //     ...collection.cards[existingCardIndex],
+//       //     ...cardUpdate,
+//       //     price: cardUpdate.price || collection.cards[existingCardIndex].price,
+//       //   };
+//       // } else {
+//       //   // Add new card
+//       //   collection.cards.push({
+//       //     ...cardUpdate,
+//       //     price: cardUpdate.price || cardUpdate.card_prices?.[0]?.tcgplayer_price,
+//       //   });
+//       // }
+//     // }
+
+//     await collection.save();
+//     await user.populate('allCollections');
+//     res.status(200).json({ message: 'Cards updated successfully', cards: collection.cards });
+//   } catch (error) {
+//     console.error('Error updating cards in addCardsToCollection: ', error);
+//     respondWithError(res, 500, 'Error updating cards in addCardsToCollection', error);
+//     next(error);
+//   }
+// };
+
+// exports.addCardsToCollection = async (req, res, next) => {
+//   const { userId, collectionId } = req.params;
+//   console.log('UserId:', userId); // Debugging
+//   const { cards } = req.body; // Expecting an array of card objects
+//   // const user = await User?.findById({ _id: userId }).populate('allCollections');
+//   const user = await User?.findOne({ _id: userId }).populate('allCollections');
+
+//   if (!Array.isArray(cards)) {
+//     return res.status(400).json({ message: 'Invalid card data, expected an array' });
+//   }
+
+//   try {
+//     // Find the collection by its ID and the user's ID
+//     const collection = await Collection.findOne({ _id: collectionId, userId: userId });
+//     if (!collection) {
+//       return res.status(404).json({ message: 'Collection not found' });
+//     }
+
+//     // Update or add cards to the collection
+//     cards.forEach((cardUpdate) => {
+//       const existingCardIndex = collection?.cards.findIndex((card) => card?.id === cardUpdate.id);
+
+//       if (existingCardIndex >= 0) {
+//         // Update existing card
+//         collection.cards[existingCardIndex] = {
+//           ...collection.cards[existingCardIndex],
+//           ...cardUpdate,
+//           price: cardUpdate.price || collection.cards[existingCardIndex].price,
+//         };
+//       } else {
+//         // Add new card
+//         collection.cards.push({
+//           ...cardUpdate,
+//           price: cardUpdate.price || cardUpdate.card_prices?.[0]?.tcgplayer_price,
+//         });
+//       }
+//     });
+
+//     // Save the updated collection
+//     await collection.save();
+
+//     // Re-populate allCollections to return full collection data
+//     await user.populate('allCollections'); // Correct way
+
+//     res.status(200).json({ message: 'Cards updated successfully', cards: collection.cards });
+//   } catch (error) {
+//     console.error('Error updating cards in addCardsToCollection: ', error);
+//     respondWithError(res, 500, 'Error updating cards in addCardsToCollection', error);
+//     next(error);
+//   }
+// };
 exports.removeCardsFromCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
   const { cardIds } = req.body; // Expecting an array of card IDs to be removed
@@ -613,15 +766,17 @@ exports.updateCardsInCollection = async (req, res, next) => {
       return res.status(404).json({ message: 'Collection not found' });
     }
 
+    // Create a map of existing cards
+    const existingCardsMap = new Map(collection.cards.map((card) => [card.id, card]));
+
     // Handle card removal or reduction
     if (cardIds) {
-      const cardToRemoveIndex = collection.cards.findIndex((card) => card.id === cardIds.id);
-      if (cardToRemoveIndex !== -1) {
-        const cardToRemove = collection.cards[cardToRemoveIndex];
+      const cardToRemove = existingCardsMap.get(cardIds.id);
+      if (cardToRemove) {
         if (cardToRemove.quantity > 1) {
-          collection.cards[cardToRemoveIndex].quantity -= 1;
+          cardToRemove.quantity -= 1;
         } else {
-          collection.cards.splice(cardToRemoveIndex, 1);
+          existingCardsMap.delete(cardIds.id);
         }
       }
     }
@@ -629,32 +784,27 @@ exports.updateCardsInCollection = async (req, res, next) => {
     // Handle card updates
     if (cards && Array.isArray(cards)) {
       cards.forEach((cardUpdate) => {
-        const cardIndex = collection.cards.findIndex((card) => card.id === cardUpdate.id);
-        if (cardIndex !== -1) {
-          const card = collection.cards[cardIndex];
-          const lastSavedPrice = {
-            num: card.price,
-            timestamp: card.lastSavedPrice?.timestamp || new Date(),
-          };
-          const latestPrice = {
-            num: cardUpdate.price,
-            timestamp: new Date(),
-          };
-          collection.cards[cardIndex] = {
+        let card = existingCardsMap.get(cardUpdate.id);
+        if (card) {
+          // Update existing card
+          card = {
             ...card,
             ...cardUpdate,
             price: cardUpdate.price ?? card.price,
             quantity: cardUpdate.quantity ?? card.quantity,
-            lastSavedPrice: lastSavedPrice || card.price, // Update last saved price
-            latestPrice: latestPrice,
+            lastSavedPrice: card.lastSavedPrice,
+            latestPrice: { num: cardUpdate.price, timestamp: new Date() },
           };
         } else {
-          if (cardUpdate.id && cardUpdate.price !== undefined) {
-            collection.cards.push(cardUpdate);
-          }
+          // Add new card
+          card = { ...cardUpdate };
         }
+        existingCardsMap.set(cardUpdate.id, card);
       });
     }
+
+    // Update collection with unique cards
+    collection.cards = Array.from(existingCardsMap.values());
 
     await collection.save();
     return res
@@ -666,6 +816,70 @@ exports.updateCardsInCollection = async (req, res, next) => {
     next(error);
   }
 };
+
+// exports.updateCardsInCollection = async (req, res, next) => {
+//   const { collectionId } = req.params;
+//   const { cards, cardIds } = req.body;
+
+//   try {
+//     const collection = await Collection.findById(collectionId);
+//     if (!collection) {
+//       return res.status(404).json({ message: 'Collection not found' });
+//     }
+
+//     // Handle card removal or reduction
+//     if (cardIds) {
+//       const cardToRemoveIndex = collection.cards.findIndex((card) => card.id === cardIds.id);
+//       if (cardToRemoveIndex !== -1) {
+//         const cardToRemove = collection.cards[cardToRemoveIndex];
+//         if (cardToRemove.quantity > 1) {
+//           collection.cards[cardToRemoveIndex].quantity -= 1;
+//         } else {
+//           collection.cards.splice(cardToRemoveIndex, 1);
+//         }
+//       }
+//     }
+
+//     // Handle card updates
+//     if (cards && Array.isArray(cards)) {
+//       cards.forEach((cardUpdate) => {
+//         const cardIndex = collection.cards.findIndex((card) => card.id === cardUpdate.id);
+//         if (cardIndex !== -1) {
+//           const card = collection.cards[cardIndex];
+//           const lastSavedPrice = {
+//             num: card.price,
+//             timestamp: card.lastSavedPrice?.timestamp || new Date(),
+//           };
+//           const latestPrice = {
+//             num: cardUpdate.price,
+//             timestamp: new Date(),
+//           };
+//           collection.cards[cardIndex] = {
+//             ...card,
+//             ...cardUpdate,
+//             price: cardUpdate.price ?? card.price,
+//             quantity: cardUpdate.quantity ?? card.quantity,
+//             lastSavedPrice: lastSavedPrice || card.price, // Update last saved price
+//             latestPrice: latestPrice,
+//           };
+//         } else {
+//           if (cardUpdate.id && cardUpdate.price !== undefined) {
+//             collection.cards.push(cardUpdate);
+//           }
+//         }
+//       });
+//     }
+
+//     await collection.save();
+//     return res
+//       .status(200)
+//       .json({ message: 'Collection updated successfully', cards: collection.cards });
+//   } catch (error) {
+//     console.error('Error updating cards in updateCardsInCollection:', error);
+//     respondWithError(res, 500, 'Error updating cards in updateCardsInCollection', error);
+//     next(error);
+//   }
+// };
 
 exports.updateChartDataInCollection = async (req, res, next) => {
   try {

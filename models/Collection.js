@@ -2,6 +2,27 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 const CardBaseSchema = require('./CardBase').schema;
 
+const CardImageSchema = new Schema({
+  id: {
+    type: Number,
+    required: true,
+  },
+  image_url: {
+    type: String,
+    required: true,
+  },
+});
+const CardSetsSchema = new Schema({
+  id: {
+    type: Number,
+    // required: true,
+  },
+  image_url: {
+    type: String,
+    // required: true,
+  },
+});
+
 const priceEntrySchema = new mongoose.Schema({
   num: {
     type: Number,
@@ -13,8 +34,14 @@ const priceEntrySchema = new mongoose.Schema({
   },
 });
 
+const CardPriceSchema = new Schema({
+  tcgplayer_price: {
+    type: Number,
+    required: true,
+  },
+});
+
 const CardInCollectionSchema = new Schema({
-  ...CardBaseSchema.obj,
   id: { type: String, required: true },
   collectionId: { type: String, required: false },
   tag: {
@@ -22,14 +49,15 @@ const CardInCollectionSchema = new Schema({
     required: false,
   },
   price: { type: Number, required: false },
-  totalPrice: Number,
-  name: {
-    type: String,
-    required: true,
-  },
+  totalPrice: { type: Number, required: false },
   quantity: {
     type: Number,
     required: false,
+  },
+  // totalPrice: Number,
+  name: {
+    type: String,
+    required: true,
   },
   latestPrice: priceEntrySchema,
   lastSavedPrice: priceEntrySchema,
@@ -40,6 +68,20 @@ const CardInCollectionSchema = new Schema({
       y: { type: Number, required: true },
     },
   ],
+  // previously in CardBaseSchema
+  type: String,
+  frameType: String,
+  desc: String,
+  atk: Number,
+  def: Number,
+  level: Number,
+  race: String,
+  attribute: String,
+  archetype: [String],
+  image: String,
+  card_sets: [CardSetsSchema],
+  card_images: [CardImageSchema],
+  card_prices: [CardPriceSchema],
 });
 
 const DatasetSchema = new Schema({

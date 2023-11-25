@@ -5,7 +5,10 @@ const { GENERAL } = require('../constants');
 const CustomError = require('../middleware/customError');
 const User = require('../models/User');
 const { logError } = require('./loggingUtils');
-
+const { default: axios } = require('axios');
+const axiosInstance = axios.create({
+  baseURL: 'https://db.ygoprodeck.com/api/v7/',
+});
 // // rateLimiter Middleware
 // const postLimiter = rateLimit({
 //   windowMs: 60 * 1000,
@@ -95,6 +98,16 @@ const respondWithError = (res, status, message, errorDetails) => {
   res.status(status).json({ message, errorDetails });
 };
 
+const getCardInfo = async (cardId) => {
+  try {
+    const { data } = await axiosInstance.get(`/cardinfo.php?id=${encodeURIComponent(cardId)}`);
+    return data.data[0];
+  } catch (error) {
+    console.error(`Error fetching card info for card ID ${cardId}:`, error);
+    throw error;
+  }
+};
+
 module.exports = {
   // postLimiter,
   findUser,
@@ -108,4 +121,5 @@ module.exports = {
   updateDocumentWithRetry,
   convertUserIdToObjectId,
   respondWithError,
+  getCardInfo,
 };
