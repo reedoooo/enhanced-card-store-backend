@@ -27,7 +27,12 @@ const app = express();
 // Define an array of allowed origins
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',')
-  : ['http://localhost:3000'];
+  : [
+      'http://localhost:3000',
+      'https://main--tcg-database.netlify.app/',
+      'https://enhanced-cardstore.netlify.app',
+      'https://enhanced-cardstore.netlify.app/',
+    ];
 
 // CORS Configuration
 const corsOptions = {
