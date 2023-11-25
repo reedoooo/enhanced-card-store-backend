@@ -13,6 +13,7 @@ const initSocket = (server) => {
     cors: {
       origin: [
         'http://localhost:3000',
+        'https://main--tcg-database.netlify.app/',
         'ws://localhost:3000',
         'http://localhost:3000/',
         'http://localhost:3000/profile',
