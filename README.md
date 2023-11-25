@@ -1,6 +1,6 @@
 # enhanced-card-store-backend
 
-Certainly! Let's break down the interaction between the client, the server, and the scraper:
+[![Netlify Status](https://api.netlify.com/api/v1/badges/958aa5a1-dc96-4fc5-910b-b8274ddfbdd6/deploy-status)](https://app.netlify.com/sites/enhanced-cardstore/deploys)
 
 ### 1. **Client-Side (Front-end)**
 
