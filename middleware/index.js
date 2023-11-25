@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const unifiedErrorHandler = require('./unifiedErrorHandler');
 const { logToAllSpecializedLoggers } = require('./infoLogger');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_TEST_KEY);
-
+require('colors');
 // Middleware to add a unique identifier to each request
 const addRequestId = (req, res, next) => {
   req.id = uuidv4();
@@ -70,11 +70,11 @@ function applyCustomMiddleware(app) {
   // Log each request
   app.use((req, res, next) => {
     const start = process.hrtime();
-    console.log(`[START] Request ${req.id}: ${req.method} ${req.originalUrl}`);
+    console.log('[START]'.green + `Request ${req.id}: ${req.method} ${req.originalUrl}`);
 
     res.on('finish', () => {
       const duration = getDurationInMilliseconds(start);
-      console.log(`[END] Request ${req.id}: ${duration}ms`);
+      console.log('[END]'.red + `Request ${req.id}: ${duration}ms`);
       // console.log(`[END] Request ${req.id}: ${res.statusCode} ${res.statusMessage}`);
       logRequestDetails(
         req,

@@ -424,6 +424,7 @@ const createCollectionObject = (body, userId) => {
 exports.getAllCollectionsForUser = async (req, res, next) => {
   try {
     const userId = req.params.userId; // Already validated by middleware
+    console.log('User ID:', userId);
     const user = await User.findById(userId).populate('allCollections');
     if (!user) {
       return res.status(404).json({ message: 'User not found', data: user });

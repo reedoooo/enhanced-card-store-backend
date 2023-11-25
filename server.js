@@ -30,6 +30,7 @@ const allowedOrigins = [
   'https://main--tcg-database.netlify.app/',
   'https://enhanced-cardstore.netlify.app',
   'https://enhanced-cardstore.netlify.app/',
+  'https://main--enhanced-cardstore.netlify.app',
 ];
 
 // CORS Configuration
