@@ -3,6 +3,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const unifiedErrorHandler = require('./unifiedErrorHandler');
 const { logToAllSpecializedLoggers } = require('./infoLogger');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_TEST_KEY);
 
 // Middleware to add a unique identifier to each request
 const addRequestId = (req, res, next) => {
@@ -32,13 +33,25 @@ const logRequestDetails = (req, eventType, message, duration = null) => {
   );
 };
 
-// Helper function to get duration in milliseconds
-// const getDurationInMilliseconds = (start) => {
-//   const NS_PER_SEC = 1e9;
-//   const NS_TO_MS = 1e6;
-//   const diff = process.hrtime(start);
-//   return (diff[0] * NS_PER_SEC + diff[1]) / NS_TO_MS;
-// };
+const handleStripePayment = async (req, res, next) => {
+  try {
+    // Extract payment details from request
+    const { amount, currency, source } = req.body;
+
+    // Create a charge using Stripe
+    const charge = await stripe.charges.create({
+      amount, // Amount to be charged
+      currency, // Currency
+      source, // Payment source, usually a token from Stripe Elements
+      description: 'Example charge', // Description for the charge
+    });
+
+    res.status(200).json(charge);
+  } catch (error) {
+    console.error('Error processing Stripe payment:', error);
+    next(error); // Forward to error handling middleware
+  }
+};
 
 // Function to apply custom middleware to the express app
 function applyCustomMiddleware(app) {
@@ -47,6 +60,9 @@ function applyCustomMiddleware(app) {
     req.id = uuidv4();
     next();
   });
+
+  // Stripe payment route
+  app.post('/api/checkout', handleStripePayment);
 
   // Serve static files
   app.use(express.static(path.join(__dirname, 'public')));
@@ -59,6 +75,13 @@ function applyCustomMiddleware(app) {
     res.on('finish', () => {
       const duration = getDurationInMilliseconds(start);
       console.log(`[END] Request ${req.id}: ${duration}ms`);
+      // console.log(`[END] Request ${req.id}: ${res.statusCode} ${res.statusMessage}`);
+      logRequestDetails(
+        req,
+        'completed',
+        `Request completed with status ${res.statusCode}`,
+        duration,
+      );
     });
 
     next();
