@@ -32,6 +32,7 @@ const allowedOrigins = [
   'https://enhanced-cardstore.netlify.app/',
   'https://main--enhanced-cardstore.netlify.app',
   'https://65622f40ed40a800087e43e2--enhanced-cardstore.netlify.app',
+  'https://65624efffdb1c3672f781980--enhanced-cardstore.netlify.app',
 ];
 
 // CORS Configuration
