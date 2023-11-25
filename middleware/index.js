@@ -62,7 +62,7 @@ function applyCustomMiddleware(app) {
   });
 
   // Stripe payment route
-  app.post('/api/checkout', handleStripePayment);
+  app.post('/api/stripe', handleStripePayment);
 
   // Serve static files
   app.use(express.static(path.join(__dirname, 'public')));
