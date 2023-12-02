@@ -135,11 +135,11 @@ function logOtherData(data) {
   if (typeof data === 'boolean') {
     logContent += data.toString();
   }
-  if (typeof data === 'undefined' && data.data !== undefined) {
+  if (typeof data === 'undefined' && data?.data !== undefined) {
     logContent += `!!! [DATA MUST BE ACCESSED FIRST][${typeof data}] !!!`.red;
-    logContent += JSON.stringify(data.data, null, 2);
+    logContent += JSON.stringify(data?.data, null, 2);
   }
-  if (typeof data === 'undefined' && data.data === undefined) {
+  if (typeof data === 'undefined' && data?.data === undefined) {
     logContent += '!!! [UNDEFINED] !!!';
     logContent += JSON.stringify(data, null, 2);
   }

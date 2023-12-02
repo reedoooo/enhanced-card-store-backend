@@ -1,5 +1,6 @@
 const express = require('express');
 const cardController = require('../../controllers/CardController');
+const getSingleCardInfo = require('../../utils/cardUtils');
 
 const router = express.Router();
 
@@ -77,6 +78,19 @@ router.post('/', async (req, res) => {
     res.status(400).json({ message: err.message });
   }
 });
+
+// router.patch('/:cardId', async (req, res) => {
+//   try {
+//     const { cardId } = req.params;
+//     const cardData = req.body;
+//     const userId = req.user._id; // Assuming you have user ID available in the request
+
+//     const result = await getSingleCardInfo(userId, cardId, cardData); // Pass cardData to the function
+//     res.status(200).json({ data: result, message: 'Card updated successfully' });
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// });
 
 router.delete('/:id', async (req, res) => {
   try {

@@ -14,15 +14,22 @@ let isJobRunning = false;
 
 async function processCardPriceRequest(data, io) {
   const userId = data.userId;
-  console.log('processCardPriceRequest', userId);
+  // console.log('processCardPriceRequest', userId);
   // console.log('DATA', data.selectedList);
   const selectedList = data.data.selectedList;
   const monitoredCards = selectedList;
   // console.log('processCardPriceRequest', { userId, selectedList, monitoredCards });
   try {
+    if (!userId || !Array.isArray(monitoredCards) || monitoredCards.length === 0) {
+      throw new CustomError('Invalid inputs provided to scheduleCheckCardPrices.', 400);
+    }
     const updates = await trackCardPrices(monitoredCards, userId);
     // logData(updates);
-    logData(updates);
+    // logData(updates);
+    if (updates.length > 0) {
+      console.log('processCardPriceRequest', updates.slice(0, 5));
+    }
+
     emitResponse(io, 'SEND_PRICING_DATA_TO_CLIENT', {
       message: 'Card prices checked',
       data: {
