@@ -1,4 +1,3 @@
-const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 // const { validatePassword, createToken } = require('../services/auth');
@@ -13,23 +12,14 @@ const {
   handleChartDataUpdate,
 } = require('./userControllerUtilities');
 const CustomError = require('../middleware/customError');
-const { STATUS, MESSAGES, ERROR_SOURCES, ERROR_TYPES } = require('../constants');
-const {
-  logToAllSpecializedLoggers,
-  directError,
-  directResponse,
-  loggers,
-} = require('../middleware/infoLogger');
+const { STATUS, MESSAGES, ERROR_TYPES } = require('../constants');
+const { logToAllSpecializedLoggers, directError } = require('../middleware/infoLogger');
 const { logCollection } = require('../utils/collectionLogTracking');
-const { logData } = require('../utils/logPriceChanges');
-const validateCollectionUpdate = require('../middleware/validation/validateCollectionUpdate');
 const { isObjectIdOrHexString, default: mongoose } = require('mongoose');
 const { respondWithError, getCardInfo } = require('../utils/utils');
-const { filterNullPriceHistory } = require('../utils/collectionUtils');
-
+const { response } = require('express');
+const User = require('../models/User');
 const SECRET_KEY = process.env.SECRET_KEY;
-
-// const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 // Enhanced error logging
 const logError = (message, error) => {
@@ -157,24 +147,13 @@ exports.getProfile = async (req, res, next) => {
       );
     }
 
-    directResponse(res, 'GET_PROFILE', {
-      status: STATUS.SUCCESS,
-      message: MESSAGES.GET_PROFILE_SUCCESS,
+    response.status(200).json({
+      message: 'Fetched user data successfully',
       data: user,
     });
   } catch (error) {
-    winston.error('Get Profile Error: ', error);
-    return directError(
-      res,
-      'GET_PROFILE',
-      error instanceof CustomError
-        ? error
-        : new CustomError(MESSAGES.GET_PROFILE_ERROR, STATUS.INTERNAL_SERVER_ERROR, true, {
-            source: ERROR_SOURCES.GET_PROFILE,
-            detail: error.message || '',
-            stack: error.stack,
-          }),
-    );
+    console.error('Get Profile Error: ', error);
+    next(error);
   }
 };
 exports.updateProfile = async (req, res, next) => {
@@ -182,13 +161,16 @@ exports.updateProfile = async (req, res, next) => {
     const updates = req.body;
     const user = await User.findByIdAndUpdate(req.authData.id, updates, { new: true });
     if (!user) {
-      return directError(res, MESSAGES.USER_NOT_FOUND, STATUS.NOT_FOUND);
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    directResponse(res, STATUS.SUCCESS, MESSAGES.UPDATE_PROFILE_SUCCESS, user);
+    response.status(200).json({
+      message: 'Profile updated successfully',
+      data: user,
+    });
   } catch (error) {
-    winston.error('Update Profile Error: ', error);
-    directError(res, MESSAGES.UPDATE_PROFILE_ERROR, STATUS.INTERNAL_SERVER_ERROR, next, error);
+    console.error('Update Profile Error: ', error);
+    next(error);
   }
 };
 exports.deleteProfile = async (req, res, next) => {
@@ -204,7 +186,10 @@ exports.deleteProfile = async (req, res, next) => {
       );
     }
 
-    directResponse(res, STATUS.SUCCESS, MESSAGES.DELETE_PROFILE_SUCCESS);
+    response.status(200).json({
+      message: 'Profile deleted successfully',
+      data: user,
+    });
   } catch (error) {
     directError(res, 'DELETE_PROFILE_ERROR', error);
     next(error);
@@ -217,10 +202,14 @@ exports.getUserById = async (req, res, next) => {
       directError(res, 'USER_NOT_FOUND', new Error('User not found'));
       return;
     }
-    directResponse(res, { data: user });
+    // directResponse(res, { data: user });
+    response.status(200).json({
+      message: 'Fetched user data successfully',
+      data: user,
+    });
   } catch (error) {
-    winston.error('Get by ID error: ', error);
-    directError(res, 'GET_USER_ERROR', error);
+    console.error('Get User By ID Error: ', error);
+    next(error);
   }
 };
 // exports.getAllDecksForUser = async (req, res, next) => {
@@ -400,15 +389,22 @@ const createCollectionObject = (body, userId) => {
     priceDifference: body.priceDifference || 0,
     priceChange: body.priceChange || 0,
     previousDayTotalPrice: body.previousDayTotalPrice || 0,
-    latestPrice: body.latestPrice || {},
-    lastSavedPrice: body.lastSavedPrice || {},
-    allCardPrices: Array.isArray(body.allCardPrices) ? body.allCardPrices : [],
+    latestPrice: {
+      // Ensuring latestPrice is populated correctly
+      num: body.latestPrice?.num || 0,
+      timestamp: body.latestPrice?.timestamp || new Date(),
+    },
+    lastSavedPrice: {
+      // Ensuring lastSavedPrice is populated correctly
+      num: body.lastSavedPrice?.num || 0,
+      timestamp: body.lastSavedPrice?.timestamp || new Date(),
+    },
+    // allCardPrices: Array.isArray(body.allCardPrices) ? body.allCardPrices : [],
     cards: Array.isArray(body.cards) ? body.cards : [],
-    currentChartDataSets: Array.isArray(body.currentChartDataSets) ? body.currentChartDataSets : [],
     currentChartDataSets2: Array.isArray(body.currentChartDataSets2)
       ? body.currentChartDataSets2
       : [],
-    xys: Array.isArray(body.xys) ? body.xys : [],
+    // xys: Array.isArray(body.xys) ? body.xys : [],
     collectionPriceHistory: Array.isArray(body.collectionPriceHistory)
       ? body.collectionPriceHistory
       : [],
@@ -421,32 +417,66 @@ const createCollectionObject = (body, userId) => {
       userId: body.chartData?.userId || body.userId || userId,
       datasets: Array.isArray(body.chartData?.datasets) ? body.chartData.datasets : [],
       allXYValues: Array.isArray(body.chartData?.allXYValues) ? body.chartData.allXYValues : [],
-      xys: Array.isArray(body.chartData?.xys) ? body.chartData.xys : [],
+      // xys: Array.isArray(body.chartData?.xys) ? body.chartData.xys : [],
     },
   };
 };
+// Helper function to fetch and validate user and collection
+// async function fetchAndValidateUserAndCollection(userId, collectionId) {
+//   const user = await User.findById(userId).populate('allCollections');
+//   if (!user) throw new Error('User not found');
 
+//   const collection = user.allCollections.find((coll) => coll._id.toString() === collectionId);
+//   if (!collection) throw new Error('Collection not found');
+
+//   return { user, collection };
+// }
+// exports.getAllCollectionsForUser = async (req, res, next) => {
+//   try {
+//     const userId = req.params.userId; // Already validated by middleware
+//     console.log('User ID:', userId);
+//     const user = await User.findById(userId).populate('allCollections');
+//     if (!user) {
+//       return res.status(404).json({ message: 'User not found', data: user });
+//     }
+
+//     logInfo('Fetched all collections for user', { userId });
+//     // const allUserCollections = user.allCollections || [];
+//     // const filteredCollections = filterNullPriceHistory(user.allCollections);
+
+//     await user.populate('allCollections');
+
+//     // await user.save();
+//     // user.markModified('allCollections');
+//     // await user.save();
+//     // console.log('Filtered collections:', filteredCollections);
+//     res.status(200).json({
+//       message: `Fetched collections for user ${userId}`,
+//       data: user.allCollections,
+//     });
+//   } catch (error) {
+//     logError('Error fetching collections', { error });
+//     next(error);
+//   }
+// };
 exports.getAllCollectionsForUser = async (req, res, next) => {
   try {
-    const userId = req.params.userId; // Already validated by middleware
-    console.log('User ID:', userId);
+    const userId = req.params.userId;
+    console.log('USER ID --------', userId);
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
     const user = await User.findById(userId).populate('allCollections');
     if (!user) {
       return res.status(404).json({ message: 'User not found', data: user });
     }
 
+    await user.populate('allCollections');
+
     logInfo('Fetched all collections for user', { userId });
-    // const allUserCollections = user.allCollections || [];
-    // const filteredCollections = filterNullPriceHistory(user.allCollections);
-
-    // await user.populate('allCollections');
-
-    // await user.save();
-
-    // console.log('Filtered collections:', filteredCollections);
     res.status(200).json({
       message: `Fetched collections for user ${userId}`,
-      data: user.allCollections,
+      data: user?.allCollections,
     });
   } catch (error) {
     logError('Error fetching collections', { error });
@@ -468,49 +498,40 @@ exports.createNewCollection = async (req, res, next) => {
 
     logInfo('createNewCollection', { newCollection });
 
-    logCollection(newCollection);
-    user.allCollections.push(newCollection);
-    await user.save();
+    // Ensure allCollections is initialized and is an array
+    if (!user.allCollections) {
+      user.allCollections = []; // Initialize if undefined
+    }
 
-    // Re-populate allCollections to return full collection data
-    await user.populate('allCollections'); // Correct way
+    user.allCollections.push(newCollection);
+
+    await user.save();
 
     res.status(201).json({
       message: 'New collection created successfully',
       data: newCollection,
     });
   } catch (error) {
-    next(error); // Use your existing error handling middleware
+    logError('Error in createNewCollection', error);
+    next(error);
   }
 };
 
-const removeDuplicateCards = (cards) => {
-  const cardMap = new Map();
-
-  cards.forEach((card) => {
-    const uniqueKey = `${card.id}-${card.name}`;
-    if (!cardMap.has(uniqueKey)) {
-      cardMap.set(uniqueKey, card);
-    } else {
-      // If duplicate, update with the latest card data (optional)
-      cardMap.set(uniqueKey, { ...cardMap.get(uniqueKey), ...card });
-    }
-  });
-
-  return Array.from(cardMap.values());
-};
 exports.addCardsToCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
   const { cards } = req.body;
 
-  const user = await User?.findOne({ _id: userId }).populate('allCollections');
-
-  if (!Array.isArray(cards)) {
-    return res.status(400).json({ message: 'Invalid card data, expected an array' });
-  }
-
   try {
-    const collection = await Collection.findOne({ _id: collectionId, userId: userId });
+    const user = await User.findById(userId).populate('allCollections');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (!Array.isArray(cards)) {
+      return res.status(400).json({ message: 'Invalid card data, expected an array' });
+    }
+
+    const collection = user.allCollections.find((coll) => coll._id.toString() === collectionId);
     if (!collection) {
       return res.status(404).json({ message: 'Collection not found' });
     }
@@ -524,11 +545,9 @@ exports.addCardsToCollection = async (req, res, next) => {
       let card = existingCardsMap.get(uniqueKey);
 
       if (card) {
-        // Card exists in the collection
         card = { ...card, ...cardUpdate };
 
         if (card.quantity !== cardUpdate.quantity) {
-          // Quantity change detected
           if (
             !cardUpdate.name ||
             !cardUpdate.id ||
@@ -547,10 +566,8 @@ exports.addCardsToCollection = async (req, res, next) => {
           }
         }
 
-        // Update the existing card in the map
         existingCardsMap.set(uniqueKey, card);
       } else {
-        // Card does not exist, add as new
         card = { ...cardUpdate };
         existingCardsMap.set(uniqueKey, card);
       }
@@ -558,15 +575,24 @@ exports.addCardsToCollection = async (req, res, next) => {
 
     collection.cards = Array.from(existingCardsMap.values());
 
+    // Save the updated collection
     await collection.save();
-    await user.populate('allCollections');
+
+    // Mark the subdocument as modified and save the user document if needed
+    user.markModified('allCollections');
+    if (user.isModified()) {
+      console.log('Saving user with updated collection...');
+      await user.save();
+    }
+
     res.status(200).json({ message: 'Cards updated successfully', cards: collection.cards });
   } catch (error) {
-    console.error('Error updating cards in addCardsToCollection: ', error);
+    console.error('Error updating cards in addCardsToCollection:', error);
     respondWithError(res, 500, 'Error updating cards in addCardsToCollection', error);
     next(error);
   }
 };
+
 // exports.addCardsToCollection = async (req, res, next) => {
 //   const { userId, collectionId } = req.params;
 //   console.log('UserId:', userId); // Debugging
@@ -696,7 +722,7 @@ exports.removeCardsFromCollection = async (req, res, next) => {
   console.log('Request body:', req.body);
   console.log('Request params:', req.params);
 
-  if (!isObjectIdOrHexString(cardIds._id) && !Array.isArray(cardIds)) {
+  if (!isObjectIdOrHexString(cardIds) && !Array.isArray(cardIds)) {
     return res.status(400).json({ message: 'Invalid card IDs' });
   }
 
@@ -731,24 +757,37 @@ exports.removeCardsFromCollection = async (req, res, next) => {
     res.status(200).json({ message: 'Cards removed successfully', cards: collection.cards });
   } catch (error) {
     console.error('Error updating cards:', error);
+    logError('Error updating in remove removeCardsFromCollection :', error);
     respondWithError(res, 500, 'Error updating cards', error);
     next(error);
   }
 };
+// exports.updateCardsInCollection = async (req, res, next) => {
 exports.updateCardsInCollection = async (req, res, next) => {
-  const { collectionId } = req.params;
+  const { userId, collectionId } = req.params;
   const { cards, cardIds } = req.body;
 
   try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
     const collection = await Collection.findById(collectionId);
     if (!collection) {
       return res.status(404).json({ message: 'Collection not found' });
     }
 
-    // Create a map of existing cards
+    // const collectionIndex = user.allCollections.findIndex(
+    //   (coll) => coll._id.toString() === collectionId,
+    // );
+    // if (collectionIndex === -1) {
+    //   return res.status(404).json({ message: 'Collection not found' });
+    // }
+    // const collection = user.allCollections[collectionIndex];
     const existingCardsMap = new Map(collection.cards.map((card) => [card.id, card]));
 
-    // Handle card removal or reduction
+    // Handle card removals
     if (cardIds) {
       const cardToRemove = existingCardsMap.get(cardIds.id);
       if (cardToRemove) {
@@ -760,17 +799,51 @@ exports.updateCardsInCollection = async (req, res, next) => {
       }
     }
 
+    // // Handle card removals
+    // if (cardIds) {
+    //   cardIds.forEach(id => {
+    //     if (existingCardsMap.has(id)) {
+    //       const card = existingCardsMap.get(id);
+    //       if (card.quantity > 1) {
+    //         card.quantity -= 1;
+    //       } else {
+    //         existingCardsMap.delete(id);
+    //       }
+    //     }
+    //   });
+    // }
+    // Handle card updates
+    // if (cards && Array.isArray(cards)) {
+    //   cards.forEach((cardUpdate) => {
+    //     let card = existingCardsMap.get(cardUpdate.id);
+    //     if (card) {
+    //       // Update existing card
+    //       existingCardsMap.set(cardUpdate.id, {
+    //         ...card,
+    //         ...cardUpdate,
+    //         price: cardUpdate.price ?? card.price,
+    //         totalPrice: cardUpdate.totalPrice ?? card.totalPrice ?? card.price * card.quantity,
+    //         quantity: cardUpdate.quantity ?? card.quantity,
+    //       });
+    //     } else {
+    //       // Add new card
+    //       existingCardsMap.set(cardUpdate.id, { ...cardUpdate });
+    //     }
+    //   });
+    // }
     // Handle card updates
     if (cards && Array.isArray(cards)) {
       cards.forEach((cardUpdate) => {
         let card = existingCardsMap.get(cardUpdate.id);
 
+        console.log('Card update:', cardUpdate?.totalPrice);
         if (card) {
           // Update existing card
           card = {
             ...card,
             ...cardUpdate,
             price: cardUpdate.price ?? card.price,
+            totalPrice: cardUpdate.totalPrice ?? card.totalPrice ?? card?.price * card?.quantity,
             quantity: cardUpdate.quantity ?? card.quantity,
             lastSavedPrice: card.lastSavedPrice,
             latestPrice: { num: cardUpdate.price, timestamp: new Date() },
@@ -782,17 +855,27 @@ exports.updateCardsInCollection = async (req, res, next) => {
         existingCardsMap.set(cardUpdate.id, card);
       });
     }
+    // Handling card removals and updates
+    // cardIds?.forEach(id => existingCardsMap.delete(id));
+    // cards?.forEach(cardUpdate => existingCardsMap.set(cardUpdate.id, { ...cardUpdate }));
 
     // Update collection with unique cards
-    collection.cards = Array.from(existingCardsMap.values());
+    // collection.cards = Array.from(existingCardsMap.values());
+    // user.markModified('allCollections');
+    // await user.save();
 
+    // return res
+    //   .status(200)
+    //   .json({ message: 'Collection updated successfully', cards: collection.cards });
+    collection.cards = Array.from(existingCardsMap.values());
     await collection.save();
+
     return res
       .status(200)
       .json({ message: 'Collection updated successfully', cards: collection.cards });
   } catch (error) {
     console.error('Error updating cards in updateCardsInCollection:', error);
-    respondWithError(res, 500, 'Error updating cards in updateCardsInCollection', error);
+    res.status(500).json({ message: 'Error updating cards in updateCardsInCollection' });
     next(error);
   }
 };
@@ -831,57 +914,36 @@ exports.updateChartDataInCollection = async (req, res, next) => {
   }
 };
 exports.updateAndSyncCollection = async (req, res, next) => {
-  let attempts = 0;
-  const maxAttempts = 3; // Set a reasonable limit for retries
+  const { collectionId, userId } = req.params;
+  const updatedCollectionData = req.body.updatedCollection;
 
-  while (attempts < maxAttempts) {
-    try {
-      const { collectionId, userId } = req.params;
-      const updatedCollectionData = req.body.updatedCollection;
-
-      const user = await User.findById(userId).populate('allCollections');
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      const collection = await Collection.findById(collectionId);
-      if (!collection) {
-        return res.status(404).json({ message: 'Collection not found' });
-      }
-
-      // Update the collection with the new data
-      for (const key in updatedCollectionData) {
-        if (Object.prototype.hasOwnProperty.call(updatedCollectionData, key)) {
-          collection[key] = updatedCollectionData[key];
-        }
-      }
-
-      await collection.save();
-
-      // Re-populate allCollections to return full collection data
-      await user.populate('allCollections');
-      return res.status(200).json({
-        message: 'Collection updated successfully',
-        collectionData: collection,
-      });
-    } catch (error) {
-      if (error instanceof mongoose.Error.VersionError) {
-        attempts++;
-        console.log(
-          `Retrying update for collection ${req.params.collectionId}, attempt ${attempts}`,
-        );
-        if (attempts === maxAttempts) {
-          return res
-            .status(500)
-            .json({ message: 'Failed to update collection after multiple attempts' });
-        }
-      } else {
-        console.error('Error updating collection in updateAndSyncCollection:', error);
-        return res
-          .status(500)
-          .json({ message: 'Error updating collection in updateAndSyncCollection' });
-      }
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
+
+    const collectionIndex = user.allCollections.findIndex(
+      (coll) => coll._id.toString() === collectionId,
+    );
+    if (collectionIndex === -1) {
+      return res.status(404).json({ message: 'Collection not found' });
+    }
+
+    // Update the collection with the new data
+    Object.assign(user.allCollections[collectionIndex], updatedCollectionData);
+    user.markModified('allCollections');
+    await user.save();
+
+    return res.status(200).json({
+      message: 'Collection updated successfully',
+      collectionData: user.allCollections[collectionIndex],
+    });
+  } catch (error) {
+    logError('Error updating collection in updateAndSyncCollection:', error);
+    return res
+      .status(500)
+      .json({ message: 'Error updating collection in updateAndSyncCollection' });
   }
 };
 exports.deleteCollection = async (req, res, next) => {
@@ -916,6 +978,66 @@ exports.deleteCollection = async (req, res, next) => {
     next(error);
   }
 };
+// exports.updateAndSyncCollection = async (req, res, next) => {
+//   let attempts = 0;
+//   const maxAttempts = 3; // Set a reasonable limit for retries
+
+//   while (attempts < maxAttempts) {
+//     try {
+//       const { collectionId, userId } = req.params;
+//       const updatedCollectionData = req.body.updatedCollection;
+
+//       const user = await User.findById(userId).populate('allCollections');
+//       if (!user) {
+//         return res.status(404).json({ message: 'User not found' });
+//       }
+
+//       const collection = await Collection.findById(collectionId);
+//       if (!collection) {
+//         return res.status(404).json({ message: 'Collection not found' });
+//       }
+
+//       // Update the collection with the new data
+//       for (const key in updatedCollectionData) {
+//         if (Object.prototype.hasOwnProperty.call(updatedCollectionData, key)) {
+//           collection[key] = updatedCollectionData[key];
+//         }
+//       }
+
+//       await collection.save();
+
+//       // Re-populate allCollections to return full collection data
+//       await user.populate('allCollections');
+
+//       // save collection in user.allCollections
+
+//       await user.save();
+
+//       return res.status(200).json({
+//         message: 'Collection updated successfully',
+//         collectionData: collection,
+//       });
+//     } catch (error) {
+//       logError('Error updating collection in updateAndSyncCollection:', error);
+//       if (error instanceof mongoose.Error.VersionError) {
+//         attempts++;
+//         console.log(
+//           `Retrying update for collection ${req.params.collectionId}, attempt ${attempts}`,
+//         );
+//         if (attempts === maxAttempts) {
+//           return res
+//             .status(500)
+//             .json({ message: 'Failed to update collection after multiple attempts' });
+//         }
+//       } else {
+//         console.error('Error updating collection in updateAndSyncCollection:', error);
+//         return res
+//           .status(500)
+//           .json({ message: 'Error updating collection in updateAndSyncCollection' });
+//       }
+//     }
+//   }
+// };
 
 // exports.updateCardsInCollection = async (req, res, next) => {
 //   const { collectionId } = req.params;

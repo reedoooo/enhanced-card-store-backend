@@ -17,15 +17,15 @@ async function processCardPriceRequest(data, io) {
   // console.log('processCardPriceRequest', userId);
   // console.log('DATA', data.selectedList);
   const selectedList = data.data.selectedList;
-  const monitoredCards = selectedList;
+  // console.log('DATA [______________', selectedList, '______________]');
+  const monitoredCards = selectedList || [];
   // console.log('processCardPriceRequest', { userId, selectedList, monitoredCards });
   try {
-    if (!userId || !Array.isArray(monitoredCards) || monitoredCards.length === 0) {
+    if (!userId || !Array.isArray(monitoredCards)) {
       throw new CustomError('Invalid inputs provided to scheduleCheckCardPrices.', 400);
     }
     const updates = await trackCardPrices(monitoredCards, userId);
-    // logData(updates);
-    // logData(updates);
+
     if (updates.length > 0) {
       console.log('processCardPriceRequest', updates.slice(0, 5));
     }
@@ -132,19 +132,6 @@ function getCustomErrorDetails(error) {
     ? error
     : new CustomError(error.message || 'An error occurred', 500, true, error);
 }
-
-// function logErrorDetails(errorDetails, errorType) {
-//   logToAllSpecializedLoggers('error', errorDetails.message, {
-//     section: 'error',
-//     action: 'logs',
-//     error: errorDetails,
-//   });
-//   logToAllSpecializedLoggers('error', errorDetails.message, {
-//     section: 'error',
-//     action: 'file',
-//     error: errorDetails,
-//   });
-// }
 
 const addJobToQueue = (job) => {
   cronQueue.push(job);

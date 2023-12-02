@@ -9,15 +9,7 @@ const {
 } = winston;
 
 const defaultLogLevel = 'error';
-
-// Directory for logs
 const logsDir = './logs';
-
-// Ensure logs directory exists
-// if (!fs.existsSync(logsDir)) {
-//   fs.mkdirSync(logsDir);
-// }
-// Set colors for each log level
 const levelColors = {
   error: '\x1b[31m', // Red
   warn: '\x1b[33m', // Yellow
@@ -27,7 +19,6 @@ const levelColors = {
   silly: '\x1b[37m', // White
   log: '\x1b[37m', // White
 };
-
 // eslint-disable-next-line no-undef
 colors.setTheme(levelColors);
 
@@ -125,11 +116,9 @@ const createTransports = (label, level) => [
   fileTransport(label),
 ];
 
-// Refactor createLoggerWithTransports to be DRY by reducing repeated code
 const createLoggerWithTransports = (label, level = process.env['LOG_LEVEL'] || defaultLogLevel) =>
   createLogger({ level, transports: createTransports(label, level) });
 
-// Specialized loggers object created via a function to reduce repetition
 const initSpecializedLoggers = () => {
   const sections = [
     'collection',
@@ -159,8 +148,6 @@ const initSpecializedLoggers = () => {
 };
 
 const specializedLoggers = initSpecializedLoggers();
-
-// Unified logging function that decides based on action where to log
 function logToAllSpecializedLoggers(level, message, meta, action) {
   const logger =
     specializedLoggers[meta?.section] || createLoggerWithTransports(meta?.section, level);
@@ -181,24 +168,14 @@ function logToAllSpecializedLoggers(level, message, meta, action) {
     specializedLoggers.file.log({ level, message, ...meta });
   }
 
-  // Additional handling for 'cronjob'
-  // Additional handling for 'cronjob'
-  // Additional handling for 'cronjob'
   if (meta?.section === 'cronjob') {
     const coloredLevel = colorizeMessage(level, level.toUpperCase());
     const coloredMessage = colorizeMessage(level, message);
     let formattedMessage = `[${timestamp}] ${coloredLevel}: ${coloredMessage}`;
-
-    // Additional formatting for 'meta' if present
     if (meta) {
       formattedMessage += ` | Section: ${meta.section}`;
       if (meta.data) {
         const dataString = JSON.stringify(meta.data);
-        // const dataObj = JSON.parse(dataString);
-
-        // Format price changes before appending to the message
-        // const priceChanges = formatPriceChanges(dataObj);
-        // const formattedPriceChanges = priceChanges.join(', ');
         formattedMessage += ` | Data: {${dataString}}`;
       }
     }
@@ -207,36 +184,6 @@ function logToAllSpecializedLoggers(level, message, meta, action) {
   }
 }
 
-// The formatPriceChanges function can remain unchanged.
-// const formatPriceChanges = (data) => {
-//   let formattedOutput = [];
-//   Object.entries(data).forEach(([key, card]) => {
-//     // Check if the previousPrice differs from the updatedPrice
-//     if (card.previousPrice !== card.updatedPrice) {
-//       const priceChangeText = `\x1b[32m${card.name} (ID: ${card.id}) price changed from $${card.previousPrice} to $${card.updatedPrice}\x1b[0m`;
-//       formattedOutput.push(priceChangeText);
-//     } else {
-//       formattedOutput.push(
-//         `${card.name} (ID: ${card.id}) price remained the same at \x1b[36m$${card.updatedPrice}\x1b[0m`,
-//       );
-//     }
-//   });
-//   return formattedOutput;
-// };
-
-// const logSelectedList = (selectedList) => {
-//   if (Array.isArray(selectedList) && selectedList.length > 0) {
-//     console.log('Selected List of Cards:');
-//     selectedList.forEach((card, index) => {
-//       // Log the card details in the specified format: [index][name][id][totalPrice][price][quantity]
-//       console.log(`[${index}][${card.name}][${card.id}][${card.totalPrice.toFixed(2)}][${card.price.toFixed(2)}][${card.quantity}]`);
-//     });
-//   } else {
-//     console.log('No cards in selected list.');
-//   }
-// };
-
-// Refactored logSelectedList to log to the file as well
 const logSelectedList = (selectedList) => {
   if (Array.isArray(selectedList) && selectedList.length > 0) {
     const logger = specializedLoggers['cronjob'];
@@ -252,7 +199,6 @@ const logSelectedList = (selectedList) => {
   }
 };
 
-// Function to handle responses to the client, abstracted to ensure DRY code
 function respondToClient(res, status, message, data = {}) {
   if (res.headersSent) return;
   res.status(status).json({ message, data });

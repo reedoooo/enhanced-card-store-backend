@@ -5,21 +5,53 @@ const CardBaseSchema = require('./CardBase').schema;
 const CardImageSchema = new Schema({
   id: {
     type: Number,
-    required: true,
+    required: false,
   },
   image_url: {
     type: String,
     required: true,
+  },
+
+  image_url_small: {
+    type: String,
+    required: false,
+  },
+  image_url_cropped: {
+    type: String,
+    required: false,
   },
 });
-const CardSetsSchema = new Schema({
-  id: {
-    type: Number,
-    // required: true,
+
+const CardSetsSchema = new Schema([
+  {
+    set_name: String,
+    set_code: String,
+    set_rarity: String,
+    set_rarity_code: String,
+    set_price: String,
   },
-  image_url: {
-    type: String,
-    // required: true,
+]);
+
+const CardPriceSchema = new Schema({
+  tcgplayer_price: {
+    type: Number,
+    required: true,
+  },
+  ebay_price: {
+    type: Number,
+    required: false,
+  },
+  amazon_price: {
+    type: Number,
+    required: false,
+  },
+  cardmarket_price: {
+    type: Number,
+    required: false,
+  },
+  coolstuffinc_price: {
+    type: Number,
+    required: false,
   },
 });
 
@@ -34,13 +66,6 @@ const priceEntrySchema = new mongoose.Schema({
   },
 });
 
-const CardPriceSchema = new Schema({
-  tcgplayer_price: {
-    type: Number,
-    required: true,
-  },
-});
-
 const CardInCollectionSchema = new Schema({
   id: { type: String, required: true },
   collectionId: { type: String, required: false },
@@ -49,7 +74,13 @@ const CardInCollectionSchema = new Schema({
     required: false,
   },
   price: { type: Number, required: false },
-  totalPrice: { type: Number, required: false },
+  // totalPrice: { type: Number, required: false },
+  totalPrice: {
+    type: Number,
+    set: function (v) {
+      return !isNaN(v) ? v : 0;
+    },
+  },
   quantity: {
     type: Number,
     required: false,
@@ -137,18 +168,6 @@ const collectionSchema = new mongoose.Schema({
   collectionPriceHistory: [collectionPriceHistorySchema],
   dailyCollectionPriceHistory: [collectionPriceHistorySchema],
   cards: [CardInCollectionSchema],
-  currentChartDataSets: [
-    // id: String,
-    // data: {
-    //   x: Date,
-    //   y: Number,
-    // },
-    {
-      label: String,
-      x: Date,
-      y: Number,
-    },
-  ],
   currentChartDataSets2: [
     {
       label: String,
@@ -156,22 +175,22 @@ const collectionSchema = new mongoose.Schema({
       y: Number,
     },
   ],
-  xys: [
-    {
-      label: String,
-      data: { x: Date, y: Number },
-    },
-  ],
+  // xys: [
+  //   {
+  //     label: String,
+  //     data: { x: Date, y: Number },
+  //   },
+  // ],
   chartData: {
     name: String,
     userId: { type: Schema.Types.ObjectId, ref: 'User' },
     datasets: [DatasetSchema], // Use DatasetSchema here
-    xys: [
-      {
-        label: String,
-        data: { x: Date, y: Number },
-      },
-    ],
+    // xys: [
+    //   {
+    //     label: String,
+    //     data: { x: Date, y: Number },
+    //   },
+    // ],
     allXYValues: [
       {
         label: String,

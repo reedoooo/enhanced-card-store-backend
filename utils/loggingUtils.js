@@ -148,24 +148,6 @@ function logOtherData(data) {
   return logContent;
 }
 
-// Helper function to format card details
-// function formatCardDetails(card) {
-//   const latestPrice = parseFloat(card.latestPrice?.num ?? 0).toFixed(2);
-//   const lastSavedPrice = parseFloat(card.lastSavedPrice?.num ?? 0).toFixed(2);
-//   const priceChange = (latestPrice - lastSavedPrice).toFixed(2);
-//   const status = priceChange > 0 ? 'increased' : priceChange < 0 ? 'decreased' : 'unchanged';
-//   const statusColor = status === 'increased' ? 'green' : status === 'decreased' ? 'red' : 'grey';
-
-//   let cardContent = '';
-//   cardContent += `[CARD NAME] ${card.name}\n`;
-//   cardContent += `    [LATEST PRICE] $${latestPrice}\n`;
-//   cardContent += `    [LAST SAVED PRICE] $${lastSavedPrice}\n`;
-//   cardContent += `    [CHANGE] ${priceChange} (${status})\n`;
-//   cardContent += `    [STATUS] ${status}\n\n`;
-
-//   return cardContent[statusColor];
-// }
-
 function logError(error, errorType, problematicValue, additionalInfo = {}) {
   let errorContent = `|----- Error Log -----\n\n[ERROR] ${new Date().toISOString()}\n`;
   let errorMessage = '';
@@ -223,15 +205,14 @@ function logError(error, errorType, problematicValue, additionalInfo = {}) {
     user: additionalInfo.user || 'Unknown',
     debugInfo: additionalInfo.debug || {},
   };
-  // JSON.stringify(errorLog, null, 2),
-  //   (errorContent += `| [Message]: ${
-  //     errorMessage.message ? errorMessage.message : errorMessage
-  //   }\n`);
   errorContent += `| [Message]: ${errorMessage.message ? errorMessage.message : errorMessage}\n`;
   errorContent += `| [Timestamp]:\n${errorLog.timestamp}\n`;
   errorContent += `| [Function Name]:\n${errorLog.functionName}\n`;
   errorContent += `| [Request Info]:\n${errorLog.requestInfo}\n`;
   errorContent += `| [User]:\n${errorLog.user}\n`;
+  errorContent += `| [Data]:\n${
+    errorLog.debugInfo.data ? JSON.stringify(errorLog.debugInfo.data, null, 2) : 'N/A'
+  }\n`;
   errorContent += `| [Debug Info]:\n${JSON.stringify(errorLog.debugInfo, null, 2)}\n`;
   errorContent += `| [Environment]:\n${JSON.stringify(errorLog.environment, null, 2)}\n`;
   errorContent += `| [Stack]:\n${error.stack}\n`;
@@ -242,19 +223,10 @@ function logError(error, errorType, problematicValue, additionalInfo = {}) {
   errorContent += '|_____ End of Error Log _____\n\n';
   console.error(errorContent.red);
 
-  // console.error(
-  //   '----- Error Log -----\n',
-  //   JSON.stringify(errorLog, null, 2),
-  //   '\n----- End of Error Log -----',
-  // );
   fs.appendFileSync(`${logsDir}/error.log`, errorContent.replace(/\[\d+m/g, ''), (err) => {
     if (err) console.error('Error writing to error log file'.red);
   });
 }
-// i.e.: logPriceChanges.setInitialTotalPrice(100);
-// i.e.: logPriceChanges.resetLivePrices();
-// i.e.: logPriceChanges.logPriceChanges(pricingData.updatedPrices);
-
 module.exports = {
   logData,
   logError,

@@ -78,15 +78,13 @@ const logPriceChange = (card, isNewCard = false) => {
 };
 
 const trackCardPrices = async (monitoredCards, userId) => {
-  if (!Array.isArray(monitoredCards)) {
-    const error = new Error('Monitored cards should be an array.');
-    console.error(error.message.red);
-    logError(error, error.message, {
-      functionName: 'trackCardPrices',
-      user: userId || 'No user ID provided',
-    });
+  if (!userId || !Array.isArray(monitoredCards)) {
+    console.error('Invalid inputs provided to trackCardPrices.'.red);
     return [];
   }
+  // if (!Array.isArray(monitoredCards)) {
+  //   console.error('Monitored cards should be an array.'.red);
+  // }
 
   const objectId = convertUserIdToObjectId(userId);
   const user = await User.findById(objectId).populate('allCollections');

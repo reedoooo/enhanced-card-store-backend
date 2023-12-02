@@ -27,9 +27,16 @@ const handleMessageFromClient = (socket, io) => {
 
 const handleCheckCardPrices = (socket, io) => {
   socket.on('REQUEST_CRON_UPDATED_CARDS_IN_COLLECTION', async (data) => {
-    await processCardPriceRequest(data, io);
+    // Check if selectedList is long enough
+    if (data?.data?.selectedList?.length >= 5) {
+      await processCardPriceRequest(data, io);
+
+      // Setup cron job only if the list is long enough
+      setupCronJob(getIO(), trackCardPrices, '*/2 * * * *'); // Tracks card prices every 2 minutes
+    } else {
+      console.log('Waiting for selectedList to have at least 5 items.');
+    }
   });
-  setupCronJob(getIO(), trackCardPrices, '*/2 * * * *'); // Tracks card prices every 2 minutes
 };
 
 const handleDisconnect = (socket) => {
