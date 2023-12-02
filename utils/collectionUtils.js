@@ -19,6 +19,9 @@ const filterUniqueCards = (cards) => {
   });
 };
 
+// Example usage
+// const filteredCollections = filterNullPriceHistory(allCollections);
+
 const handleDuplicateYValuesInDatasets = (card) => {
   if (card.chart_datasets && Array.isArray(card.chart_datasets)) {
     const yValuesSet = new Set(

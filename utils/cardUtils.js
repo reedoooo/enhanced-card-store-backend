@@ -1,3 +1,78 @@
+const axios = require('axios');
+const User = require('../models/User');
+const Collection = require('../models/Collection'); // Assuming you have a Collection model
+
+const axiosInstance = axios.create({
+  baseURL: 'https://db.ygoprodeck.com/api/v7/',
+});
+const getSingleCardInfo = async (userId, cardId, cardData) => {
+  try {
+    //     const { data } = await axiosInstance.get(`/cardinfo.php?id=${encodeURIComponent(cardId)}`);
+    //     const updatedCardInfo = data.data[0];
+
+    const user = await User.findById(userId).populate('allCollections');
+    if (!user) throw new Error('User not found');
+
+    user.allCollections.forEach((collection) => {
+      const cardIndex = collection.cards.findIndex((card) => card.id === cardId);
+      if (cardIndex !== -1) {
+        collection.cards[cardIndex] = {
+          ...collection.cards[cardIndex],
+          ...cardData, // Update with the provided card data
+        };
+      }
+    });
+
+    await Promise.all(user.allCollections.map((collection) => collection.save()));
+
+    return { success: true, message: 'Card updated successfully' };
+  } catch (error) {
+    console.error(`Error updating card info for card ID ${cardId}:`, error);
+    throw error;
+  }
+};
+
+module.exports = getSingleCardInfo;
+// const getSingleCardInfo = async (userId, cardId) => {
+//   try {
+//     // Fetch latest card information
+//     const { data } = await axiosInstance.get(`/cardinfo.php?id=${encodeURIComponent(cardId)}`);
+//     const updatedCardInfo = data.data[0];
+
+//     // Fetch user and their collections
+//     const user = await User.findById(userId).populate('allCollections');
+//     if (!user) throw new Error('User not found');
+
+//     // Iterate over all collections to find and update the card
+//     user.allCollections.forEach((collection) => {
+//       const cardIndex = collection.cards.findIndex((card) => card.id === cardId);
+//       if (cardIndex !== -1) {
+//         // Update card information
+//         const oldCard = collection.cards[cardIndex];
+//         const newCard = {
+//           ...oldCard,
+//           card_images: updatedCardInfo.card_images,
+//           card_sets: updatedCardInfo.card_sets,
+//           card_prices: updatedCardInfo.card_prices,
+//           archetype: updatedCardInfo.archetype,
+//           // Add any other properties you need to update
+//         };
+
+//         // Replace the old card with the updated one
+//         collection.cards[cardIndex] = newCard;
+//       }
+//     });
+
+//     // Save updated collections
+//     await Promise.all(user.allCollections.map((collection) => collection.save()));
+
+//     return { success: true, message: 'Card updated successfully' };
+//   } catch (error) {
+//     console.error(`Error updating card info for card ID ${cardId}:`, error);
+//     throw error;
+//   }
+// };
+
 // const mongoose = require('mongoose');
 // const cron = require('node-cron');
 // const axios = require('axios');

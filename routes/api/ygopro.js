@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const getSingleCardInfo = require('../../utils/cardUtils');
 const router = express.Router();
 
 // Create axios instance with base URL
@@ -27,6 +28,22 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send({ error: 'Internal Server Error' });
+  }
+});
+
+router.patch('/:cardId', async (req, res) => {
+  try {
+    const { cardId } = req.params;
+    //     const { data } = await axiosInstance.get(`/cardinfo.php?id=${encodeURIComponent(cardId)}`);
+    //     const updatedCardInfo = data.data[0];
+
+    const cardData = req.body;
+    const userId = req.user._id; // Assuming you have user ID available in the request
+
+    const result = await getSingleCardInfo(userId, cardId, cardData); // Pass cardData to the function
+    res.status(200).json({ data: result, message: 'Card updated successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 

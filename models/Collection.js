@@ -62,6 +62,7 @@ const CardInCollectionSchema = new Schema({
   latestPrice: priceEntrySchema,
   lastSavedPrice: priceEntrySchema,
   priceHistory: [priceEntrySchema],
+  dailyPriceHistory: [priceEntrySchema],
   chart_datasets: [
     {
       x: { type: String, required: true },
@@ -134,6 +135,7 @@ const collectionSchema = new mongoose.Schema({
   latestPrice: priceEntrySchema,
   lastSavedPrice: priceEntrySchema,
   collectionPriceHistory: [collectionPriceHistorySchema],
+  dailyCollectionPriceHistory: [collectionPriceHistorySchema],
   cards: [CardInCollectionSchema],
   currentChartDataSets: [
     // id: String,

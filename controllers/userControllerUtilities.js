@@ -8,7 +8,6 @@ const { STATUS, MESSAGES, GENERAL } = require('../constants');
 const { validateDataset } = require('../middleware/validation/validateDataset');
 const { validateXY } = require('../middleware/validation/validateXY');
 const { logCollection } = require('../utils/collectionLogTracking');
-const { logData } = require('../utils/logPriceChanges');
 const MonitoredCard = require('../models/MonitoredCard');
 exports.handleNotFound = (resource, res) => {
   logger.infoLogger(`${resource} not found`);
@@ -28,7 +27,6 @@ exports.handleValidationErrors = (req, res, next) => {
     next();
   }
 };
-
 exports.handleDuplicateYValuesInDatasets = (card) => {
   // Filter out duplicate y values in datasets
   if (card.chart_datasets && Array.isArray(card.chart_datasets)) {
@@ -46,7 +44,6 @@ exports.handleDuplicateYValuesInDatasets = (card) => {
   }
   return card.chart_datasets;
 };
-
 exports.filterUniqueCards = (cards) => {
   // Filter out duplicate cards
   const uniqueCardIds = new Set();
@@ -59,7 +56,6 @@ exports.filterUniqueCards = (cards) => {
     return false;
   });
 };
-
 exports.filterData = (data) => {
   // Filter out duplicate x values and y values
   const xValues = new Set();
@@ -116,14 +112,6 @@ exports.ensureCollectionExists = async (userId) => {
     );
   }
 };
-
-// Assuming that validateDataset, validateXY, validateCard, CustomError, STATUS,
-// MESSAGES, ERROR_SOURCES, User, Collection, and other required entities are already defined elsewhere.
-// let validationErrors = [];
-
-// Assume validateDataset, validateXY, logToAllSpecializedLoggers, and other dependencies are defined elsewhere.
-// Utility function to append data to an existing dataset or add a new one
-
 const updateOrCreateDataset = (existingCollection, incomingDataset) => {
   let datasetToUpdate = existingCollection.chartData.datasets.find(
     (dataset) => dataset.name === incomingDataset.name,
@@ -436,10 +424,24 @@ exports.handleCardUpdate = async ({ userId, collectionId }, cardsToUpdate) => {
             ? collection.cards[cardIndex].totalPrice
             : parseFloat(cardUpdate?.latestPrice?.num * cardUpdate.quantity),
           quantity: parsedQuantity,
-          latestPrice: parsedLatestPrice,
-          lastSavedPrice: parseFloat(cardUpdate?.lastSavedPrice?.num) || 0,
+          latestPrice: {
+            num: parsedLatestPrice || 0,
+            timestamp: cardUpdate?.latestPrice?.timestamp || new Date(),
+          },
+          lastSavedPrice: {
+            num: cardUpdate?.lastSavedPrice?.num || 0,
+            timestamp: cardUpdate?.lastSavedPrice?.timestamp || new Date(),
+          },
           priceHistory: [
             ...collection.cards[cardIndex].priceHistory,
+            { num: cardUpdate?.latestPrice?.num, timestamp: new Date() } || {
+              num: 0,
+              timestamp: new Date(),
+            },
+          ],
+
+          dailyPriceHistory: [
+            ...collection.cards[cardIndex].dailyPriceHistory,
             { num: cardUpdate?.latestPrice?.num, timestamp: new Date() } || {
               num: 0,
               timestamp: new Date(),
@@ -601,14 +603,14 @@ exports.handleUpdateAndSync = async (params, body) => {
       return { status: 'success', data: updatedCollection.toObject() };
     } catch (error) {
       attempt++;
-      logData('error', 'Attempt to update and sync collection failed', {
-        error: error.toString(),
-        stack: error.stack,
-        attempt,
-        userId: params.userId,
-        collectionId: params.collectionId,
-        updateData: body,
-      });
+      // logData('error', 'Attempt to update and sync collection failed', {
+      //   error: error.toString(),
+      //   stack: error.stack,
+      //   attempt,
+      //   userId: params.userId,
+      //   collectionId: params.collectionId,
+      //   updateData: body,
+      // });
       logError('Attempt to update and sync collection failed', {
         error: {
           message: error.message,
