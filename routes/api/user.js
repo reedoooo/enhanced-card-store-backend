@@ -19,63 +19,28 @@ router.put('/:userId/decks/:deckId', asyncHandler(UserController.updateAndSyncDe
 // router.post('/:userId/newDeck', asyncHandler(UserController.createNewDeck));
 router.post('/:userId/decks', asyncHandler(UserController.createNewDeck));
 
+router.post('/:userId/collections', asyncHandler(UserController.createNewCollection));
+router.get('/:userId/collections', asyncHandler(UserController.getAllCollectionsForUser));
 router.post(
-  '/:userId/collections',
-  // validateObjectId,
-  asyncHandler(UserController.createNewCollection),
-);
-router.get(
-  '/:userId/collections',
-  // validateObjectId,
-  asyncHandler(UserController.getAllCollectionsForUser),
-);
-router.post(
-  '/:userId/collections/:collectionId/updateCards',
-  // validateObjectId,
+  '/:userId/collections/:collectionId/add',
   asyncHandler(UserController.addCardsToCollection),
 );
-// router.post(
-//   '/:userId/collections/:collectionId/removeCards',
-//   asyncHandler(UserController.removeCardsFromCollection),
-// );
-
 router.delete(
-  '/:userId/collections/:collectionId/removeCards',
+  '/:userId/collections/:collectionId/remove',
   asyncHandler(UserController.removeCardsFromCollection),
 );
-
 router.put(
-  '/:userId/collections/:collectionId/updateCards',
-  // validateObjectId,
+  '/:userId/collections/:collectionId/update',
   asyncHandler(UserController.updateCardsInCollection),
 );
 router.put(
   '/:userId/collections/:collectionId/updateChartData',
-  // validateObjectId,
   asyncHandler(UserController.updateChartDataInCollection),
 );
 router.put(
   '/:userId/collections/:collectionId',
-  // validateObjectId,
   asyncHandler(UserController.updateAndSyncCollection),
 );
-
 router.delete('/:userId/collections/:collectionId', asyncHandler(UserController.deleteCollection));
-
-// Error handler
-// router.use(unifiedErrorHandler);
-
-// router.use((error, req, res, next) => {
-//   // Log the error
-//   logger.error('Error:', error);
-//   handleErrors(res, error, next);
-//   // If the response has already been sent, forward the error to the default Express error handler
-//   if (res.headersSent) {
-//     return next(error);
-//   }
-
-//   // Pass the error to your directError function for consistent error handling
-//   directError(res, error.message, 'SERVER_ERROR', error, next);
-// });
 
 module.exports = router;

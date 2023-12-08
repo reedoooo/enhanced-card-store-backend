@@ -154,6 +154,7 @@ const ERROR_TYPES = {
 
 // Log Types
 const LOG_TYPES = {
+  GENERAL: 'general',
   CARD: 'card',
   CARDS: 'cards',
   COLLECTION: 'collection',

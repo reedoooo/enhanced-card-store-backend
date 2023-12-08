@@ -1,78 +1,27 @@
 const CustomError = require('../middleware/customError');
 const cron = require('node-cron');
-const { logToAllSpecializedLoggers } = require('../middleware/infoLogger');
 const { getIO } = require('../socket');
-// const { logError, logData } = require('./logPriceChanges');
 const { logError, logData } = require('./loggingUtils');
-const { trackCardPrices } = require('./cronPriceTracking');
-const { LOG_TYPES } = require('../constants');
+// const { trackCardPrices } = require('./cronPriceTracking');
+// const { ERROR_TYPES } = require('../constants');
+const { checkAndUpdateCardPrices } = require('./test');
 
 let emittedResponses = [];
 const cronQueue = [];
 let responseIndex = 0;
 let isJobRunning = false;
-
-async function processCardPriceRequest(data, io) {
-  const userId = data.userId;
-  // console.log('processCardPriceRequest', userId);
-  // console.log('DATA', data.selectedList);
-  const selectedList = data.data.selectedList;
-  const monitoredCards = selectedList;
-  // console.log('processCardPriceRequest', { userId, selectedList, monitoredCards });
-  try {
-    if (!userId || !Array.isArray(monitoredCards) || monitoredCards.length === 0) {
-      throw new CustomError('Invalid inputs provided to scheduleCheckCardPrices.', 400);
-    }
-    const updates = await trackCardPrices(monitoredCards, userId);
-    // logData(updates);
-    // logData(updates);
-    if (updates.length > 0) {
-      console.log('processCardPriceRequest', updates.slice(0, 5));
-    }
-
-    emitResponse(io, 'SEND_PRICING_DATA_TO_CLIENT', {
-      message: 'Card prices checked',
-      data: {
-        message: userId,
-        data: updates,
-      },
-    });
-  } catch (error) {
-    logError(error, error.message, {
-      functionName: 'processCardPriceRequest',
-      request: 'SEND_PRICING_DATA_TO_CLIENT',
-      user: userId || 'No user ID provided',
-      section: 'error',
-      action: 'logs',
-      debug: {
-        /* relevant debug info */
-      },
-    });
-
-    emitError(io, 'ERROR', error);
-  }
+function logResponseData(response) {
+  const dataToLog = Array.isArray(response.data) ? response.data.slice(0, 5) : response.data;
+  logData(dataToLog);
 }
-
-function setupCronJob(io, jobFunction, cronSchedule) {
-  cron.schedule(cronSchedule, () => {
-    if (!isJobRunning) {
-      addJobToQueue(() => jobFunction());
-      executeNextCronJob(io);
-    }
-  });
-}
-
 const emitResponse = (io, eventType, response) => {
-  // Log and emit the response
   logResponseData(response);
   io.emit(eventType, response);
   addToEmittedResponses(response, eventType);
 };
 
 const emitError = (io, errorType, error) => {
-  // Handle and log errors
   const errorDetails = getCustomErrorDetails(error);
-  // logErrorDetails(errorDetails, errorType);
   logError(error, error.message, {
     functionName: 'emitError',
     request: 'ERROR_MESSAGE',
@@ -89,6 +38,73 @@ const emitError = (io, errorType, error) => {
     error: errorDetails,
   });
 };
+async function processCardPriceRequest(data, io) {
+  const userId = data?.userId;
+  const selectedList = data?.data?.selectedList;
+
+  try {
+    if (!userId || !Array.isArray(selectedList)) {
+      throw new CustomError('Invalid inputs provided to scheduleCheckCardPrices.', 400);
+    }
+
+    await checkAndUpdateCardPrices(selectedList, io);
+  } catch (error) {
+    logError(error, error.message, {
+      functionName: 'processCardPriceRequest',
+      request: 'SEND_PRICING_DATA_TO_CLIENT',
+      user: userId || 'No user ID provided',
+      section: 'error',
+      action: 'logs',
+      debug: { selectedList, userId },
+    });
+    emitError(io, 'ERROR', error);
+  }
+}
+
+const addJobToQueue = (job) => {
+  cronQueue.push(job);
+};
+
+const clearQueue = () => {
+  cronQueue.length = 0;
+};
+
+const getQueue = () => {
+  return cronQueue;
+};
+
+const getQueueLength = () => {
+  return cronQueue.length;
+};
+
+function setupCronJob(io, jobFunction, cronSchedule) {
+  // Ensure the jobFunction is a function and cronSchedule is a valid cron string
+  if (typeof jobFunction !== 'function' || typeof cronSchedule !== 'string') {
+    throw new Error('Invalid jobFunction or cronSchedule');
+  }
+
+  cron.schedule(cronSchedule, async () => {
+    if (!isJobRunning) {
+      isJobRunning = true;
+      try {
+        // Execute the job function
+        await jobFunction();
+      } catch (error) {
+        logError(error, error.message, {
+          functionName: 'setupCronJob',
+          request: 'STATUS_UPDATE_CRON',
+          user: 'No user ID provided',
+          section: 'error',
+          action: 'logs',
+          debug: {},
+        });
+        emitError(io, 'ERROR', error);
+      } finally {
+        isJobRunning = false;
+      }
+    }
+  });
+}
 
 const executeNextCronJob = async (io) => {
   if (cronQueue.length === 0 || isJobRunning) return;
@@ -117,11 +133,6 @@ const executeNextCronJob = async (io) => {
   }
 };
 
-function logResponseData(response) {
-  const dataToLog = Array.isArray(response.data) ? response.data.slice(0, 5) : response.data;
-  logData(dataToLog);
-}
-
 function addToEmittedResponses(response, eventType) {
   emittedResponses.push({ index: responseIndex++, eventType, timestamp: new Date(), response });
   getIO().emit('EMITTED_RESPONSES', { message: 'YES', data: emittedResponses.slice(-25) });
@@ -132,35 +143,6 @@ function getCustomErrorDetails(error) {
     ? error
     : new CustomError(error.message || 'An error occurred', 500, true, error);
 }
-
-// function logErrorDetails(errorDetails, errorType) {
-//   logToAllSpecializedLoggers('error', errorDetails.message, {
-//     section: 'error',
-//     action: 'logs',
-//     error: errorDetails,
-//   });
-//   logToAllSpecializedLoggers('error', errorDetails.message, {
-//     section: 'error',
-//     action: 'file',
-//     error: errorDetails,
-//   });
-// }
-
-const addJobToQueue = (job) => {
-  cronQueue.push(job);
-};
-
-const clearQueue = () => {
-  cronQueue.length = 0;
-};
-
-const getQueue = () => {
-  return cronQueue;
-};
-
-const getQueueLength = () => {
-  return cronQueue.length;
-};
 
 const getEmittedResponses = () => {
   return emittedResponses;

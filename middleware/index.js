@@ -3,6 +3,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const unifiedErrorHandler = require('./unifiedErrorHandler');
 const { logToAllSpecializedLoggers } = require('./infoLogger');
+const { logData } = require('../utils/loggingUtils');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_TEST_KEY);
 require('colors');
 // Middleware to add a unique identifier to each request
@@ -19,6 +20,12 @@ const logRequestDetails = (req, eventType, message, duration = null) => {
     url: req.originalUrl,
     section: eventType,
     message: message,
+    data: {
+      body: req.body,
+      query: req.query,
+      params: req.params,
+      headers: req.headers,
+    },
   };
 
   if (duration !== null) {
@@ -31,6 +38,7 @@ const logRequestDetails = (req, eventType, message, duration = null) => {
     { data: logInfo, section: 'request' },
     'log',
   );
+  logData(req.body);
 };
 
 const handleStripePayment = async (req, res, next) => {
@@ -88,11 +96,11 @@ function applyCustomMiddleware(app) {
   });
 
   // Unified error-handling middleware
-  app.use((err, req, res, next) => {
+  app.use((error, req, res, next) => {
     if (res.headersSent) {
-      return next(err);
+      return next(error);
     }
-    unifiedErrorHandler(err, req, res, next);
+    unifiedErrorHandler(error, req, res, next);
   });
 }
 

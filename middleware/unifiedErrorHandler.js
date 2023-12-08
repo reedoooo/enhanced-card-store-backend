@@ -1,5 +1,7 @@
+const { logError } = require('../utils/loggingUtils');
 const CustomError = require('./customError');
-const { loggers, logToAllSpecializedLoggers } = require('./infoLogger');
+const colors = require('colors');
+const { loggers } = require('./infoLogger');
 
 // Handle the error and return a structured response
 const handleError = (error, context = {}) => {
@@ -25,16 +27,9 @@ const handleError = (error, context = {}) => {
 // Unified error handler for Express.js
 const unifiedErrorHandler = (error, req, res, next) => {
   // Log the error to all specialized loggers
-  logToAllSpecializedLoggers('error', error.message, { section: 'error', error }, 'error');
-  logToAllSpecializedLoggers('info', 'TEST LOG', { section: 'info' }, 'info');
+  // logError(error, error.message, { section: 'error', error }, 'error');
 
-  if (loggers.transports.length === 0) {
-    console.error('No transports found for logger. Add a transport before using.');
-  } else {
-    loggers.error(error.message, { error });
-  }
-
-  const { status, message } = handleError(error, { section: 'error', req });
+  const { status, message } = handleError(error, { req });
 
   if (res.headersSent) {
     return next(error);
