@@ -1,6 +1,4 @@
 const { getIO } = require('./socket');
-const { handleUpdateAndSync } = require('./controllers/userControllerUtilities');
-const { MESSAGES, SOURCES } = require('./constants');
 require('colors');
 const {
   processCardPriceRequest,
@@ -8,7 +6,7 @@ const {
   emitError,
   emitResponse,
 } = require('./utils/cronUtils');
-const { trackCardPrices } = require('./utils/cronPriceTracking');
+// const { trackCardPrices } = require('./utils/cronPriceTracking');
 const { logData, logError } = require('./utils/loggingUtils');
 
 // Helper Functions
@@ -29,25 +27,15 @@ const handleMessageFromClient = (socket, io) => {
 const handleCheckCardPrices = (socket, io) => {
   socket.on('REQUEST_CRON_UPDATED_CARDS_IN_COLLECTION', async (data) => {
     try {
-      // Check if selectedList is long enough
       if (data?.data?.selectedList?.length >= 5) {
-        await processCardPriceRequest(data, io);
-
-        // Setup cron job only if the list is long enough
-        setupCronJob(getIO(), trackCardPrices, '*/2 * * * *'); // Tracks card prices every 2 minutes
+        setupCronJob(io, () => processCardPriceRequest(data, io), '*/2 * * * *');
       } else {
-        logData('Waiting for selectedList to have at least 5 items.');
+        logData('Waiting for selectedList to have at least 5 items.', data?.data?.selectedList);
       }
     } catch (error) {
       emitError(io, 'ERROR', error);
       logError(error);
     }
-  });
-};
-
-const handleDisconnect = (socket) => {
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
   });
 };
 
@@ -61,14 +49,9 @@ const handleGenericEvent = (socket, eventType) => {
   });
 };
 
-const handleUpdateAndSyncCollectionSocket = (socket, io) => {
-  socket.on('HANDLE_UPDATE_AND_SYNC_COLLECTION', async ({ userId, collectionId, body }) => {
-    try {
-      const result = await handleUpdateAndSync(userId, collectionId, body);
-      emitResponse(io, 'COLLECTION_SYNCED', MESSAGES.COLLECTION_SYNCED, result);
-    } catch (error) {
-      emitError(io, 'ERROR', error, SOURCES.HANDLE_UPDATE_AND_SYNC_COLLECTION_SOCKET);
-    }
+const handleDisconnect = (socket) => {
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
   });
 };
 
@@ -92,7 +75,6 @@ const setupSocketEvents = () => {
 
     events.forEach((eventType) => handleGenericEvent(socket, eventType));
     handleCheckCardPrices(socket, io);
-    handleUpdateAndSyncCollectionSocket(socket, io);
     handleMessageFromClient(socket, io);
     handleDisconnect(socket);
   });

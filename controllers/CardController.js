@@ -1,11 +1,6 @@
-const express = require('express');
-const router = express.Router();
-// const Card = require('../models/Card');
 const axios = require('axios');
 const User = require('../models/User');
-const Collection = require('../models/Collection');
 const CardInCollection = require('../models/CardInCollection');
-const { logError, logData } = require('../utils/loggingUtils');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
@@ -173,6 +168,7 @@ const cardController = {
 
       // Loop through the card updates
       for (const update of cardUpdates) {
+        // logData(update);
         const cardIndex = collection.cards.findIndex((card) => card.id.toString() === update.id);
         if (cardIndex !== -1) {
           // Update existing card in the collection

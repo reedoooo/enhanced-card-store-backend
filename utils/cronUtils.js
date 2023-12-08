@@ -2,24 +2,26 @@ const CustomError = require('../middleware/customError');
 const cron = require('node-cron');
 const { getIO } = require('../socket');
 const { logError, logData } = require('./loggingUtils');
-const { trackCardPrices } = require('./cronPriceTracking');
-const { ERROR_TYPES } = require('../constants');
+// const { trackCardPrices } = require('./cronPriceTracking');
+// const { ERROR_TYPES } = require('../constants');
+const { checkAndUpdateCardPrices } = require('./test');
 
 let emittedResponses = [];
 const cronQueue = [];
 let responseIndex = 0;
 let isJobRunning = false;
+function logResponseData(response) {
+  const dataToLog = Array.isArray(response.data) ? response.data.slice(0, 5) : response.data;
+  logData(dataToLog);
+}
 const emitResponse = (io, eventType, response) => {
-  // Log and emit the response
   logResponseData(response);
   io.emit(eventType, response);
   addToEmittedResponses(response, eventType);
 };
 
 const emitError = (io, errorType, error) => {
-  // Handle and log errors
   const errorDetails = getCustomErrorDetails(error);
-  // logErrorDetails(errorDetails, errorType);
   logError(error, error.message, {
     functionName: 'emitError',
     request: 'ERROR_MESSAGE',
@@ -38,23 +40,14 @@ const emitError = (io, errorType, error) => {
 };
 async function processCardPriceRequest(data, io) {
   const userId = data?.userId;
-  console.log('USERID ------> ', userId);
   const selectedList = data?.data?.selectedList;
-  const monitoredCards = selectedList || [];
+
   try {
-    if (!userId || !Array.isArray(monitoredCards)) {
+    if (!userId || !Array.isArray(selectedList)) {
       throw new CustomError('Invalid inputs provided to scheduleCheckCardPrices.', 400);
     }
-    const updates = await trackCardPrices(monitoredCards, userId);
 
-    logData(updates);
-    emitResponse(io, 'SEND_PRICING_DATA_TO_CLIENT', {
-      message: 'Card prices checked',
-      data: {
-        message: 'Card prices checked',
-        updates,
-      },
-    });
+    await checkAndUpdateCardPrices(selectedList, io);
   } catch (error) {
     logError(error, error.message, {
       functionName: 'processCardPriceRequest',
@@ -62,20 +55,53 @@ async function processCardPriceRequest(data, io) {
       user: userId || 'No user ID provided',
       section: 'error',
       action: 'logs',
-      debug: {
-        /* relevant debug info */
-      },
+      debug: { selectedList, userId },
     });
-
     emitError(io, 'ERROR', error);
   }
 }
 
+const addJobToQueue = (job) => {
+  cronQueue.push(job);
+};
+
+const clearQueue = () => {
+  cronQueue.length = 0;
+};
+
+const getQueue = () => {
+  return cronQueue;
+};
+
+const getQueueLength = () => {
+  return cronQueue.length;
+};
+
 function setupCronJob(io, jobFunction, cronSchedule) {
-  cron.schedule(cronSchedule, () => {
+  // Ensure the jobFunction is a function and cronSchedule is a valid cron string
+  if (typeof jobFunction !== 'function' || typeof cronSchedule !== 'string') {
+    throw new Error('Invalid jobFunction or cronSchedule');
+  }
+
+  cron.schedule(cronSchedule, async () => {
     if (!isJobRunning) {
-      addJobToQueue(() => jobFunction());
-      executeNextCronJob(io);
+      isJobRunning = true;
+      try {
+        // Execute the job function
+        await jobFunction();
+      } catch (error) {
+        logError(error, error.message, {
+          functionName: 'setupCronJob',
+          request: 'STATUS_UPDATE_CRON',
+          user: 'No user ID provided',
+          section: 'error',
+          action: 'logs',
+          debug: {},
+        });
+        emitError(io, 'ERROR', error);
+      } finally {
+        isJobRunning = false;
+      }
     }
   });
 }
@@ -106,27 +132,6 @@ const executeNextCronJob = async (io) => {
     executeNextCronJob(io);
   }
 };
-
-const addJobToQueue = (job) => {
-  cronQueue.push(job);
-};
-
-const clearQueue = () => {
-  cronQueue.length = 0;
-};
-
-const getQueue = () => {
-  return cronQueue;
-};
-
-const getQueueLength = () => {
-  return cronQueue.length;
-};
-
-function logResponseData(response) {
-  const dataToLog = Array.isArray(response.data) ? response.data.slice(0, 5) : response.data;
-  logData(dataToLog);
-}
 
 function addToEmittedResponses(response, eventType) {
   emittedResponses.push({ index: responseIndex++, eventType, timestamp: new Date(), response });

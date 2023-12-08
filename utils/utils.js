@@ -186,12 +186,6 @@ const handleValidationErrors = (req, res, next) => {
   }
 };
 
-// Enhanced error logging
-// const logError = (message, error) => {
-//   logToAllSpecializedLoggers('error', message, { section: 'errors', error }, 'log');
-// };
-
-// Enhanced info logging
 const logInfo = (message, status, data) => {
   logToAllSpecializedLoggers(
     'info',
@@ -241,11 +235,21 @@ const createCollectionObject = (body, userId) => {
     chartData: {
       name: body.chartData?.name || `Chart for ${body.name || 'Collection'}`,
       userId: body.chartData?.userId || body.userId || userId,
-      datasets: Array.isArray(body.chartData?.datasets) ? body.chartData.datasets : [],
+      // datasets: Array.isArray(body.chartData?.datasets) ? body.chartData.datasets : [],
       allXYValues: Array.isArray(body.chartData?.allXYValues) ? body.chartData.allXYValues : [],
       // xys: Array.isArray(body.chartData?.xys) ? body.chartData.xys : [],
     },
   };
+};
+
+const formatDateTime = (date) => {
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+
+  return `${day}/${month}/${year}, ${hours}:${minutes}`;
 };
 
 module.exports = {
@@ -273,4 +277,5 @@ module.exports = {
   generateToken,
   validateVarType,
   createCollectionObject,
+  formatDateTime,
 };
