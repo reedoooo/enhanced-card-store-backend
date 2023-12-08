@@ -145,11 +145,6 @@ const updateUserCollections = async (userId, updatedData) => {
       collection.dailyPriceChange = (collection.totalPrice - previousDayTotalPrice).toString();
       collection.updatedAt = new Date();
 
-      if (!collection.totalPrice && typeof collection.totalCost === 'string') {
-        collection.totalPrice = parseFloat(collection.totalCost);
-        collection.dailyPriceChange = (collection.totalPrice - previousDayTotalPrice).toString();
-      }
-
       updateCurrentChartDataSets(collection);
       await collection.save();
 

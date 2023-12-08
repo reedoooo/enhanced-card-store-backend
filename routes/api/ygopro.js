@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const User = require('../../models/User');
+const CardInCollection = require('../../models/CardInCollection'); // Import your CardInCollection model
 const { default: mongoose } = require('mongoose');
 
 const router = express.Router();
@@ -13,7 +14,6 @@ const axiosInstance = axios.create({
 //   const response = await axiosInstance.get(`/cardinfo.php?id=${encodeURIComponent(cardId)}`);
 //   return response.data.data[0];
 // };
-
 // POST endpoint for fetching card information
 router.post('/', async (req, res, next) => {
   const { name, race, type, level, attribute } = req.body;
@@ -24,44 +24,109 @@ router.post('/', async (req, res, next) => {
       `/cardinfo.php?${queryBuilder(name, race, type, level, attribute)}`,
     );
     console.log('response:', response.data.data);
-    const tcgplayerPrice = response?.data?.map?.(
-      (card) => card?.card_prices[0]?.tcgplayer_price || 0,
-    );
-    const cardsWithQuantity = response?.data?.data.map((card) => ({
-      ...card,
-      quantity: 0,
-      price: tcgplayerPrice,
-      totalPrice: 0,
-      lastSavedPrice: {
-        num: tcgplayerPrice,
-        timestamp: Date.now(),
-      },
-      latestPrice: {
-        num: tcgplayerPrice,
-        timestamp: Date.now(),
-      },
-      priceHistory: [
-        {
+
+    const transformedCards = response.data.data.map((card) => {
+      const tcgplayerPrice = card.card_prices[0]?.tcgplayer_price || 0;
+
+      return {
+        id: card.id.toString(),
+        name: card.name,
+        type: card.type,
+        frameType: card.frameType,
+        desc: card.desc,
+        atk: card.atk,
+        def: card.def,
+        level: card.level,
+        race: card.race,
+        attribute: card.attribute,
+        archetype: [], // Assuming logic to determine this
+        image: card.card_images.length > 0 ? card.card_images[0].image_url : '',
+        card_sets: card.card_sets,
+        card_images: card.card_images,
+        card_prices: card.card_prices,
+        quantity: 0,
+        price: tcgplayerPrice,
+        totalPrice: 0,
+        lastSavedPrice: {
           num: tcgplayerPrice,
           timestamp: Date.now(),
         },
-      ],
-      dailyPriceHistory: [
-        {
+        latestPrice: {
           num: tcgplayerPrice,
           timestamp: Date.now(),
         },
-      ],
-    }));
-    console.log('cardsWithQuantity:', cardsWithQuantity);
-    res.json({ ...response.data, data: cardsWithQuantity });
+        priceHistory: [
+          {
+            num: tcgplayerPrice,
+            timestamp: Date.now(),
+          },
+        ],
+        dailyPriceHistory: [
+          {
+            num: tcgplayerPrice,
+            timestamp: Date.now(),
+          },
+        ],
+        // Add other fields and transformations as needed
+      };
+    });
+
+    console.log('Transformed Cards:', transformedCards);
+    res.json({ ...response.data, data: transformedCards });
   } catch (error) {
     console.error('Error fetching card information:', error);
     res.status(500).send({ error: 'Internal Server Error' });
-
     next(error);
   }
 });
+// // POST endpoint for fetching card information
+// router.post('/', async (req, res, next) => {
+//   const { name, race, type, level, attribute } = req.body;
+
+//   console.log('req.body:', req.body);
+//   try {
+//     const response = await axiosInstance.get(
+//       `/cardinfo.php?${queryBuilder(name, race, type, level, attribute)}`,
+//     );
+//     console.log('response:', response.data.data);
+//     const tcgplayerPrice = response?.data?.map?.(
+//       (card) => card?.card_prices[0]?.tcgplayer_price || 0,
+//     );
+//     const cardsWithQuantity = response?.data?.data.map((card) => ({
+//       ...card,
+//       quantity: 0,
+//       price: tcgplayerPrice,
+//       totalPrice: 0,
+//       lastSavedPrice: {
+//         num: tcgplayerPrice,
+//         timestamp: Date.now(),
+//       },
+//       latestPrice: {
+//         num: tcgplayerPrice,
+//         timestamp: Date.now(),
+//       },
+//       priceHistory: [
+//         {
+//           num: tcgplayerPrice,
+//           timestamp: Date.now(),
+//         },
+//       ],
+//       dailyPriceHistory: [
+//         {
+//           num: tcgplayerPrice,
+//           timestamp: Date.now(),
+//         },
+//       ],
+//     }));
+//     console.log('cardsWithQuantity:', cardsWithQuantity);
+//     res.json({ ...response.data, data: cardsWithQuantity });
+//   } catch (error) {
+//     console.error('Error fetching card information:', error);
+//     res.status(500).send({ error: 'Internal Server Error' });
+
+//     next(error);
+//   }
+// });
 // PATCH endpoint for updating a single card's information
 // Utility function to check for missing or invalid data in a card
 // function checkCardData(card) {
@@ -123,7 +188,7 @@ router.patch('/:cardId', async (req, res) => {
     const user = await User.findById(userId).populate('allCollections');
     if (!user) {
       // If user is not found, send an appropriate response
-      return res.status(404).json({ message: 'User not found', userId: userId });
+      return res.status(404).json({ message: 'User not found2', userId: userId });
     }
     const { data } = await axiosInstance.get(`/cardinfo.php?id=${encodeURIComponent(cardId)}`);
     let updatedCardInfo = data?.data[0];

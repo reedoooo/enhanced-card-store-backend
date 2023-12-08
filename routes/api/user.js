@@ -22,15 +22,15 @@ router.post('/:userId/decks', asyncHandler(UserController.createNewDeck));
 router.post('/:userId/collections', asyncHandler(UserController.createNewCollection));
 router.get('/:userId/collections', asyncHandler(UserController.getAllCollectionsForUser));
 router.post(
-  '/:userId/collections/:collectionId/updateCards',
+  '/:userId/collections/:collectionId/add',
   asyncHandler(UserController.addCardsToCollection),
 );
 router.delete(
-  '/:userId/collections/:collectionId/removeCards',
+  '/:userId/collections/:collectionId/remove',
   asyncHandler(UserController.removeCardsFromCollection),
 );
 router.put(
-  '/:userId/collections/:collectionId/updateCards',
+  '/:userId/collections/:collectionId/update',
   asyncHandler(UserController.updateCardsInCollection),
 );
 router.put(

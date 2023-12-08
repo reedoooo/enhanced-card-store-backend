@@ -1,11 +1,15 @@
 // utils.js
 // const { default: rateLimit } = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
 const { default: mongoose } = require('mongoose');
-const { GENERAL } = require('../constants');
+const { GENERAL, MESSAGES, STATUS } = require('../constants');
 const CustomError = require('../middleware/customError');
 const User = require('../models/User');
-const { logError } = require('./loggingUtils');
+// const { logError } = require('./loggingUtils');
 const { default: axios } = require('axios');
+const { validationResult } = require('express-validator');
+const { logToAllSpecializedLoggers } = require('../middleware/infoLogger');
+const { logError } = require('./loggingUtils');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
@@ -41,8 +45,28 @@ const roundMoney = (value) => {
   return parseFloat(value.toFixed(2));
 };
 
-// Additional helper functions that single out logic
 const ensureNumber = (value) => Number(value);
+const ensureString = (value) => String(value);
+const ensureBoolean = (value) => Boolean(value);
+const ensureArray = (value) => (Array.isArray(value) ? value : []);
+const ensureObject = (value) => (typeof value === 'object' ? value : {});
+
+const validateVarType = (value, type) => {
+  switch (type) {
+    case 'number':
+      return ensureNumber(value);
+    case 'string':
+      return ensureString(value);
+    case 'boolean':
+      return ensureBoolean(value);
+    case 'array':
+      return ensureArray(value);
+    case 'object':
+      return ensureObject(value);
+    default:
+      return value;
+  }
+};
 
 const findUserById = async (userId) => {
   const users = await User.find();
@@ -108,6 +132,122 @@ const getCardInfo = async (cardId) => {
   }
 };
 
+const convertPrice = (price) => {
+  if (typeof price === 'string') {
+    const convertedPrice = parseFloat(price);
+    if (isNaN(convertedPrice)) throw new Error(`Invalid price value: ${price}`);
+    return convertedPrice;
+  }
+  return price;
+};
+
+const filterUniqueCards = (cards) => {
+  const uniqueCardIds = new Set();
+  return cards.filter((card) => {
+    const cardId = typeof card.id === 'number' ? String(card.id) : card.id;
+    if (!uniqueCardIds.has(cardId)) {
+      uniqueCardIds.add(cardId);
+      return true;
+    }
+    return false;
+  });
+};
+
+const handleDuplicateYValuesInDatasets = (card) => {
+  if (card.chart_datasets && Array.isArray(card.chart_datasets)) {
+    const yValuesSet = new Set(
+      card.chart_datasets.map((dataset) => dataset.data && dataset.data[0]?.xy?.y),
+    );
+    return card.chart_datasets.filter((dataset) => {
+      const yValue = dataset.data && dataset.data[0]?.xy?.y;
+      if (yValuesSet.has(yValue)) {
+        yValuesSet.delete(yValue);
+        return true;
+      }
+      return false;
+    });
+  }
+  return card.chart_datasets;
+};
+
+const validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+const handleValidationErrors = (req, res, next) => {
+  // Handle validation errors which means that the request failed validation
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    const error = new CustomError(MESSAGES.VALIDATION_ERROR, STATUS.BAD_REQUEST, true, {
+      validationErrors: errors.array(),
+    });
+    return next(error); // Pass the error to the next error-handling middleware
+  }
+  if (next) {
+    next();
+  }
+};
+
+// Enhanced error logging
+// const logError = (message, error) => {
+//   logToAllSpecializedLoggers('error', message, { section: 'errors', error }, 'log');
+// };
+
+// Enhanced info logging
+const logInfo = (message, status, data) => {
+  logToAllSpecializedLoggers(
+    'info',
+    status.green + ' | ' + message,
+    { section: 'info', data: data },
+    'log',
+  );
+};
+// Utility: Extract Data
+const extractData = ({ body }) => {
+  const { login_data, basic_info, ...otherInfo } = body;
+  return { login_data, basic_info, otherInfo };
+};
+const generateToken = (userData) => {
+  return jwt.sign(userData, process.env.SECRET_KEY || 'YOUR_SECRET_KEY');
+};
+const createCollectionObject = (body, userId) => {
+  return {
+    userId: body.userId || userId, // Use userId from body if available, else use the passed userId
+    name: body.name || '',
+    description: body.description || '',
+    totalPrice: body.totalPrice || 0,
+    quantity: body.quantity || 0,
+    totalQuantity: body.totalQuantity || 0,
+    dailyPriceChange: body.dailyPriceChange || '',
+    priceDifference: body.priceDifference || 0,
+    priceChange: body.priceChange || 0,
+    previousDayTotalPrice: body.previousDayTotalPrice || 0,
+    latestPrice: {
+      num: body.latestPrice?.num || 0,
+      timestamp: body.latestPrice?.timestamp || new Date(),
+    },
+    lastSavedPrice: {
+      num: body.lastSavedPrice?.num || 0,
+      timestamp: body.lastSavedPrice?.timestamp || new Date(),
+    },
+    cards: Array.isArray(body.cards) ? body.cards : [],
+    currentChartDataSets2: Array.isArray(body.currentChartDataSets2)
+      ? body.currentChartDataSets2
+      : [],
+    collectionPriceHistory: Array.isArray(body.collectionPriceHistory)
+      ? body.collectionPriceHistory
+      : [],
+    dailyCollectionPriceHistory: Array.isArray(body.dailyCollectionPriceHistory)
+      ? body.dailyCollectionPriceHistory
+      : [],
+    chartData: {
+      name: body.chartData?.name || `Chart for ${body.name || 'Collection'}`,
+      userId: body.chartData?.userId || body.userId || userId,
+      datasets: Array.isArray(body.chartData?.datasets) ? body.chartData.datasets : [],
+      allXYValues: Array.isArray(body.chartData?.allXYValues) ? body.chartData.allXYValues : [],
+      // xys: Array.isArray(body.chartData?.xys) ? body.chartData.xys : [],
+    },
+  };
+};
+
 module.exports = {
   // postLimiter,
   findUser,
@@ -122,4 +262,15 @@ module.exports = {
   convertUserIdToObjectId,
   respondWithError,
   getCardInfo,
+  convertPrice,
+  filterUniqueCards,
+  handleDuplicateYValuesInDatasets,
+  validateObjectId,
+  handleValidationErrors,
+  logInfo,
+  // logError,
+  extractData,
+  generateToken,
+  validateVarType,
+  createCollectionObject,
 };

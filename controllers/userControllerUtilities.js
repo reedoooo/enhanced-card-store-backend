@@ -7,111 +7,9 @@ const CustomError = require('../middleware/customError');
 const { STATUS, MESSAGES, GENERAL } = require('../constants');
 const { validateDataset } = require('../middleware/validation/validateDataset');
 const { validateXY } = require('../middleware/validation/validateXY');
-const { logCollection } = require('../utils/collectionLogTracking');
 const MonitoredCard = require('../models/MonitoredCard');
-exports.handleNotFound = (resource, res) => {
-  logger.infoLogger(`${resource} not found`);
-  throw new CustomError(`${resource} ${MESSAGES.NOT_FOUND}`, STATUS.NOT_FOUND);
-};
-exports.validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
-exports.handleValidationErrors = (req, res, next) => {
-  // Handle validation errors which means that the request failed validation
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    const error = new CustomError(MESSAGES.VALIDATION_ERROR, STATUS.BAD_REQUEST, true, {
-      validationErrors: errors.array(),
-    });
-    return next(error); // Pass the error to the next error-handling middleware
-  }
-  if (next) {
-    next();
-  }
-};
-exports.handleDuplicateYValuesInDatasets = (card) => {
-  // Filter out duplicate y values in datasets
-  if (card.chart_datasets && Array.isArray(card.chart_datasets)) {
-    const yValuesSet = new Set(
-      card.chart_datasets.map((dataset) => dataset.data && dataset.data[0]?.xy?.y),
-    );
-    return card.chart_datasets.filter((dataset) => {
-      const yValue = dataset.data && dataset.data[0]?.xy?.y;
-      if (yValuesSet.has(yValue)) {
-        yValuesSet.delete(yValue);
-        return true;
-      }
-      return false;
-    });
-  }
-  return card.chart_datasets;
-};
-exports.filterUniqueCards = (cards) => {
-  // Filter out duplicate cards
-  const uniqueCardIds = new Set();
-  return cards.filter((card) => {
-    const cardId = typeof card.id === 'number' ? String(card.id) : card.id;
-    if (!uniqueCardIds.has(cardId)) {
-      uniqueCardIds.add(cardId);
-      return true;
-    }
-    return false;
-  });
-};
-exports.filterData = (data) => {
-  // Filter out duplicate x values and y values
-  const xValues = new Set();
-  const yValues = new Set();
-  return data.filter((item) => {
-    if (xValues.has(item.x) || yValues.has(this.roundToTenth(item.y)) || item.y === 0) {
-      return false;
-    }
-    xValues.add(item.x);
-    yValues.add(this.roundToTenth(item.y));
-    return true;
-  });
-};
-exports.convertPrice = (price) => {
-  // converts the price from string to number
-  if (typeof price === 'string') {
-    const convertedPrice = parseFloat(price);
-    if (isNaN(convertedPrice)) throw new Error(`Invalid price value: ${price}`);
-    return convertedPrice;
-  }
-  return price;
-};
-exports.determineTotalPrice = (totalPrice, totalCost, existingPrice) => {
-  console.log('[8][DETERMINING UPDATED PRICE TO RETURN] --> totalPrice', totalPrice);
-  console.log('[8][DETERMINING UPDATED PRICE TO RETURN] --> totalCost', totalCost);
-  console.log('[8][DETERMINING UPDATED PRICE TO RETURN] --> existingPrice', existingPrice);
+const { logData } = require('../utils/loggingUtils');
 
-  if (totalPrice === 0 && totalCost) {
-    return parseFloat(totalCost);
-  } else {
-    return totalPrice || existingPrice;
-  }
-};
-exports.roundToTenth = (num) => {
-  return Math.round(num * 10) / 10;
-};
-exports.ensureCollectionExists = async (userId) => {
-  try {
-    const collection = await Collection.findOne({ userId });
-    if (!collection) {
-      const newCollection = new Collection({ userId });
-      await newCollection.save();
-      return newCollection;
-    }
-    return collection;
-  } catch (error) {
-    throw new CustomError(
-      `${MESSAGES.FAILED_TO_ENSURE_COLLECTION_EXISTS}: ${error.message}`,
-      STATUS.INTERNAL_SERVER_ERROR,
-      true,
-      {
-        userId,
-      },
-    );
-  }
-};
 const updateOrCreateDataset = (existingCollection, incomingDataset) => {
   let datasetToUpdate = existingCollection.chartData.datasets.find(
     (dataset) => dataset.name === incomingDataset.name,
@@ -199,6 +97,89 @@ const logError = (message, error) => {
 };
 const logInfo = (message, data) => {
   logToAllSpecializedLoggers('info', message, { section: 'info', data: data }, 'log');
+};
+exports.handleNotFound = (resource, res) => {
+  logger.infoLogger(`${resource} not found`);
+  throw new CustomError(`${resource} ${MESSAGES.NOT_FOUND}`, STATUS.NOT_FOUND);
+};
+exports.handleDuplicateYValuesInDatasets = (card) => {
+  // Filter out duplicate y values in datasets
+  if (card.chart_datasets && Array.isArray(card.chart_datasets)) {
+    const yValuesSet = new Set(
+      card.chart_datasets.map((dataset) => dataset.data && dataset.data[0]?.xy?.y),
+    );
+    return card.chart_datasets.filter((dataset) => {
+      const yValue = dataset.data && dataset.data[0]?.xy?.y;
+      if (yValuesSet.has(yValue)) {
+        yValuesSet.delete(yValue);
+        return true;
+      }
+      return false;
+    });
+  }
+  return card.chart_datasets;
+};
+exports.filterUniqueCards = (cards) => {
+  // Filter out duplicate cards
+  const uniqueCardIds = new Set();
+  return cards.filter((card) => {
+    const cardId = typeof card.id === 'number' ? String(card.id) : card.id;
+    if (!uniqueCardIds.has(cardId)) {
+      uniqueCardIds.add(cardId);
+      return true;
+    }
+    return false;
+  });
+};
+exports.filterData = (data) => {
+  // Filter out duplicate x values and y values
+  const xValues = new Set();
+  const yValues = new Set();
+  return data.filter((item) => {
+    if (xValues.has(item.x) || yValues.has(this.roundToTenth(item.y)) || item.y === 0) {
+      return false;
+    }
+    xValues.add(item.x);
+    yValues.add(this.roundToTenth(item.y));
+    return true;
+  });
+};
+exports.convertPrice = (price) => {
+  // converts the price from string to number
+  if (typeof price === 'string') {
+    const convertedPrice = parseFloat(price);
+    if (isNaN(convertedPrice)) throw new Error(`Invalid price value: ${price}`);
+    return convertedPrice;
+  }
+  return price;
+};
+exports.determineTotalPrice = (totalPrice, existingPrice) => {
+  console.log('[8][DETERMINING UPDATED PRICE TO RETURN] --> totalPrice', totalPrice);
+  console.log('[8][DETERMINING UPDATED PRICE TO RETURN] --> existingPrice', existingPrice);
+  return totalPrice || existingPrice;
+};
+exports.roundToTenth = (num) => {
+  return Math.round(num * 10) / 10;
+};
+exports.ensureCollectionExists = async (userId) => {
+  try {
+    const collection = await Collection.findOne({ userId });
+    if (!collection) {
+      const newCollection = new Collection({ userId });
+      await newCollection.save();
+      return newCollection;
+    }
+    return collection;
+  } catch (error) {
+    throw new CustomError(
+      `${MESSAGES.FAILED_TO_ENSURE_COLLECTION_EXISTS}: ${error.message}`,
+      STATUS.INTERNAL_SERVER_ERROR,
+      true,
+      {
+        userId,
+      },
+    );
+  }
 };
 
 exports.handleIncomingDatasets = async (existingCollection, incomingDatasets) => {
@@ -516,20 +497,16 @@ exports.updateCollectionFields = (collection, updateFields) => {
   const fieldsToUpdate = [
     'name',
     'description',
-    'totalCost',
     'totalPrice',
     'quantity',
     'totalQuantity',
     'dailyPriceChange',
     'dailyPercentChange',
     'updatedAt',
-    'xys',
     'collectionPriceHistory',
     'priceDifference',
     'priceChange',
     'previousDayTotalPrice',
-    'allCardPrices',
-    'currentChartDataSets',
     'currentChartDataSets2',
   ];
 
@@ -588,7 +565,7 @@ exports.handleUpdateAndSync = async (params, body) => {
       logInfo('UPDATE AND SYNC SUCCESSFUL', {
         data: updatedCollection.toObject(),
       });
-      logCollection(updatedCollection);
+      logData(updatedCollection);
 
       // Update the user's allCollections with the updated collection
       const updatedCollectionIndex = user.allCollections.findIndex(
@@ -646,7 +623,7 @@ exports.handleUpdateAndSync = async (params, body) => {
       }
     }
   }
-  logCollection('error', 'MAX ATTEMPTS EXCEEDED', {
+  logData('error', 'MAX ATTEMPTS EXCEEDED', {
     userId: params.userId,
     collectionId: params.collectionId,
   });
