@@ -1,195 +1,213 @@
 // const Cart = require('../models/Cart');
 // const User = require('../models/User');
-// const mongoose = require('mongoose');
 
-// exports.getUserCart = async (req, res, next) => {
-//   const { userId } = req.params;
+// const cartController = {
+//   getUserCart: async (req, res, next) => {
+//     const { userId } = req.params;
 
-//   try {
-//     const user = await User.findById(userId).populate('cart');
-//     if (!user) {
-//       return res.status(404).json({ error: 'User not found' });
-//     }
-//     if (!user.cart) {
-//       const newCart = new Cart({ userId, totalPrice: 0, quantity: 0, cart: [] });
-//       await newCart.save();
-//       user.cart = newCart;
-//       await user.save();
-//       return res.status(200).json(newCart);
-//     }
-//     res.status(200).json(user.cart);
-//   } catch (error) {
-//     console.error(error);
-//     next(error);
-//   }
-// };
-
-// exports.updateCart = async (req, res, next) => {
-//   const { userId, cartItems } = req.body;
-
-//   if (!Array.isArray(cartItems)) {
-//     return res.status(400).json({ error: 'Cart must be an array' });
-//   }
-
-//   try {
-//     const user = await User.findById(userId);
-//     if (!user) {
-//       return res.status(404).json({ error: 'User not found' });
-//     }
-
-//     let currentCart = await Cart.findById(user.cart._id);
-//     if (!currentCart) {
-//       currentCart = new Cart({ userId: user._id, cart: [] });
-//     }
-
-//     // Updated logic to handle cart items
-//     currentCart.updateCartItems(cartItems);
-//     await currentCart.save();
-
-//     // Update the user's cart reference if necessary
-//     if (!user.cart) {
-//       user.cart = currentCart;
-//       await user.save();
-//     }
-
-//     res.json(currentCart);
-//   } catch (error) {
-//     console.error(error.stack);
-//     res.status(500).json({ error: 'Server error' });
-//     next(error);
-//   }
-// };
-
-// exports.createEmptyCart = async (req, res, next) => {
-//   const { userId } = req.body;
-
-//   try {
-//     let cart = await Cart.findOne({ userId });
-
-//     if (!cart) {
-//       cart = new Cart({ userId, cart: [] });
-//       await cart.save();
-//     }
-
-//     res.json(cart);
-//   } catch (error) {
-//     if (error.code === 11000) {
-//       res.status(409).json({ error: 'A cart for this user already exists.' });
-//     } else {
+//     console.log('userId', userId);
+//     try {
+//       const user = await User.findById(userId).populate('cart');
+//       if (!user || !user.cart) {
+//         const newCart = new Cart({ userId, totalPrice: 0, quantity: 0, cart: [] });
+//         await newCart.save();
+//         user.cart = newCart._id;
+//         await user.save();
+//       } else {
+//         res.status(200).json(user?.cart);
+//       }
+//     } catch (error) {
 //       console.error(error);
 //       next(error);
 //     }
-//   }
+//   },
+
+//   updateCart: async (req, res, next) => {
+//     const { userId, cartItems } = req.body;
+
+//     if (!Array.isArray(cartItems)) {
+//       return res.status(400).json({ error: 'Cart must be an array' });
+//     }
+
+//     try {
+//       const user = await User.findById(userId);
+//       if (!user) {
+//         return res.status(404).json({ error: 'User not found' });
+//       }
+
+//       let currentCart = await Cart.findById(user.cart);
+//       if (!currentCart) {
+//         currentCart = new Cart({ userId: user._id, cart: [] });
+//       }
+
+//       let updatedCart = [...currentCart.cart];
+
+//       for (let item of cartItems) {
+//         const { id, quantity: newQuantity } = item;
+
+//         const existingItemIndex = updatedCart.findIndex(
+//           (cartItem) => cartItem.id.toString() === id.toString(),
+//         );
+
+//         if (existingItemIndex > -1) {
+//           if (newQuantity === 0) {
+//             updatedCart.splice(existingItemIndex, 1);
+//           } else {
+//             updatedCart[existingItemIndex].quantity = newQuantity;
+//             console.log('New value for existing item', updatedCart[existingItemIndex]);
+//           }
+//         } else if (newQuantity > 0) {
+//           updatedCart.push(item);
+//         }
+//       }
+
+//       currentCart.cart = updatedCart;
+
+//       await currentCart.save();
+
+//       await user.save();
+//       if (!user.cart) {
+//         user.cart = currentCart._id;
+//         await user.save();
+//       }
+
+//       res.json(currentCart);
+//     } catch (error) {
+//       console.error(error.stack);
+//       res.status(500).json({ error: 'Server error' });
+//       next(error);
+//     }
+//   },
+
+//   createEmptyCart: async (req, res, next) => {
+//     const { userId } = req.body;
+
+//     try {
+//       let cart = await Cart.findOne({ userId });
+
+//       if (!cart) {
+//         cart = new Cart({
+//           userId,
+//           cart: [],
+//         });
+//         await cart.save();
+//       }
+
+//       res.json(cart);
+//     } catch (error) {
+//       if (error.code === 11000) {
+//         res.status(409).json({ error: 'A cart for this user already exists.' });
+//       } else {
+//         console.error(error);
+//         next(error);
+//       }
+//     }
+//   },
 // };
-const Cart = require('../models/Cart');
-const User = require('../models/User');
 
-exports.getUserCart = async (req, res, next) => {
-  const { userId } = req.params;
+// module.exports = cartController;
 
-  console.log('userId', userId);
-  try {
-    const user = await User.findById(userId).populate('cart');
-    if (!user || !user.cart) {
-      const newCart = new Cart({ userId, totalPrice: 0, quantity: 0, cart: [] });
-      await newCart.save();
-      user.cart = newCart._id;
-      await user.save();
-    } else {
-      res.status(200).json(user?.cart);
-    }
-  } catch (error) {
-    console.error(error);
-    next(error);
-  }
-};
+// // const Cart = require('../models/Cart');
+// // const User = require('../models/User');
 
-exports.updateCart = async (req, res, next) => {
-  const { userId, cartItems } = req.body;
+// // exports.getUserCart = async (req, res, next) => {
+// //   const { userId } = req.params;
 
-  if (!Array.isArray(cartItems)) {
-    return res.status(400).json({ error: 'Cart must be an array' });
-  }
+// //   console.log('userId', userId);
+// //   try {
+// //     const user = await User.findById(userId).populate('cart');
+// //     if (!user || !user.cart) {
+// //       const newCart = new Cart({ userId, totalPrice: 0, quantity: 0, cart: [] });
+// //       await newCart.save();
+// //       user.cart = newCart._id;
+// //       await user.save();
+// //     } else {
+// //       res.status(200).json(user?.cart);
+// //     }
+// //   } catch (error) {
+// //     console.error(error);
+// //     next(error);
+// //   }
+// // };
 
-  try {
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+// // exports.updateCart = async (req, res, next) => {
+// //   const { userId, cartItems } = req.body;
 
-    let currentCart = await Cart.findById(user.cart);
-    if (!currentCart) {
-      currentCart = new Cart({ userId: user._id, cart: [] });
-    }
+// //   if (!Array.isArray(cartItems)) {
+// //     return res.status(400).json({ error: 'Cart must be an array' });
+// //   }
 
-    let updatedCart = [...currentCart.cart];
+// //   try {
+// //     const user = await User.findById(userId);
+// //     if (!user) {
+// //       return res.status(404).json({ error: 'User not found' });
+// //     }
 
-    for (let item of cartItems) {
-      const { id, quantity: newQuantity } = item;
+// //     let currentCart = await Cart.findById(user.cart);
+// //     if (!currentCart) {
+// //       currentCart = new Cart({ userId: user._id, cart: [] });
+// //     }
 
-      const existingItemIndex = updatedCart.findIndex(
-        (cartItem) => cartItem.id.toString() === id.toString(),
-      );
+// //     let updatedCart = [...currentCart.cart];
 
-      // If the item already exists in the cart, update the quantity
-      if (existingItemIndex > -1) {
-        // If the new quantity is 0, remove the item from the cart
-        if (newQuantity === 0) {
-          updatedCart.splice(existingItemIndex, 1);
-        } else {
-          // Otherwise, update the quantity
-          updatedCart[existingItemIndex].quantity = newQuantity;
-          console.log('New value for existing item', updatedCart[existingItemIndex]);
-        }
-      } else if (newQuantity > 0) {
-        updatedCart.push(item);
-      }
-    }
+// //     for (let item of cartItems) {
+// //       const { id, quantity: newQuantity } = item;
 
-    currentCart.cart = updatedCart;
+// //       const existingItemIndex = updatedCart.findIndex(
+// //         (cartItem) => cartItem.id.toString() === id.toString(),
+// //       );
 
-    await currentCart.save();
+// //       if (existingItemIndex > -1) {
+// //         if (newQuantity === 0) {
+// //           updatedCart.splice(existingItemIndex, 1);
+// //         } else {
+// //           updatedCart[existingItemIndex].quantity = newQuantity;
+// //           console.log('New value for existing item', updatedCart[existingItemIndex]);
+// //         }
+// //       } else if (newQuantity > 0) {
+// //         updatedCart.push(item);
+// //       }
+// //     }
 
-    await user.save();
-    // Update the user's cart reference if necessary
-    if (!user.cart) {
-      user.cart = currentCart._id;
-      await user.save();
-    }
+// //     currentCart.cart = updatedCart;
 
-    res.json(currentCart);
-  } catch (error) {
-    console.error(error.stack);
-    res.status(500).json({ error: 'Server error' });
-    next(error);
-  }
-};
+// //     await currentCart.save();
 
-// Create Empty Cart
-exports.createEmptyCart = async (req, res, next) => {
-  const { userId } = req.body;
+// //     await user.save();
+// //     if (!user.cart) {
+// //       user.cart = currentCart._id;
+// //       await user.save();
+// //     }
 
-  try {
-    // Check if a cart for the user already exists
-    let cart = await Cart.findOne({ userId });
+// //     res.json(currentCart);
+// //   } catch (error) {
+// //     console.error(error.stack);
+// //     res.status(500).json({ error: 'Server error' });
+// //     next(error);
+// //   }
+// // };
 
-    if (!cart) {
-      // Create a new cart if none exists
-      cart = new Cart({
-        userId,
-        cart: [],
-      });
-      await cart.save();
-    }
+// // exports.createEmptyCart = async (req, res, next) => {
+// //   const { userId } = req.body;
 
-    res.json(cart);
-  } catch (error) {
-    if (error.code === 11000) {
-      // Handle duplicate key error specifically
-      res.status(409).json({ error: 'A cart for this user already exists.' });
-    } else {
-      console.error(error);
-      next(error);
-    }
-  }
-};
+// //   try {
+// //     let cart = await Cart.findOne({ userId });
+
+// //     if (!cart) {
+// //       cart = new Cart({
+// //         userId,
+// //         cart: [],
+// //       });
+// //       await cart.save();
+// //     }
+
+// //     res.json(cart);
+// //   } catch (error) {
+// //     if (error.code === 11000) {
+// //       res.status(409).json({ error: 'A cart for this user already exists.' });
+// //     } else {
+// //       console.error(error);
+// //       next(error);
+// //     }
+// //   }
+// // };

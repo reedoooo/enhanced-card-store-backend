@@ -1,50 +1,25 @@
 // utils.js
-// const { default: rateLimit } = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const { default: mongoose } = require('mongoose');
 const { GENERAL, MESSAGES, STATUS } = require('../constants');
 const CustomError = require('../middleware/customError');
 const User = require('../models/User');
-// const { logError } = require('./loggingUtils');
 const { default: axios } = require('axios');
 const { validationResult } = require('express-validator');
-const { logToAllSpecializedLoggers } = require('../middleware/infoLogger');
-const { logError } = require('./loggingUtils');
+
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
-// // rateLimiter Middleware
-// const postLimiter = rateLimit({
-//   windowMs: 60 * 1000,
-//   max: 10,
-//   message: 'Too many requests created from this IP, please try again after a minute',
-// });
+const calculatePriceDifference = (initialPrice, updatedPrice) => initialPrice - updatedPrice;
 
-function asyncHandler(fn) {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch((error) => {
-      next(error);
-    });
+const calculateNewTotalPrice = (totalPrice, priceDifference) => totalPrice + priceDifference;
+
+const splitDateTime = (date) => {
+  return {
+    date: date.toISOString().split('T')[0], // e.g., "2023-05-01"
+    time: date.toTimeString().split(' ')[0], // e.g., "12:01:35"
   };
-}
-
-const convertUserIdToObjectId = (userId) => {
-  try {
-    return mongoose.Types.ObjectId(userId);
-  } catch (error) {
-    throw new CustomError('Failed to convert user ID to ObjectId', 400, true, {
-      function: 'convertUserIdToObjectId',
-      userId,
-      error: error.message,
-      stack: error.stack,
-    });
-  }
 };
-
-const roundMoney = (value) => {
-  return parseFloat(value.toFixed(2));
-};
-
 const ensureNumber = (value) => Number(value);
 const ensureString = (value) => String(value);
 const ensureBoolean = (value) => Boolean(value);
@@ -67,6 +42,31 @@ const validateVarType = (value, type) => {
       return value;
   }
 };
+const validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+function asyncHandler(fn) {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch((error) => {
+      next(error);
+    });
+  };
+}
+const convertUserIdToObjectId = (userId) => {
+  try {
+    return mongoose.Types.ObjectId(userId);
+  } catch (error) {
+    throw new CustomError('Failed to convert user ID to ObjectId', 400, true, {
+      function: 'convertUserIdToObjectId',
+      userId,
+      error: error.message,
+      stack: error.stack,
+    });
+  }
+};
+
+const roundMoney = (value) => {
+  return parseFloat(value.toFixed(2));
+};
 
 const findUserById = async (userId) => {
   const users = await User.find();
@@ -77,21 +77,8 @@ const findUser = async (username) => {
   return await User.findOne({ 'login_data.username': username });
 };
 
-const calculatePriceDifference = (initialPrice, updatedPrice) => initialPrice - updatedPrice;
-
-const calculateNewTotalPrice = (totalPrice, priceDifference) => totalPrice + priceDifference;
-
-const splitDateTime = (date) => {
-  // Your implementation of splitting date and time based on your format
-  return {
-    date: date.toISOString().split('T')[0], // e.g., "2023-05-01"
-    time: date.toTimeString().split(' ')[0], // e.g., "12:01:35"
-  };
-};
-
 async function updateDocumentWithRetry(model, update, options = {}, retryCount = 0) {
   try {
-    // Try to update the document
     const updated = await model.findOneAndUpdate({ _id: update._id }, update, {
       new: true,
       runValidators: true,
@@ -115,12 +102,6 @@ async function updateDocumentWithRetry(model, update, options = {}, retryCount =
     throw error;
   }
 }
-
-const respondWithError = (res, status, message, errorDetails) => {
-  console.error(message, errorDetails);
-  logError(message, errorDetails);
-  res.status(status).json({ message, errorDetails });
-};
 
 const getCardInfo = async (cardId) => {
   try {
@@ -170,8 +151,6 @@ const handleDuplicateYValuesInDatasets = (card) => {
   return card.chart_datasets;
 };
 
-const validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
-
 const handleValidationErrors = (req, res, next) => {
   // Handle validation errors which means that the request failed validation
   const errors = validationResult(req);
@@ -186,15 +165,6 @@ const handleValidationErrors = (req, res, next) => {
   }
 };
 
-const logInfo = (message, status, data) => {
-  logToAllSpecializedLoggers(
-    'info',
-    status.green + ' | ' + message,
-    { section: 'info', data: data },
-    'log',
-  );
-};
-// Utility: Extract Data
 const extractData = ({ body }) => {
   const { login_data, basic_info, ...otherInfo } = body;
   return { login_data, basic_info, otherInfo };
@@ -252,8 +222,38 @@ const formatDateTime = (date) => {
   return `${day}/${month}/${year}, ${hours}:${minutes}`;
 };
 
+const calculateCollectionValue = (cards) => {
+  if (!cards?.cards && !Array.isArray(cards) && !cards?.name && !cards?.restructuredCollection) {
+    console.warn('Invalid or missing collection', cards);
+    return 0;
+  }
+
+  if (cards?.tag === 'new') {
+    return 0;
+  }
+  if (cards?.restructuredCollection) {
+    return cards?.restructuredCollection?.cards.reduce((totalValue, card) => {
+      const cardPrice = card?.price || 0;
+      const cardQuantity = card?.quantity || 0;
+      return totalValue + cardPrice * cardQuantity;
+    }, 0);
+  }
+  if (cards?.cards && Array.isArray(cards?.cards)) {
+    return cards?.cards.reduce((totalValue, card) => {
+      const cardPrice = card?.price || 0;
+      const cardQuantity = card?.quantity || 0;
+      return totalValue + cardPrice * cardQuantity;
+    }, 0);
+  }
+
+  return cards.reduce((totalValue, card) => {
+    const cardPrice = card.price || 0;
+    const cardQuantity = card.quantity || 0;
+    return totalValue + cardPrice * cardQuantity;
+  }, 0);
+};
+
 module.exports = {
-  // postLimiter,
   findUser,
   asyncHandler,
   splitDateTime,
@@ -264,18 +264,16 @@ module.exports = {
   calculateNewTotalPrice,
   updateDocumentWithRetry,
   convertUserIdToObjectId,
-  respondWithError,
   getCardInfo,
   convertPrice,
   filterUniqueCards,
   handleDuplicateYValuesInDatasets,
   validateObjectId,
   handleValidationErrors,
-  logInfo,
-  // logError,
   extractData,
   generateToken,
   validateVarType,
   createCollectionObject,
   formatDateTime,
+  calculateCollectionValue,
 };

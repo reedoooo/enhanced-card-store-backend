@@ -1,7 +1,7 @@
 const express = require('express');
 // const rateLimit = require('express-rate-limit');
-const CartController = require('../../controllers/CartController');
 const { asyncHandler } = require('../../utils/utils');
+const cartController = require('../../controllers/CartController');
 
 const router = express.Router();
 
@@ -17,14 +17,14 @@ const router = express.Router();
 // router.use(limiter);
 
 // get cart by user id
-router.get('/userCart/:userId', asyncHandler(CartController.getUserCart));
+router.get('/userCart/:userId', asyncHandler(cartController.getUserCart));
 
 // new cart
 // router.post('/:userId/createEmptyCart', cartController.createEmptyCart);
-router.post('/createEmptyCart', asyncHandler(CartController.createEmptyCart));
+router.post('/createEmptyCart', asyncHandler(cartController.createEmptyCart));
 
 // update cart by cart id
-router.put('/:cartId/update', asyncHandler(CartController.updateCart));
+router.put('/:cartId/update', asyncHandler(cartController.updateCart));
 
 // router.get('/:cartId', cartController.getCart); // Route changed to /:cartId
 // router.put('/:cartId/decrease', cartController.decreaseItemQuantity); // new route for decreasing item quantity

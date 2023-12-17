@@ -1,7 +1,7 @@
-const { logToAllSpecializedLoggers } = require('../infoLogger');
+const { loggers, logToSpecializedLogger } = require('../infoLogger');
 
 function logValidationError(message, card) {
-  logToAllSpecializedLoggers('error', message, { section: 'errors', data: card }, 'log');
+  logToSpecializedLogger('error', message, { section: 'errors', data: card }, 'log');
 }
 
 module.exports.validateCard = function validateCard(card) {
@@ -53,7 +53,7 @@ module.exports.validateCard = function validateCard(card) {
     return false; // If any errors are present, return false
   }
 
-  logToAllSpecializedLoggers(
+  logToSpecializedLogger(
     'info',
     'Card validated and price corrected if needed',
     { section: 'info', card: card },

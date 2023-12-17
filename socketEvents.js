@@ -4,12 +4,10 @@ const {
   processCardPriceRequest,
   setupCronJob,
   emitError,
-  emitResponse,
+  // emitResponse,
 } = require('./utils/cronUtils');
-// const { trackCardPrices } = require('./utils/cronPriceTracking');
 const { logData, logError } = require('./utils/loggingUtils');
 
-// Helper Functions
 function handleClientMessage(data, io) {
   try {
     console.log('Received from client:', data);
@@ -19,7 +17,6 @@ function handleClientMessage(data, io) {
   }
 }
 
-// Event Handlers
 const handleMessageFromClient = (socket, io) => {
   socket.on('MESSAGE_FROM_CLIENT', (data) => handleClientMessage(data, io));
 };

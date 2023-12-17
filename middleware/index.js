@@ -2,17 +2,10 @@ const express = require('express');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const unifiedErrorHandler = require('./unifiedErrorHandler');
-const { logToAllSpecializedLoggers } = require('./infoLogger');
-const { logData } = require('../utils/loggingUtils');
+const { logToSpecializedLogger } = require('./infoLogger');
+const { logData, logError } = require('../utils/loggingUtils');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_TEST_KEY);
 require('colors');
-// Middleware to add a unique identifier to each request
-const addRequestId = (req, res, next) => {
-  req.id = uuidv4();
-  next();
-};
-
-// Helper function to log request details
 const logRequestDetails = (req, eventType, message, duration = null) => {
   const logInfo = {
     requestId: req.id,
@@ -32,13 +25,27 @@ const logRequestDetails = (req, eventType, message, duration = null) => {
     logInfo.duration = `${duration}ms`;
   }
 
-  logToAllSpecializedLoggers(
+  logToSpecializedLogger(
     'info',
     `Request ${eventType}: ${req.method} ${req.originalUrl}`,
     { data: logInfo, section: 'request' },
     'log',
   );
-  logData(req.body);
+  // console.log('req.body', req.body.cards);
+  if (req.body.cards) {
+    logData(req.body.cards[0]);
+  }
+  if (req.body.card) {
+    logData(req.body.card);
+  }
+  if (req.body.allXYValues) {
+    logData('allXYValues', req.body.allXYValues[0]);
+  }
+  if (req.body.updatedCollection) {
+    logData(req.body.updatedCollection);
+  }
+
+  // logData('LOGGING REQUEST BODY', req.body);
 };
 
 const handleStripePayment = async (req, res, next) => {
@@ -56,26 +63,21 @@ const handleStripePayment = async (req, res, next) => {
 
     res.status(200).json(charge);
   } catch (error) {
-    console.error('Error processing Stripe payment:', error);
+    logError('Error processing Stripe payment', error.message, null, { error, reqId: req.id });
     next(error); // Forward to error handling middleware
   }
 };
 
-// Function to apply custom middleware to the express app
 function applyCustomMiddleware(app) {
-  // Add a unique identifier to each request
   app.use((req, res, next) => {
     req.id = uuidv4();
     next();
   });
 
-  // Stripe payment route
   app.post('/api/stripe/checkout', handleStripePayment);
 
-  // Serve static files
   app.use(express.static(path.join(__dirname, 'public')));
 
-  // Log each request
   app.use((req, res, next) => {
     const start = process.hrtime();
     console.log('[START]'.green + `Request ${req.id}: ${req.method} ${req.originalUrl}`);

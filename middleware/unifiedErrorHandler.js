@@ -1,12 +1,10 @@
-const { logError } = require('../utils/loggingUtils');
 const CustomError = require('./customError');
-const colors = require('colors');
-const { loggers } = require('./infoLogger');
-
+const { logToSpecializedLogger } = require('./infoLogger');
+require('colors');
 // Handle the error and return a structured response
 const handleError = (error, context = {}) => {
   const section = context.section || 'error';
-  const logger = loggers[section] || loggers.error;
+  const logger = logToSpecializedLogger[section] || logToSpecializedLogger.error;
 
   if (error instanceof CustomError) {
     logger.error(error.message, { ...context, stack: error.stack });
@@ -16,7 +14,9 @@ const handleError = (error, context = {}) => {
     };
   }
 
-  logger.error(error.message, { ...context, stack: error.stack });
+  // Use logError from loggingUtils for consistency
+  // logError(error, 'SERVER_ERROR', { ...context, error }, { section: section });
+  console.error('Error logging price change:', error);
 
   return {
     status: error.status || 500,
@@ -26,9 +26,6 @@ const handleError = (error, context = {}) => {
 
 // Unified error handler for Express.js
 const unifiedErrorHandler = (error, req, res, next) => {
-  // Log the error to all specialized loggers
-  // logError(error, error.message, { section: 'error', error }, 'error');
-
   const { status, message } = handleError(error, { req });
 
   if (res.headersSent) {

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const CardBaseSchema = require('./CardBase').schema;
+const CardBaseSchema = require('../models/CardBase').schema;
 
 // Schema for the price entry
 const priceEntrySchema = new mongoose.Schema({

@@ -5,21 +5,22 @@ const Deck = require('../models/Deck');
 const Collection = require('../models/Collection');
 const User = require('../models/User');
 const CardInCollection = require('../models/CardInCollection');
+const Cart = require('../models/Cart');
 
 const CustomError = require('../middleware/customError');
+const { logError, logInfo } = require('../utils/loggingUtils');
+
 const { STATUS, MESSAGES, ERROR_TYPES } = require('../constants');
-const { logToAllSpecializedLoggers } = require('../middleware/infoLogger');
+const { logToSpecializedLogger } = require('../middleware/infoLogger');
 const {
-  respondWithError,
   handleValidationErrors,
   extractData,
-  logInfo,
   generateToken,
   createCollectionObject,
 } = require('../utils/utils');
-const { logError, logData } = require('../utils/loggingUtils');
 const cardController = require('./CardController');
-
+// !--------------------------! USERS !--------------------------!
+// USER ROUTES: SIGNUP / SIGNIN
 exports.signup = async (req, res, next) => {
   try {
     handleValidationErrors(req, res);
@@ -45,6 +46,7 @@ exports.signup = async (req, res, next) => {
         username: username.trim(),
         password: hashedPassword,
         email: email.trim(),
+        role_data: role_data || {},
       },
       basic_info,
       ...otherInfo,
@@ -65,7 +67,7 @@ exports.signup = async (req, res, next) => {
     });
   } catch (error) {
     console.log('Signup Error: ', error);
-    logError('Signup Error: ', error);
+    logError('Signup Error: ', error.message, null, { error });
     next(error);
   }
 };
@@ -76,7 +78,7 @@ exports.signin = async (req, res, next) => {
     const { username, password } = req.body;
 
     if (!process.env.SECRET_KEY) {
-      logToAllSpecializedLoggers('info', { section: 'signin' });
+      logToSpecializedLogger('info', { section: 'signin' });
       throw new CustomError(ERROR_TYPES.SECRET_KEY_MISSING, STATUS.INTERNAL_SERVER_ERROR);
     }
 
@@ -105,14 +107,31 @@ exports.signin = async (req, res, next) => {
     });
   } catch (error) {
     console.log('Signin Error: ', error);
+    logError('Signin Error: ', error.message, null, { error });
     // Use headersSent to check if headers are already sent to the client
     if (!res.headersSent) {
       next(error);
     }
   }
 };
-
-// User Profile Routes
+// USER PROFILE ROUTES (GET, UPDATE, DELETE)
+exports.getUserById = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      throw new CustomError(MESSAGES.USER_NOT_FOUND, STATUS.NOT_FOUND);
+    }
+    // directResponse(res, { data: user });
+    response.status(200).json({
+      message: 'Fetched user data successfully',
+      data: user,
+    });
+  } catch (error) {
+    console.error('Get User By ID Error: ', error);
+    logError('Get User By ID Error: ', error, null, { error });
+    next(error);
+  }
+};
 exports.getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.authData.id);
@@ -120,12 +139,13 @@ exports.getProfile = async (req, res, next) => {
       throw new CustomError(MESSAGES.USER_NOT_FOUND, STATUS.NOT_FOUND);
     }
 
-    response.status(200).json({
+    res.status(200).json({
       message: 'Fetched user data successfully',
       data: user,
     });
   } catch (error) {
     console.error('Get Profile Error: ', error);
+    logError('Get Profile Error: ', error, null, { error });
     next(error);
   }
 };
@@ -143,6 +163,7 @@ exports.updateProfile = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Update Profile Error: ', error);
+    logError('Update Profile Error: ', error, null, { error });
     next(error);
   }
 };
@@ -160,55 +181,33 @@ exports.deleteProfile = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Delete Profile Error: ', error);
-    logError('Delete Profile Error: ', error);
+    logError('Delete Profile Error: ', error, null, { error });
     next(error);
   }
 };
-exports.getUserById = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      throw new CustomError(MESSAGES.USER_NOT_FOUND, STATUS.NOT_FOUND);
-    }
-    // directResponse(res, { data: user });
-    response.status(200).json({
-      message: 'Fetched user data successfully',
-      data: user,
-    });
-  } catch (error) {
-    console.error('Get User By ID Error: ', error);
-    next(error);
-  }
-};
-
-// User Deck Routes
+// !--------------------------! DECKS !--------------------------!
+// DECK ROUTES (GET, CREATE, UPDATE, DELETE)
 exports.getAllDecksForUser = async (req, res, next) => {
   const userId = req.params.userId; // Already validated by middleware
 
   if (!userId) {
-    // Pass the error to the next middleware, which is the unified error handler
     return next(new CustomError('User ID is required', 400));
   }
-  // console.log('User1:', userId);
 
   try {
-    // const user = await User.find({ _id: userId }).populate('allDecks');
-    const user = await User.findById(userId).populate('allDecks');
+    // Fetch user and populate allDecks with cards
+    const user = await User.findById(userId).populate({
+      path: 'allDecks',
+      populate: { path: 'cards' },
+    });
+
     if (!user) {
       logError('User not found', new Error(MESSAGES.USER_NOT_FOUND));
       throw new CustomError(MESSAGES.USER_NOT_FOUND, STATUS.NOT_FOUND);
     }
 
-    // console.log('User2:', user);
-    // console.log('User3:', user.allDecks);
-
-    user.allDecks = user.allDecks || [];
-
-    let decks = await Deck.find({ _id: { $in: user.allDecks } });
-    // const decks = await Deck.find({ _id: { $in: user.allDecks } });
-
-    // console.log('Decks:', decks);
-    if (decks.length === 0) {
+    // Check if user has no decks and create a default one if necessary
+    if (user.allDecks.length === 0) {
       const newDeck = new Deck({
         userId: user._id,
         name: 'Default Deck',
@@ -217,22 +216,14 @@ exports.getAllDecksForUser = async (req, res, next) => {
       });
 
       await newDeck.save();
-      user?.allDecks.push(newDeck._id);
-
-      // await user?.save();
-      await user?.save();
-      decks.push(newDeck);
-
-      // console.log('New deck:', newDeck);
+      user.allDecks.push(newDeck);
+      await user.save();
     }
 
-    // console.log('Decks:', decks);
-
-    // await user?.save();
-    // Directly send a successful response
+    // Note: user.allDecks is already populated with cards at this point
     res.status(200).json({
       message: 'Fetched all decks successfully',
-      data: decks,
+      data: user.allDecks,
     });
   } catch (error) {
     console.error('Error fetching decks:', error);
@@ -242,59 +233,98 @@ exports.getAllDecksForUser = async (req, res, next) => {
 };
 exports.updateAndSyncDeck = async (req, res, next) => {
   try {
-    const { userId, deckId } = req.params;
-    let { cards, description, name, totalPrice } = req.body;
-    const user = await User.findById(req.params.userId).populate('allDecks');
+    const userId = req.params.userId;
+    const deckId = req.params.deckId;
+    const updatedDeckData = req.body;
 
-    console.log('Request body:', req.body);
-
-    // Ensure cards is an array
-    if (!Array.isArray(cards)) {
-      console.error('cards is not an array:', cards);
-      throw new CustomError('Invalid cards format. Expected an array.', 400);
+    // Validate the incoming data
+    if (!userId || !deckId || !updatedDeckData) {
+      return res.status(400).json({ message: 'Invalid request data.' });
     }
 
-    // cards = [{}]
-    // console.log('CARDS', cards);
-
-    const updatedDeck = await Deck.findOneAndUpdate(
-      { _id: deckId, userId },
-      { $set: { cards: cards, name, description, totalPrice } },
-      { new: true },
-    );
-
-    if (!updatedDeck) {
-      throw new CustomError('Deck not found', 404);
+    // Fetch the user and the deck
+    const user = await User.findById(userId).populate('allDecks');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
     }
 
-    await updatedDeck.save();
+    const deck = user?.allDecks?.find((deck) => deck.id === deckId);
+    if (!deck) {
+      return res.status(404).json({ message: 'Deck not found.' });
+    }
 
+    // Update the deck with new data
+    for (const key in updatedDeckData) {
+      if (Object.prototype.hasOwnProperty.call(updatedDeckData, key)) {
+        deck[key] = updatedDeckData[key];
+      }
+    }
+
+    // Save the updated user
     await user.save();
 
-    // Directly send a successful response
-    res.status(200).json({
-      message: 'Deck updated successfully',
-      data: updatedDeck,
-    });
+    // Re-fetch and populate user's allDecks
+    await user.populate({ path: 'allDecks', populate: { path: 'cards' } });
+
+    res.status(200).json({ message: 'Deck updated successfully.', allDecks: user.allDecks });
   } catch (error) {
+    next(error);
+  }
+};
+exports.updateDeckDetails = async (req, res, next) => {
+  try {
+    const { userId, deckId } = req.params;
+    const { name, description, tags, color } = req.body;
+
+    // Validate the incoming data
+    if (!userId || !deckId || !name || !description) {
+      return res.status(400).json({ message: 'Invalid request data.', reqBody: req.body });
+    }
+
+    // Fetch the user and the deck and update the deck with new data
+    let user = await User.findById(userId).populate('allDecks');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const deck = user?.allDecks?.find((deck) => deck.id === deckId);
+    if (!deck) {
+      return res.status(404).json({ message: 'Deck not found.' });
+    }
+
+    deck.name = name;
+    deck.description = description;
+    deck.tags = tags;
+    deck.color = color;
+
+    // Save the updated user
+    await user.save();
+
+    // Re-fetch and populate user's allDecks
+    await user.populate({ path: 'allDecks', populate: { path: 'cards' } });
+
+    res.status(200).json({ message: 'Deck updated successfully.', allDecks: user.allDecks });
+  } catch (error) {
+    console.error('Error updating deck details:', error);
     next(error);
   }
 };
 exports.createNewDeck = async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const { name, description, cards, totalPrice } = req.body;
-    const user = await User.findById(req.params.userId);
+    const { name, description, tags, color, cards, totalPrice } = req.body;
+    const user = await User.findById(req.params.userId).populate('allDecks');
 
     console.log('Request body:', req.body);
-    console.log('Request body:', req.body.name);
-    const newDeck = new Deck({ userId, name, description, cards, totalPrice });
+    const newDeck = new Deck({ userId, name, description, tags, color, cards, totalPrice });
     await newDeck.save();
 
     user.allDecks.push(newDeck._id);
     await user.save();
 
-    // Directly send a successful response
+    // Populate user's allDecks
+    await user.populate({ path: 'allDecks', populate: { path: 'cards' } });
+
     res.status(201).json({
       message: 'New deck created successfully',
       data: newDeck,
@@ -303,125 +333,102 @@ exports.createNewDeck = async (req, res, next) => {
     next(error);
   }
 };
-
-// User Collection: cards in collection routes
-exports.addCardsToCollection = async (req, res, next) => {
-  const { userId, collectionId } = req.params;
-  const { cards } = req.body;
-
-  // console.log('CARDS', cards);
-  if (!Array.isArray(cards)) {
-    // return res.status(400).json({ message: 'Invalid card data, expected an array' });
-    throw new CustomError('Invalid card data, expected an array', 400);
-  }
-
+exports.deleteDeck = async (req, res, next) => {
   try {
-    const updateResult = await cardController.updateExistingCardInUserCollection(
-      userId,
-      collectionId,
-      cards,
-    );
-    res.status(200).json(updateResult);
-  } catch (error) {
-    console.error('Error adding cards to collection:', error);
-    logError('Error adding cards to collection:', error);
-    // res.status(500).json({ message: 'Error adding cards to collection' });
-    next(error);
-  }
-};
-exports.removeCardsFromCollection = async (req, res, next) => {
-  const { userId, collectionId } = req.params;
-  const { cardIds } = req.body;
+    const { userId, deckId } = req.params;
 
-  if (!Array.isArray(cardIds)) {
-    // return res.status(400).json({ message: 'Invalid card IDs' });
-    throw new CustomError('Invalid card IDs', 400);
-  }
-
-  try {
-    // Removing cards from the collection
-    const updateResult = await cardController.removeCardsFromUserCollection(
-      userId,
-      collectionId,
-      cardIds,
-    );
-    res.status(200).json(updateResult);
-  } catch (error) {
-    console.error('Error removing cards from collection:', error);
-    // res.status(500).json({ message: 'Error removing cards from collection' });
-    next(error);
-  }
-};
-exports.updateCardsInCollection = async (req, res, next) => {
-  const { userId, collectionId } = req.params;
-  const { cards, cardIds } = req.body;
-
-  if (!Array.isArray(cards)) {
-    // return res.status(400).json({ message: 'Invalid card data, expected an array' });
-    throw new CustomError('Invalid card data, expected an array', 400);
-  }
-
-  try {
-    const updateResult = await cardController.updateExistingCardInUserCollection(
-      userId,
-      collectionId,
-      cards,
-    );
-    res.status(200).json(updateResult);
-  } catch (error) {
-    console.error('Error updating cards in collection:', error);
-    logError('Error updating cards in collection:', error);
-    // res.status(500).json({ message: 'Error updating cards in collection' });
-    next(error);
-  }
-};
-
-// User Collection: chart data in collection routes
-exports.updateChartDataInCollection = async (req, res, next) => {
-  try {
-    const { collectionId, userId } = req.params;
-    const updatedChartData = req.body.allXYValues;
-    const user = await User.findById(userId).populate('allCollections');
+    // Find user by userId
+    const user = await User.findById(userId).populate('allDecks');
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    const collection = user.allCollections.find((coll) => coll._id.toString() === collectionId);
-
-    if (!collection) {
-      return res.status(404).json({ message: 'Collection not found' });
+    // Find the deck within the user's decks and remove it
+    const deckIndex = user?.allDecks?.findIndex((d) => d._id.toString() === deckId);
+    if (deckIndex === -1) {
+      return res.status(404).json({ error: 'Deck not found' });
     }
 
-    collection.chartData.allXYValues = updatedChartData; // Merge or replace the chart data
-    await collection.save();
+    user?.allDecks?.splice(deckIndex, 1);
+    await user.save();
 
-    await user.populate('allCollections');
-    // logData('Updated chart data', { collectionId, updatedChartData });
-    return res.status(200).json({
-      chartMessage: 'Chart data updated successfully',
-      allXYValues: collection.chartData.allXYValues,
-    });
+    res
+      .status(200) // OK
+      .json({ message: 'Deck deleted successfully', deletedDeckId: deckId });
   } catch (error) {
-    console.error('Error updating cards in updateChartDataInCollection:', error);
-    respondWithError(res, 500, 'Error updating cards in updateChartDataInCollection', error);
-    logError('Error fetching collections', error.message, null, { error });
+    console.error('Error deleting deck:', error);
     next(error);
   }
 };
-// User Collection: custom fields in collection routes
+// DECK ROUTES: CARDS-IN-DECKS ROUTES (GET, ADD, REMOVE, UPDATE)
+exports.addCardsToDeck = async (req, res, next) => {
+  const { userId, deckId } = req.params;
+  const { cards } = req.body;
+  if (!Array.isArray(cards)) {
+    throw new CustomError('Invalid card data, expected an array', 400);
+  }
+
+  try {
+    const updateResult = await cardController.addCardToUserDeck(userId, deckId, cards);
+    console.log('UPDATE RESULT +++++++++++++++', updateResult);
+    res.status(200).json(updateResult);
+  } catch (error) {
+    console.error('Error adding cards to deck:', error);
+    logError('Error adding cards to deck:', error, null, { error });
+    next(error);
+  }
+};
+exports.removeCardsFromDeck = async (req, res, next) => {
+  const { userId, deckId } = req.params;
+  const { cards } = req.body;
+
+  if (!Array.isArray(cards)) {
+    throw new CustomError('Invalid card IDs', 400, true, {
+      cards,
+    });
+  }
+
+  try {
+    const updateResult = await cardController.removeCardsFromUserDeck(userId, deckId, cards);
+    console.log('UPDATE RESULT +++++++++++++++', updateResult);
+    res.status(200).json(updateResult);
+  } catch (error) {
+    console.error('Error removing cards from deck:', error);
+    next(error);
+  }
+};
+exports.updateCardsInDeck = async (req, res, next) => {
+  const { userId, deckId } = req.params;
+  const { cards } = req.body;
+
+  if (!Array.isArray(cards)) {
+    throw new CustomError('Invalid card data, expected an array', 400);
+  }
+
+  try {
+    const updateResult = await cardController.updateExistingCardInUserDeck(userId, deckId, cards);
+    res.status(200).json(updateResult);
+  } catch (error) {
+    console.error('Error updating cards in deck:', error);
+    logError('Error updating cards in deck:', error);
+    next(error);
+  }
+};
+// !--------------------------! COLLECTIONS !--------------------------!
+// COLLECTION ROUTES (GET, CREATE, UPDATE, DELETE)
 exports.getAllCollectionsForUser = async (req, res, next) => {
   const { userId } = req.params;
 
   try {
-    console.log('USER ID --------', userId);
-    const user = await User.findById(userId).populate({
+    let user = await User.findById(userId).populate({
       path: 'allCollections',
-      populate: { path: 'cards' }, // This line populates the 'cards' field within each collection
+      populate: { path: 'cards' },
     });
 
     if (!user) {
-      throw new CustomError('User not found', 404);
+      console.error('User not found:', userId);
+      return; // Or handle this scenario appropriately
     }
 
     // Re-populate the 'cards' field for each collection
@@ -441,7 +448,6 @@ exports.getAllCollectionsForUser = async (req, res, next) => {
     next(error);
   }
 };
-
 exports.createNewCollection = async (req, res, next) => {
   try {
     const userId = req.params.userId;
@@ -565,7 +571,6 @@ exports.deleteCollection = async (req, res, next) => {
       return res.status(404).json({ error: 'Collection not found' });
     }
 
-    // Remove the collection and save the user
     user.allCollections?.splice(collectionIndex, 1);
     await user.save();
 
@@ -574,8 +579,207 @@ exports.deleteCollection = async (req, res, next) => {
       .json({ message: 'Collection deleted successfully', deletedCollectionId: collectionId });
   } catch (error) {
     console.error('Error updating collection in deleteCollection:', error);
-    // loggers.error('Error updating cards:', error);
-    respondWithError(res, 500, 'Error updating collection in deleteCollection', error);
+    logToSpecializedLogger('error', { section: 'deleteCollection' });
+    next(error);
+  }
+};
+// COLLECTION ROUTES: CHARTS-IN-COLLECTION ROUTES (UPDATE)
+exports.updateChartDataInCollection = async (req, res, next) => {
+  try {
+    const { collectionId, userId } = req.params;
+    const updatedChartData = req.body.allXYValues;
+    const user = await User.findById(userId).populate('allCollections');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const collection = user.allCollections.find((coll) => coll._id.toString() === collectionId);
+
+    if (!collection) {
+      return res.status(404).json({ message: 'Collection not found' });
+    }
+
+    collection.chartData.allXYValues = updatedChartData; // Merge or replace the chart data
+    await collection.save();
+
+    await user.populate('allCollections');
+    return res.status(200).json({
+      chartMessage: 'Chart data updated successfully',
+      allXYValues: collection.chartData.allXYValues,
+    });
+  } catch (error) {
+    console.error('Error updating cards in updateChartDataInCollection:', error);
+    logError('Error fetching collections', error.message, null, { error });
+    next(error);
+  }
+};
+
+// COLLECTION ROUTES: CARDS-IN-COLLECTION Routes (GET, CREATE, UPDATE, DELETE)
+exports.addCardsToCollection = async (req, res, next) => {
+  const { userId, collectionId } = req.params;
+  const { cards } = req.body;
+
+  // console.log('CARDS', cards);
+  if (!Array.isArray(cards)) {
+    // return res.status(400).json({ message: 'Invalid card data, expected an array' });
+    throw new CustomError('Invalid card data, expected an array', 400);
+  }
+
+  try {
+    const updateResult = await cardController.updateExistingCardInUserCollection(
+      userId,
+      collectionId,
+      cards,
+    );
+    res.status(200).json(updateResult);
+  } catch (error) {
+    console.error('Error adding cards to collection:', error);
+    logError('Error adding cards to collection:', error);
+    // res.status(500).json({ message: 'Error adding cards to collection' });
+    next(error);
+  }
+};
+exports.removeCardsFromCollection = async (req, res, next) => {
+  const { userId, collectionId } = req.params;
+  const { updatedCards } = req.body;
+
+  if (!Array.isArray(updatedCards)) {
+    // return res.status(400).json({ message: 'Invalid card IDs' });
+    throw new CustomError('Invalid card IDs', 400);
+  }
+
+  try {
+    // Removing cards from the collection
+    const updateResult = await cardController.removeCardsFromUserCollection(
+      userId,
+      collectionId,
+      updatedCards,
+    );
+    console.log('UPDATE RESULT +++++++++++++++', updateResult);
+    res.status(200).json(updateResult);
+  } catch (error) {
+    console.error('Error removing cards from collection:', error);
+    // res.status(500).json({ message: 'Error removing cards from collection' });
+    next(error);
+  }
+};
+exports.updateCardsInCollection = async (req, res, next) => {
+  const { userId, collectionId } = req.params;
+  const { cards } = req.body;
+
+  if (!Array.isArray(cards)) {
+    // return res.status(400).json({ message: 'Invalid card data, expected an array' });
+    throw new CustomError('Invalid card data, expected an array', 400);
+  }
+
+  try {
+    const updateResult = await cardController.updateExistingCardInUserCollection(
+      userId,
+      collectionId,
+      cards,
+    );
+    res.status(200).json(updateResult);
+  } catch (error) {
+    console.error('Error updating cards in collection:', error);
+    logError('Error updating cards in collection:', error);
+    // res.status(500).json({ message: 'Error updating cards in collection' });
+    next(error);
+  }
+};
+// !--------------------------! CARTS !--------------------------!
+// CART ROUTES (GET, CREATE, UPDATE)
+exports.getUserCart = async (req, res, next) => {
+  const { userId } = req.params;
+
+  try {
+    const user = await User.findById(userId).populate('cart');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (!user.cart) {
+      const newCart = new Cart({ userId, totalPrice: 0, quantity: 0, items: [] });
+      await newCart.save();
+      user.cart = newCart._id;
+      await user.save();
+      return res.status(200).json(newCart);
+    }
+    return res.status(200).json(user.cart);
+  } catch (error) {
+    console.error(error);
+    next(error);
+  }
+};
+exports.createEmptyCart = async (req, res, next) => {
+  const { userId } = req.params;
+
+  try {
+    let cart = await Cart.findOne({ userId });
+    if (cart) {
+      return res.status(409).json({ error: 'A cart for this user already exists.' });
+    }
+
+    cart = new Cart({ userId, items: [] });
+    await cart.save();
+    return res.status(201).json(cart);
+  } catch (error) {
+    console.error(error);
+    next(error);
+  }
+};
+exports.updateCart = async (req, res, next) => {
+  const { userId, cartItems } = req.body;
+
+  if (!Array.isArray(cartItems)) {
+    return res.status(400).json({ error: 'Cart must be an array' });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    let currentCart = await Cart.findById(user.cart);
+    if (!currentCart) {
+      currentCart = new Cart({ userId: user._id, cart: [] });
+    }
+
+    let updatedCart = [...currentCart.cart];
+
+    for (let item of cartItems) {
+      const { id, quantity: newQuantity } = item;
+
+      const existingItemIndex = updatedCart.findIndex(
+        (cartItem) => cartItem.id.toString() === id.toString(),
+      );
+
+      if (existingItemIndex > -1) {
+        if (newQuantity === 0) {
+          updatedCart.splice(existingItemIndex, 1);
+        } else {
+          updatedCart[existingItemIndex].quantity = newQuantity;
+          console.log('New value for existing item', updatedCart[existingItemIndex]);
+        }
+      } else if (newQuantity > 0) {
+        updatedCart.push(item);
+      }
+    }
+
+    currentCart.cart = updatedCart;
+
+    await currentCart.save();
+
+    await user.save();
+    if (!user.cart) {
+      user.cart = currentCart._id;
+      await user.save();
+    }
+
+    res.json(currentCart);
+  } catch (error) {
+    console.error(error.stack);
+    res.status(500).json({ error: 'Server error' });
     next(error);
   }
 };

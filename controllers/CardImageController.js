@@ -2,7 +2,6 @@ const fs = require('fs').promises;
 const download = require('image-downloader');
 const path = require('path');
 const { respondWithError } = require('../utils/utils');
-const { logData } = require('../utils/loggingUtils');
 const { FILE_CONSTANTS } = require('../constants');
 
 async function loadData() {
