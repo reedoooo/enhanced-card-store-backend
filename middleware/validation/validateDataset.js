@@ -1,11 +1,11 @@
-const { logToAllSpecializedLoggers } = require('../infoLogger');
+const { loggers, logToSpecializedLogger } = require('../infoLogger');
 const ERROR_TYPES = require('../../constants');
 require('colors');
 
 // Function to log validation errors
 function logValidationError(error, errorIndex) {
   const errorMessage = `[${errorIndex}][DATASET VALIDATION] `.red + `${error.message}`.white;
-  logToAllSpecializedLoggers('error', errorMessage, { section: 'errors', data: error.data }, 'log');
+  logToSpecializedLogger('error', errorMessage, { section: 'errors', data: error.data }, 'log');
   console.error(errorMessage, error.data);
 }
 

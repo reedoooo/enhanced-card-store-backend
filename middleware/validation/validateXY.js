@@ -1,10 +1,10 @@
-const { logToAllSpecializedLoggers } = require('../infoLogger');
+const { loggers, logToSpecializedLogger } = require('../infoLogger');
 let errors = [];
 
 function logValidationError(message, dataset) {
   // logToAllSpecializedLoggers(message, { section: 'error' });
 
-  logToAllSpecializedLoggers(
+  logToSpecializedLogger(
     'error',
     // 'ERROR IN VALIDATEXY',
     `[L${errors.length - 1}--B][XY VALIDATION] ` + message,

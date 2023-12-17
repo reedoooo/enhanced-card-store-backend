@@ -1,10 +1,5 @@
 const mongoose = require('mongoose');
-const Deck = require('./Deck');
-const { CronDataSchema } = require('./CronData');
-const { collectionSchema, ChartDataSchema } = require('./Collection');
-
 const { Schema } = mongoose;
-// const cartInfo = require('./Cart.js');
 
 const baseInfo = new Schema({
   name: { type: String, required: true },
@@ -34,14 +29,9 @@ const UserSchema = new Schema(
       type: securityInfo,
       required: true,
     },
-    // cards: [{ type: Schema.Types.ObjectId, ref: 'CardBase' }],
     allDecks: [{ type: Schema.Types.ObjectId, ref: 'Deck' }],
     allCollections: [{ type: Schema.Types.ObjectId, ref: 'Collection' }],
-    allChartDatas: [{ type: Schema.Types.ObjectId, ref: 'ChartData' }],
-    allCronDatas: [{ type: Schema.Types.ObjectId, ref: 'CronData' }],
     cart: { type: Schema.Types.ObjectId, ref: 'Cart' }, // Added this line
-
-    // allCronData: [CronDataSchema],
   },
   { timestamps: true },
 );

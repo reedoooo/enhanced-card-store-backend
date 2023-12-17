@@ -2,9 +2,8 @@ const CustomError = require('../middleware/customError');
 const cron = require('node-cron');
 const { getIO } = require('../socket');
 const { logError, logData } = require('./loggingUtils');
-// const { trackCardPrices } = require('./cronPriceTracking');
-// const { ERROR_TYPES } = require('../constants');
 const { checkAndUpdateCardPrices } = require('./test');
+const CardInCollection = require('../models/CardInCollection');
 
 let emittedResponses = [];
 const cronQueue = [];
@@ -12,7 +11,7 @@ let responseIndex = 0;
 let isJobRunning = false;
 function logResponseData(response) {
   const dataToLog = Array.isArray(response.data) ? response.data.slice(0, 5) : response.data;
-  logData(dataToLog);
+  logData('LOGGING RESPONSE DATA', dataToLog);
 }
 const emitResponse = (io, eventType, response) => {
   logResponseData(response);
@@ -38,6 +37,34 @@ const emitError = (io, errorType, error) => {
     error: errorDetails,
   });
 };
+
+// Helper function to create a new chart data entry
+const createChartDataEntry = (price) => {
+  return {
+    date: new Date(),
+    price: price,
+  };
+};
+
+const updateChartDataForCards = async (selectedList) => {
+  // Map each card to a promise that updates its data
+  const updatePromises = selectedList.map(async (card) => {
+    const cardInCollection = await CardInCollection.findOne({ id: card.id });
+
+    if (cardInCollection) {
+      const newChartDataEntry = createChartDataEntry(cardInCollection.latestPrice.num);
+      cardInCollection.chart_datasets.push(newChartDataEntry);
+      return cardInCollection.save(); // Return the promise
+    } else {
+      console.error(`Card with ID ${card.id} not found in CardInCollection`);
+      return Promise.resolve(); // Return a resolved promise for non-existing cards
+    }
+  });
+
+  // Wait for all update operations to complete
+  await Promise.all(updatePromises);
+};
+
 async function processCardPriceRequest(data, io) {
   const userId = data?.userId;
   const selectedList = data?.data?.selectedList;
@@ -47,7 +74,10 @@ async function processCardPriceRequest(data, io) {
       throw new CustomError('Invalid inputs provided to scheduleCheckCardPrices.', 400);
     }
 
-    await checkAndUpdateCardPrices(selectedList, io);
+    await checkAndUpdateCardPrices(userId, selectedList, io);
+
+    // Schedule the chart data update job if it hasn't been scheduled
+    scheduleUpdateChartDataJob(io, selectedList);
   } catch (error) {
     logError(error, error.message, {
       functionName: 'processCardPriceRequest',
@@ -131,6 +161,13 @@ const executeNextCronJob = async (io) => {
     isJobRunning = false;
     executeNextCronJob(io);
   }
+};
+
+// Function to schedule the chart data update job
+const scheduleUpdateChartDataJob = (io, selectedList) => {
+  const cronSchedule = '0 10 * * *'; // Every day at midnight
+
+  setupCronJob(io, () => updateChartDataForCards(selectedList), cronSchedule);
 };
 
 function addToEmittedResponses(response, eventType) {

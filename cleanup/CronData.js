@@ -13,16 +13,13 @@ const RunSchema = new mongoose.Schema({
   updated: Date, // The time the cron job ran
   valuesUpdated: {
     updatedPrices: [CardPriceUpdateSchema], // Array of card price updates
-    // previousDayTotalPrice: Number, // Previous day's total price
     cardsWithPriceHistory: Array, // Array of cards with changed prices
     pricingData: {
-      // Object containing pricing data
       updatedPrices: Object,
       previousPrices: Object,
       priceDifferences: Object,
       totalDifference: Number,
     },
-    // You can add more fields here as needed
   },
 });
 
