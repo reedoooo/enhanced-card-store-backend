@@ -6,6 +6,7 @@ const CustomError = require('../middleware/customError');
 const User = require('../models/User');
 const { default: axios } = require('axios');
 const { validationResult } = require('express-validator');
+const Collection = require('../models/Collection');
 
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
@@ -150,6 +151,92 @@ const handleDuplicateYValuesInDatasets = (card) => {
   }
   return card.chart_datasets;
 };
+/**
+ * Creates a new chart data entry with the current date and time.
+ * @param {number} yValue - The y value to be added to the chart data entry.
+ * @returns {object} - The new chart data entry.
+ */
+async function filterUniqueYValues(collectionId) {
+  try {
+    // Retrieve the collection
+    let collection = await Collection.findById(collectionId);
+    if (!collection) {
+      throw new Error('Collection not found');
+    }
+
+    // Get the allXYValues array from the collection's chartData
+    const allXYValues = collection.chartData.allXYValues;
+
+    // Create a new array to hold the filtered values
+    const uniqueYValues = [];
+
+    // Create a Set to track seen y values
+    const seenYValues = new Set();
+
+    // Filter out duplicate y values
+    allXYValues.forEach((item) => {
+      if (!seenYValues.has(item.y)) {
+        seenYValues.add(item.y); // Mark the y value as seen
+        uniqueYValues.push(item); // Add the item to the filtered list
+      }
+    });
+
+    // Logging the filtered data
+    console.log('Filtered and updated collection XY values with unique Y values', uniqueYValues[0]);
+    // Return the filtered array with unique y values
+    return uniqueYValues;
+  } catch (error) {
+    console.error('Failed to filter unique Y values:', error);
+  }
+}
+
+/**
+ * Filters the dailyCollectionPriceHistory to ensure that only the first data point
+ * in each 24-hour period is kept.
+ * @param {mongoose.Types.ObjectId} collectionId - The ID of the collection to filter.
+ */
+async function filterDailyCollectionPriceHistory(collectionId) {
+  try {
+    // Retrieve the collection
+    let collection = await Collection.findById(collectionId);
+    if (!collection) {
+      throw new Error('Collection not found');
+    }
+
+    // Ensure the data is sorted by timestamp
+    collection.dailyCollectionPriceHistory.sort((a, b) => a.timestamp - b.timestamp);
+
+    // Filter out entries that are less than 24 hours apart from the next timestamp
+    const filteredHistory = collection.dailyCollectionPriceHistory.reduce(
+      (acc, current, index, array) => {
+        // Always keep the first element
+        if (index === 0) {
+          acc.push(current);
+        } else {
+          const previousTimestamp = array[index - 1].timestamp;
+          const currentTimestamp = current.timestamp;
+          const timeDiff = currentTimestamp - previousTimestamp;
+
+          // If the difference is 24 hours or more, keep the current item
+          if (timeDiff >= 86400000) {
+            // 86,400,000 milliseconds in 24 hours
+            acc.push(current);
+          }
+        }
+        return acc;
+      },
+      [],
+    );
+
+    // Update the collection with the filtered history
+    // collection.dailyCollectionPriceHistory = filteredHistory;
+    // await collection.save();
+    console.log('Filtered and updated collection price history', filteredHistory);
+    return filteredHistory;
+  } catch (error) {
+    console.error('Failed to filter daily collection price history:', error);
+  }
+}
 
 const handleValidationErrors = (req, res, next) => {
   // Handle validation errors which means that the request failed validation
@@ -276,4 +363,6 @@ module.exports = {
   createCollectionObject,
   formatDateTime,
   calculateCollectionValue,
+  filterDailyCollectionPriceHistory,
+  filterUniqueYValues,
 };

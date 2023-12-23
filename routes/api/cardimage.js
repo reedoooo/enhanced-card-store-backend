@@ -1,5 +1,5 @@
 const express = require('express');
-const CardImageController = require('../../controllers/CardImageController');
+const CardImageController = require('../../controllers/Cards/CardImageController');
 const { asyncHandler } = require('../../utils/utils');
 
 const router = express.Router();

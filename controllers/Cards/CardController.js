@@ -1,8 +1,9 @@
 const axios = require('axios');
-const User = require('../models/User');
-const CardInCollection = require('../models/CardInCollection');
-const { logData, logError } = require('../utils/loggingUtils');
-const CardInDeck = require('../models/CardInDeck');
+const User = require('../../models/User');
+const CardInCollection = require('../../models/CardInCollection');
+const { logData, logError } = require('../../utils/loggingUtils');
+const CardInDeck = require('../../models/CardInDeck');
+const CustomError = require('../../middleware/customError');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
@@ -170,58 +171,59 @@ const cardController = {
 
   updateExistingCardInUserCollection: async (userId, collectionId, cardUpdates) => {
     try {
-      // Fetch the user and populate allCollections and their cards
+      if (!Array.isArray(cardUpdates)) {
+        throw new Error('Card updates should be an array');
+      }
+
       const user = await User.findById(userId).populate({
         path: 'allCollections',
         populate: { path: 'cards' },
       });
 
-      if (!user) {
-        throw new Error('User not found');
-      }
+      if (!user) throw new Error('User not found');
 
-      // Find the specific collection within user's allCollections
       const collection = user.allCollections.find((coll) => coll._id.toString() === collectionId);
-      if (!collection) {
-        throw new Error('Collection not found');
-      }
 
-      if (!Array.isArray(cardUpdates)) {
-        throw new Error('Invalid cards array in collection');
-      }
+      if (!collection) throw new Error('Collection not found');
 
-      // Loop through the card updates
       for (const update of cardUpdates) {
-        // logData(update);
-        const cardIndex = collection.cards.findIndex((card) => card.id.toString() === update.id);
-        if (cardIndex !== -1) {
-          // Update existing card in the collection
-          const card = collection.cards[cardIndex];
-          for (const key in update) {
-            card[key] = update[key];
-          }
+        if (typeof update === 'string') {
+          console.log('Skipping card update:', update);
+          continue;
+        }
 
-          // Update existing card in the database
-          await CardInCollection.findByIdAndUpdate(card._id, update);
+        if (typeof update === 'object' && update !== null && update.id) {
+          const cardIndex = collection.cards.findIndex((card) => card.id.toString() === update.id);
+          if (cardIndex !== -1) {
+            const card = collection.cards[cardIndex];
+            console.log('UPDATING CARD:', card.name);
+            Object.assign(card, update);
+            await CardInCollection.findByIdAndUpdate(card._id, update);
+          } else {
+            const newCard = new CardInCollection(update);
+            console.log('ADDING NEW CARD:', newCard?.name);
+            await newCard.save();
+            collection.cards.push(newCard);
+          }
         } else {
-          // Add new card
-          const newCard = new CardInCollection(update);
-          await newCard.save();
-          collection.cards.push(newCard._id); // Ensure you're pushing the _id
+          throw new Error('Invalid card data in update array');
         }
       }
 
-      // Refresh the collection's cards array
-      await collection.populate('cards');
-
-      // Since we've modified a subdocument (cards in collection), we need to mark it as modified
+      // Save and re-populate the updated collection
+      await collection.save();
       user.markModified('allCollections');
       await user.save();
 
-      return { message: 'Collection updated successfully', cards: collection.cards };
+      // Re-fetch and re-populate the specific collection to get updated cards
+      const updatedCollection = await user.allCollections
+        .find((c) => c._id.toString() === collectionId)
+        .populate('cards');
+
+      return { message: 'Collection updated successfully', cards: updatedCollection.cards };
     } catch (error) {
-      console.error('Error in updateExistingCardInUserCollection:', error);
-      throw error;
+      console.error('Error updating card in collection:', error);
+      throw error; // Re-throw the error for further handling
     }
   },
   removeCardsFromUserCollection: async (userId, collectionId, updatedCards) => {
@@ -324,6 +326,8 @@ const cardController = {
       }
 
       await deck.save();
+
+      await user.save();
 
       // Re-fetch user to get updated allDecks with populated cards
       user = await User.findById(userId).populate({

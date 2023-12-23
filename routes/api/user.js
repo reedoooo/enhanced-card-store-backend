@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const UserController = require('../../controllers/UserController.js');
+const UserController = require('../../controllers/User/UserController.js');
 const { verifyToken } = require('../../services/auth.js');
 const { asyncHandler } = require('../../utils/utils.js');
-// const { validateObjectId } = require('../../controllers/userControllerUtilities.js');
 
 router.post('/signup', asyncHandler(UserController.signup));
 router.post('/signin', asyncHandler(UserController.signin));
@@ -14,7 +13,6 @@ router.delete('/profile/:id', verifyToken, asyncHandler(UserController.deletePro
 
 router.get('/:id', asyncHandler(UserController.getUserById));
 
-// get cart by user id
 router.get('/:userId/cart', asyncHandler(UserController.getUserCart));
 router.post('/:userId/cart/createCart', asyncHandler(UserController.createEmptyCart));
 router.put('/:userId/cart/:cartId/update', asyncHandler(UserController.updateCart));
@@ -28,8 +26,15 @@ router.post('/:userId/decks/:deckId/remove', asyncHandler(UserController.removeC
 router.put('/:userId/decks/:deckId/update', asyncHandler(UserController.updateCardsInDeck));
 router.put('/:userId/decks/:deckId/deckDetails', asyncHandler(UserController.updateDeckDetails));
 
+// COLLECTION ROUTES
 router.post('/:userId/collections', asyncHandler(UserController.createNewCollection));
 router.get('/:userId/collections', asyncHandler(UserController.getAllCollectionsForUser));
+router.put(
+  '/:userId/collections/:collectionId',
+  asyncHandler(UserController.updateAndSyncCollection),
+);
+router.delete('/:userId/collections/:collectionId', asyncHandler(UserController.deleteCollection));
+
 router.post(
   '/:userId/collections/:collectionId/add',
   asyncHandler(UserController.addCardsToCollection),
@@ -46,10 +51,5 @@ router.put(
   '/:userId/collections/:collectionId/updateChartData',
   asyncHandler(UserController.updateChartDataInCollection),
 );
-router.put(
-  '/:userId/collections/:collectionId',
-  asyncHandler(UserController.updateAndSyncCollection),
-);
-router.delete('/:userId/collections/:collectionId', asyncHandler(UserController.deleteCollection));
 
 module.exports = router;
