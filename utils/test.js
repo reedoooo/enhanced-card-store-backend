@@ -126,10 +126,10 @@ const updateCollectionsWithNewCardValues = async (userId, updatedCards, io) => {
         num: newTotalPrice,
         timestamp: new Date().toISOString(),
       });
-      collection.dailyCollectionPriceHistory.push({
-        num: newTotalPrice,
-        timestamp: new Date().toISOString(),
-      });
+      // collection.dailyCollectionPriceHistory.push({
+      //   num: newTotalPrice,
+      //   timestamp: new Date().toISOString(),
+      // });
       collection.chartData.allXYValues = newChartData.allXYValues;
       collection.collectionPriceHistory = collectionPriceHistory;
 

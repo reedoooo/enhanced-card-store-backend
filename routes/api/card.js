@@ -1,5 +1,5 @@
 const express = require('express');
-const cardController = require('../../controllers/CardController');
+const cardController = require('../../controllers/Cards/CardController');
 const { asyncHandler } = require('../../utils/utils');
 
 const router = express.Router();
@@ -83,7 +83,12 @@ router.post(
       level,
       attribute,
     );
-    console.log('POST /ygopro: ', transformedCards);
+    console.log(
+      'POST /ygopro: ',
+      transformedCards || transformedCards.length
+        ? 'is array but first card is: ' + transformedCards[0]
+        : null,
+    );
     res.json({ data: transformedCards });
   }),
 );

@@ -93,7 +93,7 @@ const processCard = (data) => {
       const latestPrice = parseFloat(card?.latestPrice?.num ?? 0);
       const lastSavedPrice = parseFloat(card?.lastSavedPrice?.num ?? 0);
       const priceChange = latestPrice - lastSavedPrice;
-      const percentageChange = (priceChange / lastSavedPrice) * 100;
+      // const percentageChange = (priceChange / lastSavedPrice) * 100;
       const statusColor = priceChange > 0 ? 'green' : priceChange < 0 ? 'red' : 'grey';
       const status = priceChange > 0 ? 'increased' : priceChange < 0 ? 'decreased' : 'unchanged';
 
@@ -107,10 +107,10 @@ const processCard = (data) => {
       logContent += `    [UPDATED PRICE]  $${latestPrice.toFixed(2)}\n`;
       console.log(`    [QUANTITY]         ${card?.quantity} (${status})`);
       logContent += `    [QUANTITY]         ${card?.quantity} (${status})\n`;
-      console.log(`    [CHANGE]         ${priceChange.toFixed(2)} (${status})`);
-      logContent += `    [CHANGE]         ${priceChange.toFixed(2)} (${status})\n`;
-      console.log(`    [PERCENTAGE]     ${percentageChange.toFixed(2)}% (${status})`);
-      logContent += `    [PERCENTAGE]     ${percentageChange.toFixed(2)}% (${status})\n`;
+      // console.log(`    [CHANGE]         ${priceChange.toFixed(2)} (${status})`);
+      // logContent += `    [CHANGE]         ${priceChange.toFixed(2)} (${status})\n`;
+      // console.log(`    [PERCENTAGE]     ${percentageChange.toFixed(2)}% (${status})`);
+      // logContent += `    [PERCENTAGE]     ${percentageChange.toFixed(2)}% (${status})\n`;
       console.log(`    [STATUS]         ${status}\n`);
       logContent += `    [STATUS]         ${status}\n\n`;
     });
@@ -440,11 +440,13 @@ function logError(error, errorType, problematicValue, additionalInfo = {}) {
 
   // Add formatted error log to the content
   errorContent += formatErrorLog(errorLog);
-  logToSpecializedLogger.error(error, error.message, {
-    ...additionalInfo,
-    stack: error.stack,
-    error: error,
-  });
+  // logToSpecializedLogger(error, error.message, {
+  //   ...additionalInfo,
+  //   stack: error.stack,
+  //   error: error,
+  // });
+  logToSpecializedLogger('error', error.message, { ...additionalInfo, stack: error.stack });
+
   // Additionally, save to the error log file
   safeAppendFile(`${logsDir}/error.log`, errorContent);
 }

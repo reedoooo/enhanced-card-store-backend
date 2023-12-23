@@ -1,8 +1,8 @@
 const fs = require('fs').promises;
 const download = require('image-downloader');
 const path = require('path');
-const { respondWithError } = require('../utils/utils');
-const { FILE_CONSTANTS } = require('../constants');
+const { respondWithError } = require('../../utils/utils');
+const { FILE_CONSTANTS } = require('../../constants');
 
 async function loadData() {
   const filePath = path.join(__dirname, '..', 'data', 'cardinfo.php.json');

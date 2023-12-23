@@ -1,24 +1,26 @@
 const bcrypt = require('bcrypt');
 const { response } = require('express');
 
-const Deck = require('../models/Deck');
-const Collection = require('../models/Collection');
-const User = require('../models/User');
-const CardInCollection = require('../models/CardInCollection');
-const Cart = require('../models/Cart');
+const Deck = require('../../models/Deck');
+const Collection = require('../../models/Collection');
+const User = require('../../models/User');
+const CardInCollection = require('../../models/CardInCollection');
+const Cart = require('../../models/Cart');
 
-const CustomError = require('../middleware/customError');
-const { logError, logInfo } = require('../utils/loggingUtils');
+const CustomError = require('../../middleware/customError');
+const { logError, logInfo } = require('../../utils/loggingUtils');
 
-const { STATUS, MESSAGES, ERROR_TYPES } = require('../constants');
-const { logToSpecializedLogger } = require('../middleware/infoLogger');
+const { STATUS, MESSAGES, ERROR_TYPES } = require('../../constants');
+const { logToSpecializedLogger } = require('../../middleware/infoLogger');
 const {
   handleValidationErrors,
   extractData,
   generateToken,
   createCollectionObject,
-} = require('../utils/utils');
-const cardController = require('./CardController');
+  filterDailyCollectionPriceHistory,
+  filterUniqueYValues,
+} = require('../../utils/utils');
+const cardController = require('../Cards/CardController');
 // !--------------------------! USERS !--------------------------!
 // USER ROUTES: SIGNUP / SIGNIN
 exports.signup = async (req, res, next) => {
@@ -238,32 +240,41 @@ exports.updateAndSyncDeck = async (req, res, next) => {
     const updatedDeckData = req.body;
 
     // Validate the incoming data
-    if (!userId || !deckId || !updatedDeckData) {
+    if (!userId || !updatedDeckData) {
       return res.status(400).json({ message: 'Invalid request data.' });
     }
 
-    // Fetch the user and the deck
+    // Fetch the user
     const user = await User.findById(userId).populate('allDecks');
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    const deck = user?.allDecks?.find((deck) => deck.id === deckId);
-    if (!deck) {
-      return res.status(404).json({ message: 'Deck not found.' });
-    }
+    // Check if updatedDeckData is an array (all decks) or a single object (one deck)
+    if (Array.isArray(updatedDeckData)) {
+      // Update all decks
+      user.allDecks = updatedDeckData; // Assuming updatedDeckData contains all updated deck objects
+    } else {
+      // Update a single deck
+      if (!deckId) {
+        return res.status(400).json({ message: 'Deck ID is required for updating a single deck.' });
+      }
 
-    // Update the deck with new data
-    for (const key in updatedDeckData) {
-      if (Object.prototype.hasOwnProperty.call(updatedDeckData, key)) {
-        deck[key] = updatedDeckData[key];
+      const deck = user.allDecks.find((deck) => deck.id === deckId);
+      if (!deck) {
+        return res.status(404).json({ message: 'Deck not found.' });
+      }
+
+      // Update the deck with new data
+      for (const key in updatedDeckData) {
+        if (Object.prototype.hasOwnProperty.call(updatedDeckData, key)) {
+          deck[key] = updatedDeckData[key];
+        }
       }
     }
 
-    // Save the updated user
+    // Save the updated user and its decks
     await user.save();
-
-    // Re-fetch and populate user's allDecks
     await user.populate({ path: 'allDecks', populate: { path: 'cards' } });
 
     res.status(200).json({ message: 'Deck updated successfully.', allDecks: user.allDecks });
@@ -528,15 +539,27 @@ exports.updateAndSyncCollection = async (req, res, next) => {
       throw new CustomError('Collection not found', 404);
     }
 
+    // Filter the dailyCollectionPriceHistory before saving
+    const filteredDailyCollectionPriceHistory = await filterDailyCollectionPriceHistory(
+      collection._id,
+    );
+    const filteredAllXYValues = await filterUniqueYValues(collection._id);
+
     // Update the collection with new data
     for (const key in updatedCollectionData) {
       if (Object.prototype.hasOwnProperty.call(updatedCollectionData, key)) {
         collection[key] = updatedCollectionData[key];
+        // collection.dailyCollectionPriceHistory = filteredDailyCollectionPriceHistory;
       }
+      collection.dailyCollectionPriceHistory = filteredDailyCollectionPriceHistory;
+      collection.allXYValues = filteredAllXYValues;
     }
 
+    // Save the updated collection
     await collection.save();
 
+    // Repopulate the cards of the collection after update to ensure it's returned populated
+    await collection.populate('cards');
     // Update user document by setting the ObjectId of the updated collection
     user.allCollections = user.allCollections.map((coll) =>
       coll._id.toString() === collectionId ? collection._id : coll,
@@ -546,7 +569,7 @@ exports.updateAndSyncCollection = async (req, res, next) => {
 
     return res.status(200).json({
       message: 'Collection updated successfully',
-      collectionData: collection,
+      collectionData: collection, // This now includes populated cards
     });
   } catch (error) {
     console.error('Error updating collection:', error);
@@ -614,16 +637,12 @@ exports.updateChartDataInCollection = async (req, res, next) => {
     next(error);
   }
 };
-
 // COLLECTION ROUTES: CARDS-IN-COLLECTION Routes (GET, CREATE, UPDATE, DELETE)
 exports.addCardsToCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
   const { cards } = req.body;
-
-  // console.log('CARDS', cards);
   if (!Array.isArray(cards)) {
-    // return res.status(400).json({ message: 'Invalid card data, expected an array' });
-    throw new CustomError('Invalid card data, expected an array', 400);
+    return res.status(400).json({ message: 'Invalid card data, expected an array but got ' });
   }
 
   try {
@@ -642,11 +661,9 @@ exports.addCardsToCollection = async (req, res, next) => {
 };
 exports.removeCardsFromCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
-  const { updatedCards } = req.body;
-
-  if (!Array.isArray(updatedCards)) {
-    // return res.status(400).json({ message: 'Invalid card IDs' });
-    throw new CustomError('Invalid card IDs', 400);
+  const { cards } = req.body;
+  if (!Array.isArray(cards)) {
+    return res.status(400).json({ message: 'Invalid card data, expected an array but got ' });
   }
 
   try {
@@ -654,9 +671,8 @@ exports.removeCardsFromCollection = async (req, res, next) => {
     const updateResult = await cardController.removeCardsFromUserCollection(
       userId,
       collectionId,
-      updatedCards,
+      cards,
     );
-    console.log('UPDATE RESULT +++++++++++++++', updateResult);
     res.status(200).json(updateResult);
   } catch (error) {
     console.error('Error removing cards from collection:', error);
@@ -667,10 +683,8 @@ exports.removeCardsFromCollection = async (req, res, next) => {
 exports.updateCardsInCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
   const { cards } = req.body;
-
   if (!Array.isArray(cards)) {
-    // return res.status(400).json({ message: 'Invalid card data, expected an array' });
-    throw new CustomError('Invalid card data, expected an array', 400);
+    return res.status(400).json({ message: 'Invalid card data, expected an array but got' });
   }
 
   try {

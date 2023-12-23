@@ -3,11 +3,12 @@ const { logToSpecializedLogger } = require('./infoLogger');
 require('colors');
 // Handle the error and return a structured response
 const handleError = (error, context = {}) => {
-  const section = context.section || 'error';
-  const logger = logToSpecializedLogger[section] || logToSpecializedLogger.error;
+  // const section = context.section || 'error';
+  // const logger = logToSpecializedLogger[section] || logToSpecializedLogger.error;
 
   if (error instanceof CustomError) {
-    logger.error(error.message, { ...context, stack: error.stack });
+    // logger.error(error.message, { ...context, stack: error.stack });
+    logToSpecializedLogger('error', error.message, { ...context, stack: error.stack });
     return {
       status: error.status,
       message: error.message,

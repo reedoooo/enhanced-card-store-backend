@@ -4,6 +4,7 @@ const { getIO } = require('../socket');
 const { logError, logData } = require('./loggingUtils');
 const { checkAndUpdateCardPrices } = require('./test');
 const CardInCollection = require('../models/CardInCollection');
+const Collection = require('../models/Collection');
 
 let emittedResponses = [];
 const cronQueue = [];
@@ -46,6 +47,36 @@ const createChartDataEntry = (price) => {
   };
 };
 
+// Function to update the daily collection price history data
+const updateDailyCollectionPriceHistoryData = async (userId) => {
+  try {
+    // Fetch all collections for the user
+    const collections = await Collection.find({ userId: userId });
+
+    // Map each collection to a promise that updates its price history
+    const updatePromises = collections.map(async (collection) => {
+      // Calculate the total price of the collection for the day
+      const totalPriceForDay = collection.cards.reduce((total, card) => {
+        return total + card.quantity * card.latestPrice.num;
+      }, 0);
+
+      // Create a new chart data entry for today
+      const newChartDataEntry = createChartDataEntry(totalPriceForDay);
+
+      // Add new entry to collection's price history
+      collection.collectionPriceHistory.push(newChartDataEntry);
+
+      // Save the updated collection
+      return collection.save();
+    });
+
+    // Wait for all update operations to complete
+    await Promise.all(updatePromises);
+  } catch (error) {
+    throw new Error(`Error updating daily collection price history: ${error.message}`);
+  }
+};
+
 const updateChartDataForCards = async (selectedList) => {
   // Map each card to a promise that updates its data
   const updatePromises = selectedList.map(async (card) => {
@@ -78,6 +109,7 @@ async function processCardPriceRequest(data, io) {
 
     // Schedule the chart data update job if it hasn't been scheduled
     scheduleUpdateChartDataJob(io, selectedList);
+    scheduleUpdateDailyCollectionPriceHistoryDataJob(io, selectedList);
   } catch (error) {
     logError(error, error.message, {
       functionName: 'processCardPriceRequest',
@@ -168,6 +200,11 @@ const scheduleUpdateChartDataJob = (io, selectedList) => {
   const cronSchedule = '0 10 * * *'; // Every day at midnight
 
   setupCronJob(io, () => updateChartDataForCards(selectedList), cronSchedule);
+};
+const scheduleUpdateDailyCollectionPriceHistoryDataJob = (io, selectedList) => {
+  const cronSchedule = '0 10 * * *'; // Every day at midnight
+
+  setupCronJob(io, () => updateDailyCollectionPriceHistoryData(selectedList), cronSchedule);
 };
 
 function addToEmittedResponses(response, eventType) {
