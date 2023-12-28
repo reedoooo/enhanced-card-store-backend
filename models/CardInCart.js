@@ -40,19 +40,19 @@ const chartDatasetsSchema = new Schema({
 });
 
 // Card In Collection Schema
-const CardInDeckSchema = new Schema({
+const CardInCartSchema = new Schema({
   // custom data
   id: { type: String, required: true },
-  deckId: { type: mongoose.Schema.Types.ObjectId, ref: 'Deck' },
+  cartId: { type: mongoose.Schema.Types.ObjectId, ref: 'Cart' },
   tag: { type: String, required: false },
   watchList: { type: Boolean, required: false },
   price: { type: Number, required: false },
-  // totalPrice: {
-  //   type: Number,
-  //   set: function (v) {
-  //     return !isNaN(v) ? v : 0;
-  //   },
-  // },
+  totalPrice: {
+    type: Number,
+    set: function (v) {
+      return !isNaN(v) ? v : 0;
+    },
+  },
   quantity: { type: Number, required: false },
   latestPrice: priceEntrySchema,
   lastSavedPrice: priceEntrySchema,
@@ -88,6 +88,6 @@ const CardInDeckSchema = new Schema({
   card_prices: [cardPriceSchema],
 });
 
-const CardInDeck = mongoose.model('CardInDeck', CardInDeckSchema);
+const CardInCart = mongoose.model('CardInCart', CardInCartSchema);
 
-module.exports = CardInDeck;
+module.exports = CardInCart;

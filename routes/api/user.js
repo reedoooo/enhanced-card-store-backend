@@ -7,16 +7,24 @@ const { asyncHandler } = require('../../utils/utils.js');
 router.post('/signup', asyncHandler(UserController.signup));
 router.post('/signin', asyncHandler(UserController.signin));
 
+// PROFILE ROUTES
 router.get('/profile', verifyToken, asyncHandler(UserController.getProfile));
 router.put('/profile/:id', verifyToken, asyncHandler(UserController.updateProfile));
 router.delete('/profile/:id', verifyToken, asyncHandler(UserController.deleteProfile));
 
+// USER ROUTES
 router.get('/:id', asyncHandler(UserController.getUserById));
 
+// USER DATA ROUTES
+router.get('/:userId/userData', asyncHandler(UserController.getUserData));
+router.put('/:userId/userData/update', asyncHandler(UserController.updateUserData));
+
+// CART ROUTES
 router.get('/:userId/cart', asyncHandler(UserController.getUserCart));
 router.post('/:userId/cart/createCart', asyncHandler(UserController.createEmptyCart));
 router.put('/:userId/cart/:cartId/update', asyncHandler(UserController.updateCart));
 
+// DECK ROUTES
 router.get('/:userId/decks', asyncHandler(UserController.getAllDecksForUser));
 router.put('/:userId/decks/:deckId/updateDeck', asyncHandler(UserController.updateAndSyncDeck));
 router.post('/:userId/decks/createDeck', asyncHandler(UserController.createNewDeck));

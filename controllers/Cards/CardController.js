@@ -123,6 +123,7 @@ const cardController = {
             num: tcgplayerPrice,
             timestamp: Date.now(),
           },
+          dataOfLastPriceUpdate: Date.now(),
           priceHistory: [
             {
               num: tcgplayerPrice,
@@ -196,10 +197,13 @@ const cardController = {
           const cardIndex = collection.cards.findIndex((card) => card.id.toString() === update.id);
           if (cardIndex !== -1) {
             const card = collection.cards[cardIndex];
-            console.log('UPDATING CARD:', card.name);
+            update.collectionId = collection?._id;
+            console.log(`UPDATING CARD: ${card?.name} in collection ${collection}`);
             Object.assign(card, update);
-            await CardInCollection.findByIdAndUpdate(card._id, update);
+            await CardInCollection.findByIdAndUpdate(card?._id, update);
           } else {
+            // Add new card to the collection
+            update.collectionId = collection?._id;
             const newCard = new CardInCollection(update);
             console.log('ADDING NEW CARD:', newCard?.name);
             await newCard.save();
@@ -378,12 +382,15 @@ const cardController = {
             for (const key in update) {
               card[key] = key === 'quantity' ? Math.max(1, update[key]) : update[key];
             }
+            card.deck = deck._id;
+            // Save the updated card
             await CardInDeck.findByIdAndUpdate(card._id, card);
           }
         } else {
           // Add new card with minimum quantity of 1
           const newCard = new CardInDeck({
             ...update,
+            deckId: deck._id,
             quantity: Math.max(1, update.quantity || 1),
             deck: deck._id,
           });

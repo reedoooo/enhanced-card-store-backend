@@ -348,13 +348,13 @@ function logData(data, data2) {
     case LOG_TYPES.COLLECTIONS:
       logContent += '----- Start of Multiple Collections Log -----\n'.green;
       logContent += '[MULTIPLE COLLECTION] '.yellow + `${new Date().toISOString()}\n`;
+      // logContent = logMultipleCollections(data);
       console.log(logContent);
-      logContent = logMultipleCollections(data);
       break;
     default:
       logContent += '[OTHER] '.yellow + `${new Date().toISOString()}\n`;
       console.log(logContent);
-      logContent = logOtherData(data);
+      // logContent = logOtherData(data);
       console.log(logContent);
       break;
   }
@@ -476,119 +476,22 @@ function formatErrorLog(errorLog) {
 
   return formattedLog;
 }
-// function logError(error, errorType, problematicValue, additionalInfo = {}) {
-//   let errorContent = '[ERROR] '.red + `${new Date().toISOString()}\n`;
-//   console.log(errorContent.red);
-//   errorContent += '|----- Error Log -----\n\n';
-//   let errorMessage = '';
-//   switch (errorType) {
-//     case 'SERVER_ERROR':
-//       errorMessage = ERROR_TYPES.SERVER_ERROR(error);
-//       break;
-//     case 'VALIDATION_ERROR':
-//       errorMessage = ERROR_TYPES.VALIDATION_ERROR;
-//       break;
-//     case 'NOT_FOUND':
-//       errorMessage = ERROR_TYPES.NOT_FOUND(problematicValue);
-//       break;
-//     case 'DUPLICATE_KEY_ERROR':
-//       errorMessage = ERROR_TYPES.DUPLICATE_KEY_ERROR;
-//       break;
-//     case 'INTERNAL_SERVER_ERROR':
-//       errorMessage = ERROR_TYPES.INTERNAL_SERVER_ERROR;
-//       break;
-//     case 'REQUIRED_FIELDS_MISSING':
-//       errorMessage = ERROR_TYPES.REQUIRED_FIELDS_MISSING;
-//       break;
-//     case 'INVALID_USER_DATA':
-//       errorMessage = ERROR_TYPES.INVALID_USER_DATA;
-//       break;
-//     case 'INVALID_COLLECTION_NAME':
-//       errorMessage = ERROR_TYPES.INVALID_COLLECTION_NAME;
-//       break;
-//     case 'NON_ARRAY_DATA':
-//       errorMessage = ERROR_TYPES.NON_ARRAY_DATA;
-//       break;
-
-//     // Add more cases as needed
-//     default:
-//       errorMessage = ERROR_TYPES.INTERNAL_SERVER_ERROR;
-//       break;
-//   }
-
-//   if (problematicValue) {
-//     // errorContent += `| [Problematic Value]: ${JSON.stringify(problematicValue, null, 2)}\n`;
-//     errorContent += `| [Problematic Value]: ${
-//       // problematicValue?.name ? problematicValue.name : problematicValue
-//       problematicValue
-//     }\n`;
-//   }
-
-//   // Prepare the error log object
-//   const errorLog = {
-//     timestamp: new Date().toISOString(),
-//     functionName: additionalInfo.source || 'Unknown',
-//     errorMessage: error.message,
-//     errorType: error.constructor.name,
-//     requestInfo: additionalInfo.request || 'N/A',
-//     errorStack: error.stack,
-//     environment: {
-//       nodeVersion: process.version,
-//     },
-//     user: additionalInfo.user || 'Unknown',
-//     debugInfo: additionalInfo.debug || {},
-//   };
-//   errorContent += `| [Message]: ${errorMessage.message ? errorMessage.message : errorMessage}\n`;
-//   errorContent += `| [Timestamp]:\n${errorLog.timestamp}\n`;
-//   errorContent += `| [Function Name]:\n${errorLog.functionName}\n`;
-//   errorContent += `| [Request Info]:\n${errorLog.requestInfo}\n`;
-//   errorContent += `| [User]:\n${errorLog.user}\n`;
-//   errorContent += `| [Data]:\n${
-//     errorLog.debugInfo.data ? JSON.stringify(errorLog.debugInfo.data, null, 2) : 'N/A'
-//   }\n`;
-//   errorContent += `| [Debug Info]:\n${JSON.stringify(errorLog.debugInfo, null, 2)}\n`;
-//   errorContent += `| [Environment]:\n${JSON.stringify(errorLog.environment, null, 2)}\n`;
-//   // Handling circular JSON structures
-//   // const replacer = (key, value) => {
-//   //   if (value && value.constructor === Socket) {
-//   //     return `Socket: [Circular ${value.id || ''}]`;
-//   //   }
-//   //   return value;
-//   // };
-//   // Use the custom replacer function with JSON.stringify
-//   errorContent += `| [Error Stack]:\n${JSON.stringify(error.stack, circularReplacer(), 2)}\n`;
-//   errorContent += `| [Error]:\n${JSON.stringify(error, circularReplacer(), 2)}\n`;
-//   errorContent += `| [Error Type]:\n${errorType}\n`;
-//   errorContent += `| [Error Message]:\n${errorMessage}\n`;
-//   errorContent += '|_____ End of Error Log _____\n\n';
-//   console.error(errorContent.red);
-//   // fs.appendFileSync(`${logsDir}/error.log`, errorContent.replace(/\[\d+m/g, ''), (err) => {
-//   //   if (err) console.error('Error writing to error log file'.red);
-//   // });
-//   // safeAppendFile(
-//   //   `${logsDir}/error.log`,
-//   //   `[${new Date().toISOString()}] ${flatted.stringify(error, replacer, 2)}\n`,
-//   // );
-//   // safeAppendFile(`${logsDir}/error.log`, errorContent);
-//   // loggers.error({
-//   //   level: 'error',
-//   //   message: `Error in ${errorLog.function || 'unknown'}: ${error.message}`,
-//   //   meta: { stack: error.stack, ...errorLog, section: 'error' },
-//   //   action: 'log',
-//   // });
-
-//   safeAppendFile(`${logsDir}/error.log`, errorContent);
-// }
-
 const logPriceChange = (changeStatus, card, latestPriceUpdated, latestPriceOld) => {
   try {
     if (!card) {
-      throw new Error('[logPriceChange] -----> Invalid card data provided for logging.');
+      throw new Error('[logPriceChange] -----> Invalid card data provided for logging.'.red);
     }
+
+    // const now = new Date().getTime(); // getting time in milliseconds
+    // const lastUpdated = new Date(card.dateOfLastUpdate).getTime(); // assuming card.dateOfLastUpdate is a valid date string or number
+    // const millisecondsDiff = now - lastUpdated;
+    // const hoursSinceUpdate = (millisecondsDiff / (1000 * 60 * 60)).toFixed(2); // difference in hours, rounded to two decimal places
 
     const priceDifference = latestPriceUpdated - latestPriceOld;
     const percentChange = (priceDifference / latestPriceOld) * 100;
-
+    // let recentUpdateNote = hoursSinceUpdate <= 24 ? ' [RECENT_UPDATE]'.blue : '';
+    // console.log('card.dateOfLastUpdate:', card.dateOfLastUpdate);
+    // Adjusting the color and message based on changeStatus and price difference
     const messagePrefix =
       changeStatus === 'CHANGE'
         ? '['.yellow +
@@ -606,36 +509,113 @@ const logPriceChange = (changeStatus, card, latestPriceUpdated, latestPriceOld) 
           ']'.yellow +
           '['.yellow +
           'CARD'.grey +
-          '] '.yellow.grey +
+          '] '.yellow +
+          // recentUpdateNote +
           `${card.name} (ID: ${card.id})`;
-    let message = `${card.name} (ID: ${card.id}) price has `;
-    message +=
-      priceDifference > 0
-        ? `increased by $${priceDifference.toFixed(2)} (${percentChange.toFixed(2)}%)`.green
-        : priceDifference < 0
-          ? `decreased by $${Math.abs(priceDifference).toFixed(2)} (${Math.abs(
-              percentChange,
-            ).toFixed(2)}%)`.red
-          : 'no significant change'.grey;
+    // messagePrefix += ' [CARD]'.grey + ` ${card.name} (ID: ${card.id})`.white;
 
-    console.log(messagePrefix + ' - ' + message);
+    let messageBody = '';
 
     if (changeStatus === 'CHANGE') {
-      // Log to a special file for tracking price changes
+      messageBody =
+        priceDifference > 0
+          ? `increased by $${priceDifference.toFixed(2)} (${percentChange.toFixed(2)}%)`.green
+          : priceDifference < 0
+            ? `decreased by $${Math.abs(priceDifference).toFixed(2)} (${Math.abs(
+                percentChange,
+              ).toFixed(2)}%)`.red
+            : 'no significant change'.grey;
+    } else {
+      messageBody = 'no significant change'.grey;
+    }
+
+    // console.log(`${messagePrefix} - ${messageBody}${recentUpdateNote}`);
+
+    // Log to appropriate file
+    if (changeStatus === 'CHANGE') {
       safeAppendFile(
         `${logsDir}/price-changes-tracker.log`,
-        `${new Date().toISOString()} - ${message}\n`,
+        `${new Date().toISOString()} - ${messagePrefix} - ${messageBody}\n`,
       );
     } else {
-      // Log to the standard price change log
-      safeAppendFile(`${logsDir}/price-changes.log`, `${new Date().toISOString()} - ${message}\n`);
+      safeAppendFile(
+        `${logsDir}/price-changes.log`,
+        // `${new Date().toISOString()} - ${messagePrefix} - ${messageBody}${recentUpdateNote}\n`,
+        `${new Date().toISOString()} - ${messagePrefix} - ${messageBody}${'na'}\n`,
+      );
     }
   } catch (error) {
-    console.error('Error logging price change:', error);
-    // logError(error);
+    console.error('Error logging price change:'.red, error);
     safeAppendFile(`${logsDir}/error.log`, `[${new Date().toISOString()}] ${error.stack}\n`);
   }
 };
+// const logPriceChange = (changeStatus, card, latestPriceUpdated, latestPriceOld) => {
+//   try {
+//     if (!card) {
+//       throw new Error('[logPriceChange] -----> Invalid card data provided for logging.');
+//     }
+
+//     const now = new Date(); // current date and time
+//     const lastUpdated = new Date(card.dateOfLastUpdate); // assuming card.dateOfLastUpdate is in a proper format
+//     const hoursSinceUpdate = (now - lastUpdated) / (1000 * 60 * 60); // time difference in hours
+
+//     const priceDifference = latestPriceUpdated - latestPriceOld;
+//     const percentChange = (priceDifference / latestPriceOld) * 100;
+
+//     const messagePrefix =
+//       changeStatus === 'CHANGE'
+//         ? '['.yellow +
+//           'CHANGE'.green +
+//           ']'.yellow +
+//           '['.yellow +
+//           'CARD'.green +
+//           '] '.yellow +
+//           `${card.name} (ID: ${card.id}) - Initial Price: ` +
+//           '['.yellow +
+//           `$${latestPriceOld.toFixed(2)}`.grey +
+//           ']'.yellow
+//         : '['.yellow +
+//           'NO_CHANGE'.grey +
+//           ']'.yellow +
+//           '['.yellow +
+//           'CARD'.grey +
+//           '] '.yellow.grey +
+//           `${card.name} (ID: ${card.id})`;
+//     let message = `${card.name} (ID: ${card.id}) price has `;
+//     message +=
+//       priceDifference > 0
+//         ? `increased by $${priceDifference.toFixed(2)} (${percentChange.toFixed(2)}%)`.green
+//         : priceDifference < 0
+//           ? `decreased by $${Math.abs(priceDifference).toFixed(2)} (${Math.abs(
+//               percentChange,
+//             ).toFixed(2)}%)`.red
+//           : 'no significant change'.grey;
+
+//     console.log(messagePrefix + ' - ' + message);
+
+//     // Additional logging for recent updates
+//     if (hoursSinceUpdate <= 24) {
+//       console.log(
+//         '[RECENT_UPDATE] '.blue +
+//           `${card.name} (ID: ${card.id}) was updated less than 24 hours ago`.yellow,
+//       );
+//     }
+//     if (changeStatus === 'CHANGE') {
+//       // Log to a special file for tracking price changes
+//       safeAppendFile(
+//         `${logsDir}/price-changes-tracker.log`,
+//         `${new Date().toISOString()} - ${message}\n`,
+//       );
+//     } else {
+//       // Log to the standard price change log
+//       safeAppendFile(`${logsDir}/price-changes.log`, `${new Date().toISOString()} - ${message}\n`);
+//     }
+//   } catch (error) {
+//     console.error('Error logging price change:', error);
+//     // logError(error);
+//     safeAppendFile(`${logsDir}/error.log`, `[${new Date().toISOString()}] ${error.stack}\n`);
+//   }
+// };
 
 const logInfo = (message, status, data) => {
   logToSpecializedLogger(

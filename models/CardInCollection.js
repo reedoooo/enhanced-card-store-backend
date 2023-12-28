@@ -43,7 +43,7 @@ const chartDatasetsSchema = new Schema({
 const CardInCollectionSchema = new Schema({
   // custom data
   id: { type: String, required: true },
-  collectionId: { type: String, required: false },
+  collectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Collection' },
   tag: { type: String, required: false },
   watchList: { type: Boolean, required: false },
   price: { type: Number, required: false },
@@ -56,6 +56,7 @@ const CardInCollectionSchema = new Schema({
   quantity: { type: Number, required: false },
   latestPrice: priceEntrySchema,
   lastSavedPrice: priceEntrySchema,
+  dataOfLastPriceUpdate: Date,
   priceHistory: [priceEntrySchema],
   dailyPriceHistory: [priceEntrySchema],
   chart_datasets: [chartDatasetsSchema],

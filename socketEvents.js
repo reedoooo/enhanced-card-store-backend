@@ -38,11 +38,11 @@ const handleCheckCardPrices = (socket, io) => {
 
 const handleGenericEvent = (socket, eventType) => {
   socket.on(eventType, (newData) => {
-    if (Array.isArray(newData)) {
-      console.log(`[AUTOMATED SERVER MESSAGE] Received data for event ${eventType}:`, newData[0]);
-      return;
-    }
-    console.log(`[AUTOMATED SERVER MESSAGE] Received data for event ${eventType}:`, newData || {});
+    // if (Array.isArray(newData)) {
+    //   console.log(`[AUTOMATED SERVER MESSAGE] Received data for event ${eventType}:`, newData[0]);
+    //   return;
+    // }
+    console.log(`[AUTOMATED SERVER MESSAGE] Received data for event ${eventType}:`);
   });
 };
 

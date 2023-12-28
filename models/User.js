@@ -1,33 +1,16 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
-const baseInfo = new Schema({
-  name: { type: String, required: true },
-  titles: [String],
-  image: String,
-  description_header: String,
-  description: String,
-});
-
-const roleSchema = new Schema({
-  name: { type: String, required: true },
-  capabilities: [Array],
-});
-
-const securityInfo = new Schema({
-  name: { type: String },
-  username: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  email: { type: String },
-  role_data: { type: roleSchema, required: true },
-});
-
 const UserSchema = new Schema(
   {
-    basic_info: baseInfo,
-    login_data: {
-      type: securityInfo,
-      required: true,
+    username: { type: String, required: true, unique: true },
+    userBasicData: {
+      type: Schema.Types.ObjectId,
+      ref: 'UserBasicData',
+    },
+    userSecurityData: {
+      type: Schema.Types.ObjectId,
+      ref: 'UserSecurityData',
     },
     allDecks: [{ type: Schema.Types.ObjectId, ref: 'Deck' }],
     allCollections: [{ type: Schema.Types.ObjectId, ref: 'Collection' }],

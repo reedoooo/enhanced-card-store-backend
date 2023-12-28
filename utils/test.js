@@ -15,10 +15,15 @@ const checkAndUpdateCardPrices = async (userId, selectedList, io) => {
         logPriceChange('CHANGE', card, latestPrice, card.latestPrice.num);
 
         priceUpdates.push({
+          _id: card._id,
           cardId: card.id,
           oldPrice: card.latestPrice.num,
           newPrice: latestPrice,
           newTotalPrice: latestPrice * card.quantity,
+          newChartDatasets: [
+            ...card.chart_datasets,
+            { x: new Date(), y: latestPrice * card.quantity },
+          ],
           newLastSavedPrice: {
             num: latestPrice,
             timestamp: new Date(),
@@ -27,6 +32,7 @@ const checkAndUpdateCardPrices = async (userId, selectedList, io) => {
             num: latestPrice,
             timestamp: new Date(),
           },
+          // newDataOfLastPriceUpdate: new Date(),
           newPriceHistory: [
             ...card.priceHistory,
             {
@@ -41,7 +47,7 @@ const checkAndUpdateCardPrices = async (userId, selectedList, io) => {
       }
     }
 
-    if (priceUpdates.length > 0) {
+    if (priceUpdates?.length > 10) {
       await updateCollectionsWithNewCardValues(userId, priceUpdates, io); // Assuming this function handles the update of card data including the 'tag' field
     } else {
       console.log('NO_CARD_PRICE_CHANGE');
@@ -60,7 +66,7 @@ const checkAndUpdateCardPrices = async (userId, selectedList, io) => {
   }
 };
 
-const updateCollectionsWithNewCardValues = async (userId, updatedCards, io) => {
+const updateCollectionsWithNewCardValues = async (userId, priceUpdates, io) => {
   try {
     let user = await User.findById(userId).populate({
       path: 'allCollections',
@@ -72,16 +78,21 @@ const updateCollectionsWithNewCardValues = async (userId, updatedCards, io) => {
     }
 
     // Update CardInCollection records
-    for (const update of updatedCards) {
+    for (const update of priceUpdates) {
+      // console.log('update', update);
       await CardInCollection.findOneAndUpdate(
         { _id: update._id },
         {
           latestPrice: update.newLatestPrice,
           lastSavedPrice: update.newLastSavedPrice,
           priceHistory: update.newPriceHistory,
+          chart_datasets: update.newChartData,
           price: update.newPrice,
           totalPrice: update.newTotalPrice,
           tag: update.newTag,
+          dataOfLastPriceUpdate: new Date(
+            update.newLastSavedPrice.timestamp || update.newLatestPrice.timestamp,
+          ),
         },
       );
     }
@@ -109,7 +120,7 @@ const updateCollectionsWithNewCardValues = async (userId, updatedCards, io) => {
         // },
       ];
       for (const card of collection.cards) {
-        const update = updatedCards.find((u) => u.cardId === card._id.toString());
+        const update = priceUpdates.find((u) => u.cardId === card._id.toString());
         if (update) {
           Object.assign(card, update);
           newTotalPrice += update.newTotalPrice;
@@ -155,7 +166,7 @@ const updateCollectionsWithNewCardValues = async (userId, updatedCards, io) => {
   } catch (error) {
     console.error('Error in updateCollectionsWithNewCardValues:', error);
     logError(error, error.message, null, {
-      data: updatedCards,
+      data: priceUpdates,
       source: 'updateCollectionsWithNewCardValues',
     });
     throw error;

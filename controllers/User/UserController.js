@@ -4,9 +4,12 @@ const { response } = require('express');
 const Deck = require('../../models/Deck');
 const Collection = require('../../models/Collection');
 const User = require('../../models/User');
-const CardInCollection = require('../../models/CardInCollection');
+const UserSecurityData = require('../../models/UserSecurityData');
+const UserBasicData = require('../../models/UserBasicData');
 const Cart = require('../../models/Cart');
 
+const CardInCollection = require('../../models/CardInCollection');
+const CardInCart = require('../../models/CardInCart');
 const CustomError = require('../../middleware/customError');
 const { logError, logInfo } = require('../../utils/loggingUtils');
 
@@ -25,95 +28,168 @@ const cardController = require('../Cards/CardController');
 // USER ROUTES: SIGNUP / SIGNIN
 exports.signup = async (req, res, next) => {
   try {
-    handleValidationErrors(req, res);
+    const { userSecurityData, userBasicData } = extractData(req);
+    const { username, password, email, role_data } = userSecurityData || {};
+    const { firstName, lastName } = userBasicData || {};
 
-    const { login_data, basic_info, otherInfo } = extractData(req);
-    const { username, password, email, role_data } = login_data || {};
-    const { name } = basic_info || {};
-
-    if (!name || !email || !username || !password) {
-      logInfo('Missing required fields', STATUS.BAD_REQUEST, { login_data, basic_info });
+    if (!username || !password || !email) {
+      return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    const existingUser = await User.findOne({ 'login_data.username': username.trim() });
+    const existingUser = await User.findOne({ 'userSecurityData.username': username });
     if (existingUser) {
-      logInfo('User already exists', STATUS.CONFLICT, { username });
-      throw new CustomError(MESSAGES.USER_ALREADY_EXISTS, STATUS.CONFLICT);
+      return res.status(409).json({ message: 'User already exists' });
     }
 
-    const hashedPassword = await bcrypt.hash(password.trim(), 10);
-    const newUser = new User({
-      login_data: {
-        ...login_data,
-        username: username.trim(),
-        password: hashedPassword,
-        email: email.trim(),
-        role_data: role_data || {},
-      },
-      basic_info,
-      ...otherInfo,
-    });
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUserSecurityData = await new UserSecurityData({
+      username: username,
+      password: hashedPassword,
+      email: email,
+      role_data: role_data,
+    }).save();
 
+    const newUserBasicData = await new UserBasicData({
+      firstName: firstName,
+      lastName: lastName,
+    }).save();
+
+    const newUser = await new User({
+      username: username,
+      userSecurityData: newUserSecurityData?._id,
+      userBasicData: newUserBasicData?._id,
+    }).save();
+
+    // Populate the data fields before returning the response
+    // Repopulate with necessary details if needed, otherwise send minimal data to avoid large payloads
+    let userWithDetails = await User.findById(newUser._id)
+      .populate('userSecurityData')
+      .populate('userBasicData')
+      .populate('cart');
+    // Create a token
+    const token = generateToken({
+      username: userWithDetails.userSecurityData.username,
+      id: userWithDetails._id,
+      capabilities: userWithDetails.userSecurityData.role_data.capabilities,
+    });
+    // update userId field of userSecurityData and userBasicData
+    userWithDetails.userSecurityData.userId = userWithDetails._id;
+    userWithDetails.userBasicData.userId = userWithDetails._id;
+    // Add token to userSecurityData
+    userWithDetails.userSecurityData.token = token;
+
+    // save updated userSecurityData and userBasicData
+    await userWithDetails.userSecurityData.save();
+    await userWithDetails.userBasicData.save();
+
+    // save userWithDetails
+    await userWithDetails.save();
+
+    // Create a cart for the user
+    const newCart = new Cart({ userId: newUser._id, cards: [] }); // Assuming Cart model has a cards field
+    await newCart.save();
+
+    // Fetch the 'Dark Magician Girl' card using the cardController
+    const darkMagicianGirlSearchResults =
+      await cardController.fetchAndTransformCardData('Dark Magician Girl');
+    const darkMagicianGirl = darkMagicianGirlSearchResults[0];
+
+    // Set initial quantity and totalPrice for the card, and assign cartId
+    darkMagicianGirl.quantity = 1;
+    darkMagicianGirl.totalPrice = darkMagicianGirl.price * darkMagicianGirl.quantity;
+    darkMagicianGirl.cartId = newCart._id;
+
+    // Create and save the 'Dark Magician Girl' card in the cart
+    const darkMagicianGirlCard = new CardInCart(darkMagicianGirl);
+    await darkMagicianGirlCard.save();
+
+    // Add card's _id to the new cart
+    newCart?.cart?.push(darkMagicianGirlCard._id);
+    await newCart.save(); // Saving the updated cart
+
+    // Assign the new cart to the user's cart field and save the user
+    newUser.cart = newCart._id;
     await newUser.save();
 
-    const token = generateToken({
-      username: newUser.login_data.username,
-      id: newUser._id,
-      capabilities: newUser.login_data.role_data.capabilities,
-    });
+    // Repopulate userWithDetails to include the new cart and card information
+    userWithDetails = await User.findById(newUser._id)
+      .populate('userSecurityData')
+      .populate('userBasicData')
+      .populate({
+        path: 'cart',
+        populate: { path: 'cart' }, // Assuming cards are populated in the cart
+      });
 
-    logInfo('User created successfully', STATUS.SUCCESS, { username });
     res.status(201).json({
       message: 'User created successfully',
-      data: { token },
+      data: {
+        token: token,
+        user: userWithDetails,
+      },
     });
   } catch (error) {
-    console.log('Signup Error: ', error);
-    logError('Signup Error: ', error.message, null, { error });
+    console.error('Signup Error: ', error);
     next(error);
   }
 };
 exports.signin = async (req, res, next) => {
   try {
-    handleValidationErrors(req, res);
+    // handleValidationErrors(req, res);
 
-    const { username, password } = req.body;
+    const { username, password } = req.body.userSecurityData;
+
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
 
     if (!process.env.SECRET_KEY) {
-      logToSpecializedLogger('info', { section: 'signin' });
-      throw new CustomError(ERROR_TYPES.SECRET_KEY_MISSING, STATUS.INTERNAL_SERVER_ERROR);
+      return res.status(500).json({ message: 'Internal Server Error: no SK' });
     }
 
-    const user = await User.findOne({ 'login_data.username': username.trim() });
+    let user = await User.findOne({ username: username })
+      .populate('userSecurityData')
+      .populate('userBasicData')
+      .populate('cart');
     if (!user) {
-      logError('User not found', new Error(MESSAGES.USER_NOT_FOUND));
-      throw new CustomError(MESSAGES.INVALID_USERNAME, STATUS.NOT_FOUND);
+      return res.status(404).json({ message: 'User not found', data: { username, password } });
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.login_data.password);
+    const isPasswordValid = await bcrypt.compare(password, user.userSecurityData.password);
     if (!isPasswordValid) {
-      logError('Invalid password', new Error(MESSAGES.INVALID_PASSWORD));
-      throw new CustomError(MESSAGES.INVALID_PASSWORD, STATUS.UNAUTHORIZED);
+      return res.status(401).json({ message: 'Invalid password' });
     }
 
     const token = generateToken({
-      username: user.login_data.username,
+      username: user.userSecurityData.username,
       id: user._id,
-      capabilities: user.login_data.role_data.capabilities,
+      capabilities: user.userSecurityData.role_data.capabilities,
     });
 
-    logInfo('User signed in successfully', STATUS.SUCCESS, { username });
+    // repopulate user's data fields
+    user = await User.findById(user._id)
+      .populate('userSecurityData')
+      .populate('userBasicData')
+      .populate('cart')
+      .populate({
+        path: 'allDecks',
+        populate: { path: 'cards' },
+      })
+      .populate({
+        path: 'allCollections',
+        populate: { path: 'cards' },
+      });
+
     res.status(200).json({
       message: 'Fetched user data successfully',
-      data: { token },
+      data: {
+        token: token,
+        user: user,
+      },
     });
   } catch (error) {
     console.log('Signin Error: ', error);
     logError('Signin Error: ', error.message, null, { error });
-    // Use headersSent to check if headers are already sent to the client
-    if (!res.headersSent) {
-      next(error);
-    }
+    next(error);
   }
 };
 // USER PROFILE ROUTES (GET, UPDATE, DELETE)
@@ -187,6 +263,127 @@ exports.deleteProfile = async (req, res, next) => {
     next(error);
   }
 };
+
+// USER DATA ROUTES (GET)
+exports.getUserData = async (req, res, next) => {
+  try {
+    const userId = req.params.userId;
+
+    if (!userId) {
+      throw new CustomError('User ID is required', 400);
+    }
+
+    const user = await User.findById(userId).populate({
+      path: 'userBasicData',
+      populate: 'data',
+    });
+
+    if (!user) {
+      throw new CustomError(MESSAGES.USER_NOT_FOUND, STATUS.NOT_FOUND);
+    }
+
+    res.status(200).json({
+      message: 'Fetched user data successfully',
+      data: user.data,
+    });
+  } catch (error) {
+    console.error('Get User Data Error: ', error);
+    logError('Get User Data Error: ', error, null, { error });
+    next(error);
+  }
+};
+exports.updateUserData = async (req, res, next) => {
+  try {
+    const userId = req.params.userId;
+    const updatedUser = req.body;
+    console.log('UPDATED USER DATA', updatedUser);
+
+    // Validate input data
+    if (!userId || !updatedUser || typeof updatedUser !== 'object') {
+      return res.status(400).json({ message: 'Invalid request data' });
+    }
+
+    // Find the user by ID and ensure that user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Update basic and security data as needed, while avoiding direct assignments to protected fields
+    if (updatedUser.userBasicData) {
+      // Assuming userBasicData doesn't contain the _id field or any other protected fields
+      await User.findByIdAndUpdate(userId, { $set: { userBasicData: updatedUser.userBasicData } });
+    }
+    if (updatedUser.userSecurityData) {
+      // Similar assumption as above and additional handling for security-related fields
+      await User.findByIdAndUpdate(userId, {
+        $set: { userSecurityData: updatedUser.userSecurityData },
+      });
+    }
+
+    // Fetch the updated user and populate necessary fields
+    const updatedUserDoc = await User.findById(userId)
+      .populate('userBasicData')
+      .populate('userSecurityData');
+
+    res.status(200).json({
+      message: 'User data updated successfully',
+      data: { user: updatedUserDoc },
+    });
+  } catch (error) {
+    console.error('Update User Data Error: ', error);
+    res.status(500).json({ message: 'Internal Server Error', error: error.message });
+    next(error);
+  }
+};
+
+// exports.updateUserData = async (req, res, next) => {
+//   try {
+//     const userId = req.params.userId;
+//     const updatedUser = req.body;
+//     console.log('UPDATED USER DATA', updatedUser);
+
+//     // Validate input data
+//     if (!userId || !updatedUser || typeof updatedUser !== 'object') {
+//       return res.status(400).json({ message: 'Invalid request data' });
+//     }
+
+//     // Find the user by ID and ensure that user exists
+//     const user = await User.findById(userId);
+//     if (!user) {
+//       return res.status(404).json({ message: 'User not found' });
+//     }
+
+//     // Update basic and security data as needed
+//     // Note: Be cautious about what fields you allow to be updated.
+//     // Ensure you don't inadvertently overwrite sensitive fields like passwords or roles without proper checks.
+//     if (updatedUser.userBasicData) {
+//       Object.assign(user.userBasicData, updatedUser.userBasicData);
+//     }
+//     if (updatedUser.userSecurityData) {
+//       // Security-related updates might require additional handling, e.g., password hashing
+//       Object.assign(user.userSecurityData, updatedUser.userSecurityData);
+//     }
+
+//     // Save the updated user document
+//     await user.save();
+
+//     // repopulate all user fields
+//     await user.populate('userBasicData').populate('userSecurityData');
+
+//     res.status(200).json({
+//       message: 'User data updated successfully',
+//       data: {
+//         user: user,
+//       },
+//     });
+//   } catch (error) {
+//     console.error('Update User Data Error: ', error);
+//     res.status(500).json({ message: 'Internal Server Error', error: error.message });
+//     next(error);
+//   }
+// };
+
 // !--------------------------! DECKS !--------------------------!
 // DECK ROUTES (GET, CREATE, UPDATE, DELETE)
 exports.getAllDecksForUser = async (req, res, next) => {
@@ -476,12 +673,17 @@ exports.createNewCollection = async (req, res, next) => {
     darkMagicianGirl.quantity = 1;
     darkMagicianGirl.totalPrice = darkMagicianGirl.price * darkMagicianGirl.quantity;
 
-    const darkMagicianGirlCard = new CardInCollection(darkMagicianGirl);
-    await darkMagicianGirlCard.save();
-
     // Create new collection data
     const newCollectionData = createCollectionObject(req.body, userId);
     const newCollection = new Collection(newCollectionData);
+
+    await newCollection.save(); // Save the new collection to get the _id
+
+    // Create a new CardInCollection with the collectionId set to the new Collection's _id
+    darkMagicianGirl.collectionId = newCollection._id;
+    const darkMagicianGirlCard = new CardInCollection(darkMagicianGirl);
+
+    await darkMagicianGirlCard.save(); // Save the new card
 
     // Add card's _id to the collection
     newCollection.cards.push(darkMagicianGirlCard._id);
@@ -491,7 +693,7 @@ exports.createNewCollection = async (req, res, next) => {
     newCollection.quantity = 1; // As there's only one card
     newCollection.totalPrice = darkMagicianGirlCard.totalPrice; // Total price of the collection is the price of the single card
 
-    await newCollection.save();
+    await newCollection.save(); // Save the updated collection
 
     // Add new collection to user's allCollections
     user.allCollections.push(newCollection._id);
@@ -518,6 +720,7 @@ exports.createNewCollection = async (req, res, next) => {
     next(error);
   }
 };
+
 exports.updateAndSyncCollection = async (req, res, next) => {
   const { collectionId, userId } = req.params;
   const updatedCollectionData = req.body.updatedCollection;
@@ -707,16 +910,26 @@ exports.getUserCart = async (req, res, next) => {
   const { userId } = req.params;
 
   try {
-    const user = await User.findById(userId).populate('cart');
+    let user = await User.findById(userId).populate({
+      path: 'cart',
+      populate: { path: 'cart' },
+    });
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     if (!user.cart) {
-      const newCart = new Cart({ userId, totalPrice: 0, quantity: 0, items: [] });
+      const newCart = new Cart({ userId: userId, totalPrice: 0, quantity: 0, cart: [] });
       await newCart.save();
       user.cart = newCart._id;
       await user.save();
-      return res.status(200).json(newCart);
+
+      // Populate the user cart again
+      user = await User.findById(userId).populate({
+        path: 'cart',
+        populate: { path: 'cart' },
+      });
+
+      return res.status(200).json(user.cart);
     }
     return res.status(200).json(user.cart);
   } catch (error) {
@@ -749,14 +962,17 @@ exports.updateCart = async (req, res, next) => {
   }
 
   try {
-    const user = await User.findById(userId);
+    let user = await User.findById(userId).populate('cart');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    let currentCart = await Cart.findById(user.cart);
+    let currentCart = user.cart;
     if (!currentCart) {
       currentCart = new Cart({ userId: user._id, cart: [] });
+      await currentCart.save();
+      user.cart = currentCart._id; // Link new cart to the user
+      await user.save();
     }
 
     let updatedCart = [...currentCart.cart];
@@ -768,29 +984,28 @@ exports.updateCart = async (req, res, next) => {
         (cartItem) => cartItem.id.toString() === id.toString(),
       );
 
+      // Modify item or add new item to cart
       if (existingItemIndex > -1) {
         if (newQuantity === 0) {
-          updatedCart.splice(existingItemIndex, 1);
+          updatedCart.splice(existingItemIndex, 1); // Remove item if quantity is 0
         } else {
-          updatedCart[existingItemIndex].quantity = newQuantity;
-          console.log('New value for existing item', updatedCart[existingItemIndex]);
+          updatedCart[existingItemIndex].quantity = newQuantity; // Update quantity for existing item
         }
       } else if (newQuantity > 0) {
-        updatedCart.push(item);
+        updatedCart.push({ ...item, cartId: currentCart._id }); // Add cartId to new item
       }
     }
 
-    currentCart.cart = updatedCart;
-
+    currentCart.cart = updatedCart; // Update cart in the database
     await currentCart.save();
 
-    await user.save();
-    if (!user.cart) {
-      user.cart = currentCart._id;
-      await user.save();
-    }
+    // Repopulate user's cart to return updated cart
+    user = await User.findById(userId).populate({
+      path: 'cart',
+      populate: { path: 'cart' },
+    });
 
-    res.json(currentCart);
+    res.json(user?.cart);
   } catch (error) {
     console.error(error.stack);
     res.status(500).json({ error: 'Server error' });

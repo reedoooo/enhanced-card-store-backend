@@ -75,7 +75,7 @@ const findUserById = async (userId) => {
 };
 
 const findUser = async (username) => {
-  return await User.findOne({ 'login_data.username': username });
+  return await User.findOne({ 'userSecurityData.username': username });
 };
 
 async function updateDocumentWithRetry(model, update, options = {}, retryCount = 0) {
@@ -253,8 +253,8 @@ const handleValidationErrors = (req, res, next) => {
 };
 
 const extractData = ({ body }) => {
-  const { login_data, basic_info, ...otherInfo } = body;
-  return { login_data, basic_info, otherInfo };
+  const { userSecurityData, userBasicData } = body;
+  return { userSecurityData, userBasicData };
 };
 const generateToken = (userData) => {
   return jwt.sign(userData, process.env.SECRET_KEY || 'YOUR_SECRET_KEY');
