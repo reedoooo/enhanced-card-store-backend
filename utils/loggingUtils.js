@@ -362,7 +362,6 @@ function logData(data, data2) {
   const logFileName = getLogFileName(logType);
   safeAppendFile(`${logsDir}/${logFileName}`, logContent);
 }
-
 // Custom replacer function to handle circular references
 function circularReplacer() {
   const seen = new WeakSet();
@@ -450,7 +449,6 @@ function logError(error, errorType, problematicValue, additionalInfo = {}) {
   // Additionally, save to the error log file
   safeAppendFile(`${logsDir}/error.log`, errorContent);
 }
-
 // Helper function to format the error log
 function formatErrorLog(errorLog) {
   let formattedLog = `| [Message]: ${errorLog.errorMessage}\n`;
@@ -549,74 +547,6 @@ const logPriceChange = (changeStatus, card, latestPriceUpdated, latestPriceOld) 
     safeAppendFile(`${logsDir}/error.log`, `[${new Date().toISOString()}] ${error.stack}\n`);
   }
 };
-// const logPriceChange = (changeStatus, card, latestPriceUpdated, latestPriceOld) => {
-//   try {
-//     if (!card) {
-//       throw new Error('[logPriceChange] -----> Invalid card data provided for logging.');
-//     }
-
-//     const now = new Date(); // current date and time
-//     const lastUpdated = new Date(card.dateOfLastUpdate); // assuming card.dateOfLastUpdate is in a proper format
-//     const hoursSinceUpdate = (now - lastUpdated) / (1000 * 60 * 60); // time difference in hours
-
-//     const priceDifference = latestPriceUpdated - latestPriceOld;
-//     const percentChange = (priceDifference / latestPriceOld) * 100;
-
-//     const messagePrefix =
-//       changeStatus === 'CHANGE'
-//         ? '['.yellow +
-//           'CHANGE'.green +
-//           ']'.yellow +
-//           '['.yellow +
-//           'CARD'.green +
-//           '] '.yellow +
-//           `${card.name} (ID: ${card.id}) - Initial Price: ` +
-//           '['.yellow +
-//           `$${latestPriceOld.toFixed(2)}`.grey +
-//           ']'.yellow
-//         : '['.yellow +
-//           'NO_CHANGE'.grey +
-//           ']'.yellow +
-//           '['.yellow +
-//           'CARD'.grey +
-//           '] '.yellow.grey +
-//           `${card.name} (ID: ${card.id})`;
-//     let message = `${card.name} (ID: ${card.id}) price has `;
-//     message +=
-//       priceDifference > 0
-//         ? `increased by $${priceDifference.toFixed(2)} (${percentChange.toFixed(2)}%)`.green
-//         : priceDifference < 0
-//           ? `decreased by $${Math.abs(priceDifference).toFixed(2)} (${Math.abs(
-//               percentChange,
-//             ).toFixed(2)}%)`.red
-//           : 'no significant change'.grey;
-
-//     console.log(messagePrefix + ' - ' + message);
-
-//     // Additional logging for recent updates
-//     if (hoursSinceUpdate <= 24) {
-//       console.log(
-//         '[RECENT_UPDATE] '.blue +
-//           `${card.name} (ID: ${card.id}) was updated less than 24 hours ago`.yellow,
-//       );
-//     }
-//     if (changeStatus === 'CHANGE') {
-//       // Log to a special file for tracking price changes
-//       safeAppendFile(
-//         `${logsDir}/price-changes-tracker.log`,
-//         `${new Date().toISOString()} - ${message}\n`,
-//       );
-//     } else {
-//       // Log to the standard price change log
-//       safeAppendFile(`${logsDir}/price-changes.log`, `${new Date().toISOString()} - ${message}\n`);
-//     }
-//   } catch (error) {
-//     console.error('Error logging price change:', error);
-//     // logError(error);
-//     safeAppendFile(`${logsDir}/error.log`, `[${new Date().toISOString()}] ${error.stack}\n`);
-//   }
-// };
-
 const logInfo = (message, status, data) => {
   logToSpecializedLogger(
     'info',
@@ -631,4 +561,7 @@ module.exports = {
   logError,
   logPriceChange,
   logInfo,
+  logMultipleCards,
+  logMultipleCollections,
+  logOtherData,
 };

@@ -11,7 +11,8 @@ function downloadCard(card) {
   if (typeof card.card_images[0].image_url != 'undefined') {
     const name = card.name.replace(/[/\\?%*:|"<>]/g, '');
 
-    let folder = 'cards';
+    let folderA = 'public';
+    let folderB = 'cards';
 
     const url = card.card_images[0].image_url;
     const n = url.lastIndexOf('.');
@@ -20,7 +21,7 @@ function downloadCard(card) {
     download
       .image({
         url: url,
-        dest: `../../${folder}/${name}_${card.race}_${card.type}${
+        dest: `${folderA}/${folderB}/${name}_${card.race}_${card.type}${
           card.level ? '_lvl' + card.level : ''
         }${card.attribute ? '_' + card.attribute : ''}.${extension}`,
       })

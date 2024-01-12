@@ -2,9 +2,12 @@
 
 // Dependencies
 const express = require('express');
+const helmet = require('helmet');
+
 const mongoose = require('mongoose');
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
+const fs = require('fs');
 const cors = require('cors');
 const http = require('http');
 
@@ -13,6 +16,7 @@ const { initSocket } = require('./socket');
 const { setupSocketEvents } = require('./socketEvents');
 const applyCustomMiddleware = require('./middleware');
 const routes = require('./routes');
+const path = require('path');
 
 // Load environment variables
 require('dotenv').config();
@@ -54,6 +58,7 @@ app.use(
 // app.use(cors(corsOptions));
 
 // Middleware Application
+app.use(helmet());
 app.use(express.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
@@ -64,9 +69,18 @@ const server = http.createServer(app);
 initSocket(server);
 setupSocketEvents();
 
+// Define paths
+const appDirectory = path.resolve(__dirname, '..'); // Adjust as necessary for your folder structure
+const publicDirectory = path.join(appDirectory, 'public');
+
+// Ensure the public directory exists
+if (!fs.existsSync(publicDirectory)) {
+  fs.mkdirSync(publicDirectory, { recursive: true });
+}
+
+app.use('/public', express.static(publicDirectory));
 // API Routes
 app.use('/api', routes);
-
 // Basic routes for testing
 app.get('/', (req, res) => res.send('This is the beginning....'));
 app.get('/test', (req, res) => res.send('This is the test....'));

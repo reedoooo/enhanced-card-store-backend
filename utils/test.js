@@ -1,4 +1,4 @@
-const CardInCollection = require('../models/CardInCollection');
+const { CardInCollection } = require('../models/Card');
 const User = require('../models/User');
 const { logError, logPriceChange } = require('./loggingUtils');
 const { getCardInfo, calculateCollectionValue } = require('./utils');

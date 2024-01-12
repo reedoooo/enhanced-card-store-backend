@@ -1,88 +1,25 @@
 const axios = require('axios');
 const User = require('../../models/User');
-const CardInCollection = require('../../models/CardInCollection');
-const { logData, logError } = require('../../utils/loggingUtils');
-const CardInDeck = require('../../models/CardInDeck');
 const CustomError = require('../../middleware/customError');
+const { CardInCollection, CardInDeck, CardInSearch } = require('../../models/Card');
+const { queryBuilder } = require('./helpers');
+// const { createAndSaveCardInContext } = require('../User/helpers');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
-
-function queryBuilder(name, race, type, level, attribute) {
-  const queryParts = [];
-
-  if (name) queryParts.push(`fname=${encodeURIComponent(name)}`);
-  if (race) queryParts.push(`race=${encodeURIComponent(race)}`);
-  if (type) queryParts.push(`type=${encodeURIComponent(type)}`);
-  if (level) queryParts.push(`level=${encodeURIComponent(level)}`);
-  if (attribute) queryParts.push(`attribute=${encodeURIComponent(attribute)}`);
-
-  return queryParts.join('&');
-}
 const cardController = {
-  getAllCards: async () => {
-    let cards = await CardInCollection.find({}).limit(30);
-
-    if (cards.length === 0) {
-      await cardController.getCardsFromApi();
-      cards = await CardInCollection.find({}).limit(30);
-    }
-
-    return cards;
-  },
-  getCardById: async (id) => {
-    return await CardInCollection.findOne({ id: id });
-  },
-  getCardByType: async (type) => {
-    return await CardInCollection.find({ type: type });
-  },
-  getCardByAttribute: async (attribute) => {
-    return await CardInCollection.find({ attribute: attribute });
-  },
-  getCardByName: async (name) => {
-    return await CardInCollection.findOne({ name: name });
-  },
-  getCardsFromApi: async () => {
-    try {
-      const response = await axios.get('https://db.ygoprodeck.com/api/v7/cardinfo.php');
-      const fetchedCards = response.data.data.slice(0, 30); // Limiting to 30 cards
-
-      // Get IDs of fetched cards
-      const fetchedCardIds = fetchedCards.map((card) => card.id);
-
-      // Find which of these cards already exist in the database
-      const existingCards = await CardInCollection.find({ id: { $in: fetchedCardIds } });
-      const existingCardIds = new Set(existingCards.map((card) => card.id));
-
-      // Filter out cards that already exist
-      const newCards = fetchedCards.filter((card) => !existingCardIds.has(card.id));
-
-      // Create new card documents
-      const newCardDocuments = newCards.map(
-        (card) =>
-          new CardInCollection({
-            id: card.id,
-            name: card.name,
-            type: card.type,
-            frameType: card.frameType,
-            desc: card.desc,
-            atk: card.atk,
-            def: card.def,
-            level: card.level,
-            race: card.race,
-            attribute: card.attribute,
-            card_images: card.card_images,
-            image: card.card_images[0].image_url,
-            card_prices: card.card_prices,
-          }),
-      );
-
-      // Insert all new cards in a single operation
-      await CardInCollection.insertMany(newCardDocuments);
-    } catch (error) {
-      console.error('Error fetching data from the API: ', error);
-    }
-  },
+  /**
+   * Fetches card data from the API and transforms it into CardInSearch instances.
+   * @param {*} userId
+   * @param {*} label
+   * @param {*} name
+   * @param {*} race
+   * @param {*} type
+   * @param {*} level
+   * @param {*} attribute
+   * @param {*} id
+   * @returns
+   */
   fetchAndTransformCardData: async (name, race, type, level, attribute) => {
     try {
       const response = await axiosInstance.get(
@@ -90,7 +27,6 @@ const cardController = {
       );
       const fetchedCards = response?.data?.data?.slice(0, 90); // Limiting to 30 cards
 
-      logData(fetchedCards[0]);
       const transformedCards = fetchedCards?.map((card) => {
         const tcgplayerPrice = card?.card_prices[0]?.tcgplayer_price || 0;
         let card_set = null;
@@ -123,7 +59,6 @@ const cardController = {
             num: tcgplayerPrice,
             timestamp: Date.now(),
           },
-          dataOfLastPriceUpdate: Date.now(),
           priceHistory: [
             {
               num: tcgplayerPrice,
@@ -158,18 +93,92 @@ const cardController = {
       return transformedCards;
     } catch (error) {
       console.error('Error fetching card information:', error);
-      logError(
-        'Error fetching card information:',
-        error?.response?.statusText,
-        error?.response?.data,
-        {
-          source: 'cardController.fetchAndTransformCardData',
-        },
-      );
       throw error; // Propagate the error
     }
   },
+  // fetchAndTransformCardData: async (name, race, type, level, attribute, id) => {
+  //   try {
+  //     const query = queryBuilder(name, race, type, level, attribute, id);
+  //     const response = await axiosInstance.get(`/cardinfo.php?${query}`);
 
+  //     if (!response?.data?.data) {
+  //       throw new Error('Failed to fetch card information');
+  //     }
+
+  //     const fetchedCards = response.data.data.slice(0, 90); // Limiting to 90 cards
+  //     let cards = [];
+
+  //     for (const card of fetchedCards) {
+  //       const newCard = await createAndSaveCardInContext(
+  //         card,
+  //         null, // CollectionId may not be relevant for a search result context
+  //         'CardInSearch',
+  //         'SearchHistory',
+  //       );
+  //       cards.push(newCard);
+  //     }
+
+  //     return cards; // Return the array of CardInSearch instances
+  //   } catch (error) {
+  //     console.error('Error in fetchAndTransformCardData:', error);
+  //     throw error;
+  //   }
+  // },
+  getAllCards: async () => {
+    let cards = await CardInSearch.find({}).limit(30);
+
+    if (cards.length === 0) {
+      await cardController.getCardsFromApi();
+      cards = await CardInSearch.find({}).limit(30);
+    }
+
+    return cards;
+  },
+  getCardById: async (id) => {
+    return await CardInSearch.findOne({ id: id });
+  },
+  getCardByType: async (type) => {
+    return await CardInSearch.find({ type: type });
+  },
+  getCardByAttribute: async (attribute) => {
+    return await CardInSearch.find({ attribute: attribute });
+  },
+  getCardByName: async (name) => {
+    return await CardInSearch.findOne({ name: name });
+  },
+
+  fetchCardImage: async (id, name) => {
+    try {
+      if (!id && !name) {
+        throw new CustomError('Card ID or name is required', 400);
+      }
+      const response = await axiosInstance.get(`/cardinfo.php?name=${name}`);
+      console.log('RESPONSE:', response);
+      const fetchedCard = response?.data?.data?.[0];
+
+      if (!fetchedCard) {
+        throw new CustomError('Card not found', 404);
+      }
+
+      const bufferedImage = fetchedCard?.card_images?.[0]?.image_url;
+
+      // if (!imageUrl) {
+      //   throw new CustomError('Image not found', 404);
+      // }
+
+      return bufferedImage;
+
+      // const imageResponse = await axios.get(imageUrl, {
+      //   responseType: 'arraybuffer',
+      // });
+
+      // const buffer = Buffer.from(imageResponse.data, 'binary');
+      // return buffer;
+    } catch (error) {
+      console.error('Error fetching card image:', error);
+      throw error; // Propagate the error
+    }
+  },
   updateExistingCardInUserCollection: async (userId, collectionId, cardUpdates) => {
     try {
       if (!Array.isArray(cardUpdates)) {
@@ -178,7 +187,7 @@ const cardController = {
 
       const user = await User.findById(userId).populate({
         path: 'allCollections',
-        populate: { path: 'cards' },
+        populate: { path: 'cards', model: 'CardInCollection' },
       });
 
       if (!user) throw new Error('User not found');
@@ -238,7 +247,10 @@ const cardController = {
     try {
       let user = await User.findById(userId).populate({
         path: 'allCollections',
-        populate: { path: 'cards' },
+        populate: {
+          path: 'cards',
+          model: 'CardInCollection',
+        },
       });
 
       if (!user) {
@@ -288,7 +300,6 @@ const cardController = {
       throw error;
     }
   },
-
   addCardToUserDeck: async (userId, deckId, newCard) => {
     try {
       if (!newCard || !newCard[0]?.id || !newCard[0]?.name) {
@@ -297,7 +308,7 @@ const cardController = {
       // Fetch the user and populate allDecks and their cards
       let user = await User.findById(userId).populate({
         path: 'allDecks',
-        populate: { path: 'cards' },
+        populate: { path: 'cards', model: 'CardInDeck' },
       });
 
       if (!user) {
@@ -336,7 +347,7 @@ const cardController = {
       // Re-fetch user to get updated allDecks with populated cards
       user = await User.findById(userId).populate({
         path: 'allDecks',
-        populate: { path: 'cards' },
+        populate: { path: 'cards', model: 'CardInDeck' },
       });
 
       return { message: 'Card added to deck successfully', allDecks: user.allDecks };
@@ -350,7 +361,7 @@ const cardController = {
       // Fetch the user and populate allDecks and their cards
       let user = await User.findById(userId).populate({
         path: 'allDecks',
-        populate: { path: 'cards' },
+        populate: { path: 'cards', model: 'CardInDeck' },
       });
 
       if (!user) {
@@ -428,7 +439,7 @@ const cardController = {
     try {
       let user = await User.findById(userId).populate({
         path: 'allDecks',
-        populate: { path: 'cards' },
+        populate: { path: 'cards', model: 'CardInDeck' },
       });
       if (!user) {
         throw new Error('User not found');
@@ -456,11 +467,10 @@ const cardController = {
       }
 
       await deck.save();
-
       // Re-fetch user to get updated allDecks with populated cards
       user = await User.findById(userId).populate({
         path: 'allDecks',
-        populate: { path: 'cards' },
+        populate: { path: 'cards', model: 'CardInDeck' },
       });
       return { message: 'Deck updated successfully', allDecks: user.allDecks };
     } catch (error) {
@@ -468,7 +478,6 @@ const cardController = {
       throw error;
     }
   },
-
   patchCard: async (cardId, cardData) => {
     // Implement the logic to update the card
     try {
@@ -499,4 +508,438 @@ const cardController = {
   },
 };
 
-module.exports = cardController;
+module.exports = {
+  cardController,
+};
+// ! MOST LIKELY TO REUSE
+// const searchTerms = { name, race, type, level, attribute, id };
+// // TODO: modify this to return all searchHistory entries
+// let allSearchHistoryEntries = await SearchHistory.find({});
+// let searchResultsFromHistory = await SearchHistory.findOne({
+//   // searchTerms: searchTerms,
+//   searchTermsAndResults: [
+//     {
+//       $elemMatch: {
+//         searchTerms: searchTerms,
+//       },
+//     },
+//   ],
+// });
+
+// let newSearchResultEntry = {
+//   searchTerms,
+//   cards: [],
+// };
+// let existingCardsInSearchHistory =
+//   searchResultsFromHistory?.searchTermsAndResults?.cards || [];
+// // let allSearchHistoryEntries = searchResultsFromHistory?.searchTermsAndResults || [];
+// let specificSearchHistoryEntry = searchResultsFromHistory?.searchTermsAndResults || {};
+
+// let entryName = specificSearchHistoryEntry?.name || '';
+// let entrySearchTerms = specificSearchHistoryEntry?.searchTerms || {};
+// let entryCards = specificSearchHistoryEntry?.cards || [];
+// let updatedEntryCards = [];
+// let fetchedUpdatedSearchPrices = [];
+// let transformedCards = [];
+// let updatedSearchResultsHistory = [
+//   ...searchResultsFromHistory,
+//   {
+//     name: entryName,
+//     searchTerms: entrySearchTerms,
+
+//     cards: searchResultsFromHistory?.searchTermsAndResults?.cards
+//       ? searchResultsFromHistory?.searchTermsAndResults?.cards
+//       : [],
+//   },
+// ];
+
+// if (existingCardsInSearchHistory.length > 0) {
+//   console.log('UPDATING EXISTING CARDS IN CONTEXT:', existingCardsInSearchHistory);
+
+//   let namesOfExistingCards = existingCardsInSearchHistory.map((card) => card.name);
+//   fetchedUpdatedSearchPrices = await fetchCardPrices(namesOfExistingCards);
+
+//   for (let card of existingCardsInSearchHistory) {
+//     const updatedCardsInContexts = await processContextualData(
+//       ['SearchHistory', 'Collection', 'Deck', 'Cart'],
+//       id,
+//       fetchedUpdatedSearchPrices[card?.name],
+//     );
+//     const cards = updatedCardsInContexts?.existingCardsInContext;
+
+//     // Update the card's price and quantity
+//     updatedEntryCards = cards.map((card) => {
+//       card.price = fetchedUpdatedSearchPrices[card?.name]?.tcgplayer_price;
+//       card.totalPrice = card.price * card.quantity;
+//       return card;
+//     });
+
+//     transformedCards.push(createCardData(cards));
+//   }
+//   // if the cards have been updated and the updatedSearchResultsHistory has been updated, then update the corresponding entry in the search history
+//   if (
+//     updatedEntryCards.length > 0 &&
+//     updatedSearchResultsHistory.length > 0 &&
+//     updatedSearchResultsHistory[0].cards.length > 0 &&
+
+//   ) {
+//     await SearchHistory.create(newSearchResultEntry);
+//   }
+// } else {
+//   const response = await axiosInstance.get(
+//     `/cardinfo.php?${queryBuilder(name, race, type, level, attribute, id)}`,
+//   );
+//   const fetchedCards = response?.data?.data?.slice(0, 90); // Limiting to 90 cards
+
+//   for (const card of fetchedCards) {
+//     const tcgplayerPrice = card?.card_prices[0]?.tcgplayer_price || 0;
+//     // let card_set = card?.card_sets?.length > 0 ? card.card_sets[0] : null;
+
+//     // const rarity = card_set?.set_rarity || '';
+//     // const downloadedImagePath = await downloadCard(card);
+//     const data = createCardData(card, tcgplayerPrice);
+//     console.log('CREATING NEW CARD FOR SEARCH HISTORY:', data);
+
+//     // if (existingCardsInSearchHistory) {
+//     const newCard = new CardInSearch(data);
+//     await newCard.save();
+
+//     // add new card to new search entry
+//     newSearchResultEntry.cards.push(newCard);
+//   }
+//   if (newSearchResultEntry.cards.length > 0) {
+//     await SearchHistory.create(newSearchResultEntry);
+//   }
+// }
+// return transformedCards; // Return the array of transformed card data
+
+// ! MOST LIKELY TO REUSE
+
+// ! --------- querybuilder ---------
+// function queryBuilder(name, race, type, level, attribute, id) {
+//   const params = [
+//     // GENERAL SEARCH PARAMS
+
+//     name: name,
+//     race: race,
+//     type: type,
+//     level: level,
+//     attribute: attribute,
+//     id: id,
+//   ]
+
+//     // CARD SET PARAMS
+//     // set: params.set,
+//     // set_type: params.set_type,
+//     // set_rarity: params.set_rarity,
+//     // set_price: params.set_price,
+//     // CARD IMAGE PARAMS
+//     // image: params.image,
+//     // image_url: params.image_url,
+//     // image_url_small: params.image_url_small,
+//     // image_url_cropped: params.image_url_cropped,
+//     // CARD PRICE PARAMS
+//     // cardmarket_price: params.cardmarket_price,
+//     // tcgplayer_price: params.tcgplayer_price,
+//     // ebay_price: params.ebay_price,
+//     // amazon_price: params.amazon_price,
+//     // coolstuffinc_price: params.coolstuffinc_price,
+
+//   console.log('SECTION 3.1A: QUERY BUILDER PARAMS');
+//   return Object.keys()
+//     .filter((key) => params[key] !== undefined && params[key] !== null)
+//     .map((key) => `${key}=${encodeURIComponent(params[key])}`)
+//     .join('&');
+// }
+// ! --------- querybuilder ---------
+// Process contextual data for each card
+// async function processContextualData(contexts, cardId, prices) {
+//   // Refactor the existing logic for contextual data processing...
+//   let existingCardsInContext = [];
+//   // Iterate over each context to update prices and quantities
+//   for (const context of contexts) {
+//     // Check if the card exists in the context
+//     // let updatedCard = await eval(`CardIn${context}`).findOne({ id: cardId });
+//     let existingCardInContext = await eval(`CardIn${context}`).findOne({ id: cardId });
+//     let contextualQuantities = {};
+
+//     if (existingCardInContext) {
+//       existingCardInContext.latestPrice = prices.tcgplayer_price;
+//       existingCardInContext.price = prices.tcgplayer_price;
+//       contextualQuantities[context] = getContextualQuantities(existingCardInContext, context);
+//       await existingCardInContext.save();
+
+//       // push the card into the existingCardsInContext array
+//       existingCardsInContext.push(existingCardInContext);
+//     }
+//   }
+
+//   // return updated card with contextual data
+//   return {
+//     existingCardsInContext,
+//   };
+// }
+
+// function queryBuilder(name, race, type, level, attribute, id) {
+//   const queryParts = [
+//     name && `fname=${encodeURIComponent(name)}`,
+//     race && `race=${encodeURIComponent(race)}`,
+//     type && `type=${encodeURIComponent(type)}`,
+//     level && `level=${encodeURIComponent(level)}`,
+//     attribute && `attribute=${encodeURIComponent(attribute)}`,
+//     id && `id=${encodeURIComponent(id)}`,
+//   ].filter(Boolean);
+//   // GENERAL SEARCH PARAMS
+//   // if (name) queryParts.push(`fname=${encodeURIComponent(name)}`);
+//   // if (race) queryParts.push(`race=${encodeURIComponent(race)}`);
+//   // if (type) queryParts.push(`type=${encodeURIComponent(type)}`);
+//   // if (level) queryParts.push(`level=${encodeURIComponent(level)}`);
+//   // if (attribute) queryParts.push(`attribute=${encodeURIComponent(attribute)}`);
+//   // if (id) queryParts.push(`id=${encodeURIComponent(id)}`);
+
+//   // CARD SET PARAMS
+//   // if (params.set) queryParts.push(`set=${encodeURIComponent(params.set)}`);
+//   // if (params.set_type) queryParts.push(`set_type=${encodeURIComponent(params.set_type)}`);
+//   // if (params.set_rarity)
+//   //   queryParts.push(`set_rarity=${encodeURIComponent(params.set_rarity)}`);
+//   // if (params.set_price) queryParts.push(`set_price=${encodeURIComponent(params.set_price)}`);
+
+//   // CARD IMAGE PARAMS
+//   // if (params.image) queryParts.push(`image=${encodeURIComponent(params.image)}`);
+//   // if (params.image_url)
+//   //   queryParts.push(`image_url=${encodeURIComponent(params.image_url)}`);
+//   // if (params.image_url_small)
+//   //   queryParts.push(`image_url_small=${encodeURIComponent(params.image_url_small)}`);
+//   // if (params.image_url_cropped)
+//   //   queryParts.push(`image_url_cropped=${encodeURIComponent(params.image_url_cropped)}`);
+
+//   // CARD PRICE PARAMS
+//   // if (params.cardmarket_price)
+//   //   queryParts.push(`cardmarket_price=${encodeURIComponent(params.cardmarket_price)}`);
+//   // if (params.tcgplayer_price)
+//   //   queryParts.push(`tcgplayer_price=${encodeURIComponent(params.tcgplayer_price)}`);
+//   // if (params.ebay_price) queryParts.push(`ebay_price=${encodeURIComponent(params.ebay_price)}`);
+//   // if (params.amazon_price)
+//   //   queryParts.push(`amazon_price=${encodeURIComponent(params.amazon_price)}`);
+//   // if (params.coolstuffinc_price)
+//   //   queryParts.push(`coolstuffinc_price=${encodeURIComponent(params.coolstuffinc_price)}`);
+
+//   return queryParts.join('&');
+// }
+// getCardsFromApi: async () => {
+//   try {
+//     const response = await axios.get('https://db.ygoprodeck.com/api/v7/cardinfo.php');
+//     const fetchedCards = response.data.data.slice(0, 30); // Limiting to 30 cards
+
+//     // Get IDs of fetched cards
+//     const fetchedCardIds = fetchedCards.map((card) => card.id);
+
+//     // Find which of these cards already exist in the database
+//     const existingCards = await CardInContext.find({ id: { $in: fetchedCardIds } });
+//     const existingCardIds = new Set(existingCards.map((card) => card.id));
+
+//     // Filter out cards that already exist
+//     const newCards = fetchedCards.filter((card) => !existingCardIds.has(card.id));
+
+//     // Create new card documents
+//     const newCardDocuments = newCards.map(
+//       (card) =>
+//         new CardInSearch({
+//           id: card.id,
+//           name: card.name,
+//           type: card.type,
+//           frameType: card.frameType,
+//           desc: card.desc,
+//           atk: card.atk,
+//           def: card.def,
+//           level: card.level,
+//           race: card.race,
+//           attribute: card.attribute,
+//           card_images: card.card_images,
+//           image: card.card_images[0].image_url,
+//           card_prices: card.card_prices,
+//         }),
+//     );
+
+//     // Insert all new cards in a single operation
+//     await CardInContext.insertMany(newCardDocuments);
+//   } catch (error) {
+//     console.error('Error fetching data from the API: ', error);
+//   }
+// },
+// fetchAndTransformCardData: async (name, race, type, level, attribute) => {
+//   try {
+//     // Ensure the query is built with an object containing the parameters
+//     // const queryString = queryBuilder(params);
+//     const response = await axiosInstance.get(
+//       `/cardinfo.php?${queryBuilder(name, race, type, level, attribute)}`,
+//     );
+//     const fetchedCards = response?.data?.data?.slice(0, 90); // Limiting to 30 cards
+
+//     logData(fetchedCards[0]);
+//     const transformedCards = await Promise.all(
+//       fetchedCards?.map(async (card) => {
+//         const tcgplayerPrice = card?.card_prices[0]?.tcgplayer_price || 0;
+//         let card_set = null;
+//         if (card?.card_sets && card?.card_sets?.length > 0) {
+//           card_set = card?.card_sets[0];
+//         }
+//         const rarity = card_set?.set_rarity || '';
+//         const downloadedImagePath = await downloadCard(card);
+//         // if (loadVariant && card.card_sets) {
+//         //   variants = card.card_sets.map((set) => ({
+//         //     set_name: set.set_name,
+//         //     set_code: set.set_code,
+//         //     set_rarity: set.set_rarity,
+//         //     set_price: set.set_price,
+//         //     // other variant specific fields
+//         //   }));
+//         // }
+//         return {
+//           // custom data
+//           image: card?.card_images.length > 0 ? card.card_images[0].image_url : '',
+//           downloadedImage: downloadedImagePath,
+//           quantity: 0,
+//           price: tcgplayerPrice,
+//           totalPrice: 0,
+//           // tag: '',
+//           // collectionId: '',
+//           watchList: false,
+//           rarity: rarity,
+//           card_set: card_set ? card_set : {},
+//           chart_datasets: [
+//             {
+//               x: Date.now(),
+//               y: tcgplayerPrice,
+//             },
+//           ],
+//           lastSavedPrice: {
+//             num: tcgplayerPrice,
+//             timestamp: Date.now(),
+//           },
+//           latestPrice: {
+//             num: tcgplayerPrice,
+//             timestamp: Date.now(),
+//           },
+//           dataOfLastPriceUpdate: Date.now(),
+//           priceHistory: [
+//             {
+//               num: tcgplayerPrice,
+//               timestamp: Date.now(),
+//             },
+//           ],
+//           dailyPriceHistory: [
+//             {
+//               num: tcgplayerPrice,
+//               timestamp: Date.now(),
+//             },
+//           ],
+//           _id: new mongoose.Types.ObjectId(), // Generate a unique identifier for each card
+
+//           // preset data
+//           // id: card.id.toString(),
+//           name: card.name,
+//           type: card.type,
+//           frameType: card.frameType,
+//           desc: card.desc,
+//           atk: card.atk,
+//           def: card.def,
+//           level: card.level,
+//           race: card.race,
+//           attribute: card.attribute,
+//           archetype: [], // Assuming logic to determine this
+//           card_sets: card.card_sets,
+//           card_images: card.card_images,
+//           card_prices: card.card_prices,
+//         };
+//       }),
+//     );
+
+//     return transformedCards;
+//   } catch (error) {
+//     console.error('Error fetching card information:', error);
+//     logError(
+//       'Error fetching card information:',
+//       error?.response?.statusText,
+//       error?.response?.data,
+//       {
+//         source: 'cardController.fetchAndTransformCardData',
+//       },
+//     );
+//     throw error; // Propagate the error
+//   }
+// },
+
+// fetchAndTransformCardData: async (name, race, type, level, attribute, id) => {
+//   try {
+//     let transformedCards = [];
+//     // create searchHistory array which contains previous search terms and results
+//     // Check if the search terms already exist in the search history, and then return an array of cards in which the search terms match
+//     let existingCardsInSearchHistory = [];
+//     let existingCardsInContext = [];
+//     let namesOfExistingCards = [];
+//     let fetchedUpdatedSearchPrices = [];
+//     let searchHistoryWithUpdatedValues = [];
+//     let searchTerms = {
+//       name: name,
+//       race: race,
+//       type: type,
+//       level: level,
+//       attribute: attribute,
+//       id: id,
+//     };
+//     let searchResultsFromHistory = await SearchHistory.find({
+//       searchTerms: searchTerms,
+//     });
+//     if (searchResultsFromHistory) {
+//       // return cards from search history
+//       existingCardsInSearchHistory = searchResultsFromHistory.cards;
+//       namesOfExistingCards = existingCardsInSearchHistory?.map((card) => card.name);
+//     }
+//     if (namesOfExistingCards?.length > 0) {
+//       // if the card is from search history, then fetch the card from searchHistory and do a specific price update search
+//       fetchedUpdatedSearchPrices = await fetchCardPrices(namesOfExistingCards);
+//     }
+
+//     const createAndUpdateCardsDataForSearchHistory = (data, prices) => {
+//       // Check if card is defined
+//       if (!data) {
+//         throw new Error('Card data is required');
+//       }
+//       console.log('EXISTING CARD IN SEARCH HISTORY:', data);
+//       let card = null;
+//       // return card data
+//       return createCardData(card, data, prices);
+//     };
+
+//     for (let i = 0; i < existingCardsInSearchHistory.length; i++) {
+//       searchHistoryWithUpdatedValues.push(
+//         createAndUpdateCardsDataForSearchHistory(
+//           existingCardsInSearchHistory[i],
+//           fetchedUpdatedSearchPrices[i],
+//         ),
+//       );
+//     }
+//     // if the card is also in a collection, then fetch the card from that collection and return specific values for that card related to that collection
+//     const contexts = ['SearchHistory', 'Collection', 'Deck', 'Cart'];
+//     let contextualQuantities = {
+//       SearchHistory: 0,
+//       Collection: 0,
+//       Deck: 0,
+//       Cart: 0,
+//     };
+
+//     // Iterate over each context to update prices and quantities
+//     for (const context of contexts) {
+//       // Check if the card exists in the context
+//       let existingCardInContext = await eval(`CardIn${context}`).findOne({ id: id });
+//       if (existingCardInContext) {
+//         existingCardInContext.latestPrice = fetchedUpdatedSearchPrices.tcgplayer_price;
+//         existingCardInContext.price = fetchedUpdatedSearchPrices.tcgplayer_price;
+//         contextualQuantities[context] = existingCardInContext.quantity;
+//         await existingCardInContext.save();
+
+//         // push the card into the existingCardsInContext array
+//         existingCardsInContext.push(existingCardInContext);
+//       }
+//     }

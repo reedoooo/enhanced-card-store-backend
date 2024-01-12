@@ -43,16 +43,19 @@ const specializedLoggers = sections.reduce((acc, section) => {
 }, {});
 
 // Log to specialized loggers
-function logToSpecializedLogger(level, message, meta, action) {
+function logToSpecializedLogger(level, message, meta) {
   const logger = specializedLoggers[meta?.section] || createLoggerWithTransports(meta?.section);
   logger.log({ level, message, ...meta });
 
-  if (meta?.error instanceof Error) {
-    logger.error({ message: meta.error.message, ...meta });
-    if (meta.error.stack) logger.error({ message: meta.error.stack, ...meta });
+  if (meta.error instanceof Error) {
+    const errorInfo = {
+      message: meta.error.message,
+      stack: meta.error.stack,
+      code: meta.error.code,
+      status: meta.error.status,
+    };
+    logger.error(errorInfo);
   }
-
-  if (action === 'response') respondToClient(meta.res, meta.status, message, meta.data || {});
 }
 
 // Helper function to respond to client

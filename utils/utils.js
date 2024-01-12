@@ -6,15 +6,13 @@ const CustomError = require('../middleware/customError');
 const User = require('../models/User');
 const { default: axios } = require('axios');
 const { validationResult } = require('express-validator');
-const Collection = require('../models/Collection');
-
+const { Collection } = require('../models/Collection');
+const { unifiedErrorHandler } = require('../middleware/unifiedErrorHandler');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
 const calculatePriceDifference = (initialPrice, updatedPrice) => initialPrice - updatedPrice;
-
 const calculateNewTotalPrice = (totalPrice, priceDifference) => totalPrice + priceDifference;
-
 const splitDateTime = (date) => {
   return {
     date: date.toISOString().split('T')[0], // e.g., "2023-05-01"
@@ -26,7 +24,6 @@ const ensureString = (value) => String(value);
 const ensureBoolean = (value) => Boolean(value);
 const ensureArray = (value) => (Array.isArray(value) ? value : []);
 const ensureObject = (value) => (typeof value === 'object' ? value : {});
-
 const validateVarType = (value, type) => {
   switch (type) {
     case 'number':
@@ -44,14 +41,6 @@ const validateVarType = (value, type) => {
   }
 };
 const validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
-
-function asyncHandler(fn) {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch((error) => {
-      next(error);
-    });
-  };
-}
 const convertUserIdToObjectId = (userId) => {
   try {
     return mongoose.Types.ObjectId(userId);
@@ -64,20 +53,59 @@ const convertUserIdToObjectId = (userId) => {
     });
   }
 };
-
 const roundMoney = (value) => {
   return parseFloat(value.toFixed(2));
 };
-
+const convertPrice = (price) => {
+  if (typeof price === 'string') {
+    const convertedPrice = parseFloat(price);
+    if (isNaN(convertedPrice)) throw new Error(`Invalid price value: ${price}`);
+    return convertedPrice;
+  }
+  return price;
+};
+const filterUniqueCards = (cards) => {
+  const uniqueCardIds = new Set();
+  return cards.filter((card) => {
+    const cardId = typeof card.id === 'number' ? String(card.id) : card.id;
+    if (!uniqueCardIds.has(cardId)) {
+      uniqueCardIds.add(cardId);
+      return true;
+    }
+    return false;
+  });
+};
+const handleDuplicateYValuesInDatasets = (card) => {
+  if (card.chart_datasets && Array.isArray(card.chart_datasets)) {
+    const yValuesSet = new Set(
+      card.chart_datasets.map((dataset) => dataset.data && dataset.data[0]?.xy?.y),
+    );
+    return card.chart_datasets.filter((dataset) => {
+      const yValue = dataset.data && dataset.data[0]?.xy?.y;
+      if (yValuesSet.has(yValue)) {
+        yValuesSet.delete(yValue);
+        return true;
+      }
+      return false;
+    });
+  }
+  return card.chart_datasets;
+};
 const findUserById = async (userId) => {
   const users = await User.find();
   return users.find((user) => user._id.toString() === userId);
 };
-
 const findUser = async (username) => {
   return await User.findOne({ 'userSecurityData.username': username });
 };
-
+/**
+ * Updates a document with a retry mechanism to handle VersionErrors.
+ * @param {mongoose.Model} model - The model to be updated.
+ * @param {object} update - The update object.
+ * @param {object} options - The options object.
+ * @param {number} retryCount - The number of times the update has been retried.
+ * @returns {object} - The updated document.
+ * */
 async function updateDocumentWithRetry(model, update, options = {}, retryCount = 0) {
   try {
     const updated = await model.findOneAndUpdate({ _id: update._id }, update, {
@@ -103,7 +131,11 @@ async function updateDocumentWithRetry(model, update, options = {}, retryCount =
     throw error;
   }
 }
-
+/**
+ * Fetches card info from the YGOProDeck API.
+ * @param {string} cardId - The ID of the card to fetch.
+ * @returns {object} - The card info object.
+ * */
 const getCardInfo = async (cardId) => {
   try {
     const { data } = await axiosInstance.get(`/cardinfo.php?id=${encodeURIComponent(cardId)}`);
@@ -114,43 +146,6 @@ const getCardInfo = async (cardId) => {
   }
 };
 
-const convertPrice = (price) => {
-  if (typeof price === 'string') {
-    const convertedPrice = parseFloat(price);
-    if (isNaN(convertedPrice)) throw new Error(`Invalid price value: ${price}`);
-    return convertedPrice;
-  }
-  return price;
-};
-
-const filterUniqueCards = (cards) => {
-  const uniqueCardIds = new Set();
-  return cards.filter((card) => {
-    const cardId = typeof card.id === 'number' ? String(card.id) : card.id;
-    if (!uniqueCardIds.has(cardId)) {
-      uniqueCardIds.add(cardId);
-      return true;
-    }
-    return false;
-  });
-};
-
-const handleDuplicateYValuesInDatasets = (card) => {
-  if (card.chart_datasets && Array.isArray(card.chart_datasets)) {
-    const yValuesSet = new Set(
-      card.chart_datasets.map((dataset) => dataset.data && dataset.data[0]?.xy?.y),
-    );
-    return card.chart_datasets.filter((dataset) => {
-      const yValue = dataset.data && dataset.data[0]?.xy?.y;
-      if (yValuesSet.has(yValue)) {
-        yValuesSet.delete(yValue);
-        return true;
-      }
-      return false;
-    });
-  }
-  return card.chart_datasets;
-};
 /**
  * Creates a new chart data entry with the current date and time.
  * @param {number} yValue - The y value to be added to the chart data entry.
@@ -189,7 +184,6 @@ async function filterUniqueYValues(collectionId) {
     console.error('Failed to filter unique Y values:', error);
   }
 }
-
 /**
  * Filters the dailyCollectionPriceHistory to ensure that only the first data point
  * in each 24-hour period is kept.
@@ -237,7 +231,12 @@ async function filterDailyCollectionPriceHistory(collectionId) {
     console.error('Failed to filter daily collection price history:', error);
   }
 }
-
+/**
+ * handles validation errors from express-validator.
+ * @param {object} req - The request object.
+ * @param {object} res - The response object.
+ * @param {function} next - The next middleware function.
+ * */
 const handleValidationErrors = (req, res, next) => {
   // Handle validation errors which means that the request failed validation
   const errors = validationResult(req);
@@ -247,18 +246,74 @@ const handleValidationErrors = (req, res, next) => {
     });
     return next(error); // Pass the error to the next error-handling middleware
   }
+  // If no validation errors, continue to the next middleware
   if (next) {
     next();
   }
 };
+/**
+ * Handles errors in async functions.
+ * @param {function} fn - The async function to be wrapped.
+ * @returns {function} - The wrapped function.
+ * */
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch((error) => {
+    unifiedErrorHandler(error, req, res, next);
+  });
+};
+/**
+ * Handles errors in async functions.
+ * @param {function} fn - The async function to be wrapped.
+ * @returns {function} - The wrapped function.
+ */
+const asyncErrorHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch((error) => {
+    unifiedErrorHandler(error, req, res, next);
+  });
+};
 
+/**
+ * Extracts the data from the request body.
+ * @param {object} req - The request object.
+ * @returns {object} - The extracted data.
+ * */
 const extractData = ({ body }) => {
   const { userSecurityData, userBasicData } = body;
-  return { userSecurityData, userBasicData };
+  const { username, password, email, role_data } = userSecurityData;
+  const { firstName, lastName } = userBasicData || {};
+
+  return {
+    username,
+    password,
+    email,
+    role_data,
+    firstName,
+    lastName,
+  };
 };
-const generateToken = (userData) => {
-  return jwt.sign(userData, process.env.SECRET_KEY || 'YOUR_SECRET_KEY');
-};
+/**
+ * Generates a JWT token for the user.
+ * @param {object} userData - The user data to be used to generate the token.
+ * @returns {string} - The generated token.
+ * */
+function generateToken(user) {
+  return jwt.sign(
+    {
+      userId: user._id,
+      username: user.username,
+      role_data: user.userSecurityData.role_data,
+    },
+    process.env.SECRET_KEY,
+    { expiresIn: '1h' },
+  ); // Replace '1h' with your desired token expiration
+}
+
+/**
+ * Creates a new collection object.
+ * @param {object} body - The request body.
+ * @param {string} userId - The ID of the user creating the collection.
+ * @returns {object} - The new collection object.
+ * */
 const createCollectionObject = (body, userId) => {
   return {
     userId: body.userId || userId, // Use userId from body if available, else use the passed userId
@@ -298,7 +353,11 @@ const createCollectionObject = (body, userId) => {
     },
   };
 };
-
+/**
+ * Formats a date object to the format "DD/MM/YYYY, HH:MM".
+ * @param {Date} date - The date object to be formatted.
+ * @returns {string} - The formatted date string.
+ * */
 const formatDateTime = (date) => {
   const day = date.getDate().toString().padStart(2, '0');
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -308,7 +367,11 @@ const formatDateTime = (date) => {
 
   return `${day}/${month}/${year}, ${hours}:${minutes}`;
 };
-
+/**
+ * Calculates the total value of the collection.
+ * @param {object} cards - The collection object.
+ * @returns {number} - The total value of the collection.
+ * */
 const calculateCollectionValue = (cards) => {
   if (!cards?.cards && !Array.isArray(cards) && !cards?.name && !cards?.restructuredCollection) {
     console.warn('Invalid or missing collection', cards);
@@ -365,4 +428,5 @@ module.exports = {
   calculateCollectionValue,
   filterDailyCollectionPriceHistory,
   filterUniqueYValues,
+  asyncErrorHandler,
 };

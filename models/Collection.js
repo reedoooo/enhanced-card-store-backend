@@ -1,64 +1,83 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
-// Import the CardInCollection model
-const CardInCollection = require('./CardInCollection'); // Adjust the path as per your project structure
-
-const priceEntrySchema = new mongoose.Schema({
-  num: {
-    type: Number,
-    required: false,
-  },
-  timestamp: {
-    type: Date,
-    required: true,
-  },
-});
-const collectionPriceHistorySchema = new mongoose.Schema({
-  timestamp: {
-    type: Date,
-    required: true,
-  },
-  num: {
-    type: Number,
-    required: false,
-  },
-});
-
-const collectionSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  name: String,
-  description: String,
-  totalPrice: Number,
-  quantity: Number,
-  totalQuantity: Number,
-  previousDayTotalPrice: Number,
-  dailyPriceChange: String,
-  priceDifference: Number,
-  priceChange: Number,
-  latestPrice: priceEntrySchema,
-  lastSavedPrice: priceEntrySchema,
-  collectionPriceHistory: [collectionPriceHistorySchema],
-  dailyCollectionPriceHistory: [collectionPriceHistorySchema],
-  cards: [{ type: mongoose.Schema.Types.ObjectId, ref: 'CardInCollection' }], // Reference to CardInCollection
-  currentChartDataSets2: [
+const { Schema, model } = mongoose;
+const {
+  priceEntrySchema,
+  collectionPriceHistorySchema,
+  searchSessionSchema,
+} = require('./CommonSchemas');
+// const { updateCardDetails } = require('./globalHelpers');
+require('colors');
+const Deck = model(
+  'Deck',
+  new Schema(
     {
-      label: String,
-      x: Date,
-      y: Number,
+      userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: false },
+      name: String,
+      description: String,
+      totalPrice: { type: Number, default: 0 },
+      quantity: { type: Number, default: 0 },
+      tags: [String],
+      color: String,
+      cards: [{ type: Schema.Types.ObjectId, ref: 'CardInDeck' }],
     },
-  ],
-  chartData: {
-    name: String,
-    userId: { type: Schema.Types.ObjectId, ref: 'User' },
-    // datasets: [DatasetSchema],
-    allXYValues: [
-      {
-        label: String,
-        x: Date,
-        y: Number,
+    { timestamps: true },
+  ),
+);
+const Cart = model(
+  'Cart',
+  new Schema(
+    {
+      userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: false },
+      totalPrice: { type: Number, default: 0 },
+      totalQuantity: { type: Number, default: 0 },
+      cart: [{ type: Schema.Types.ObjectId, ref: 'CardInCart' }],
+    },
+    { timestamps: true },
+  ),
+);
+const Collection = model(
+  'Collection',
+  new Schema(
+    {
+      userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: false },
+      name: String,
+      description: String,
+      totalPrice: Number,
+      quantity: Number,
+      totalQuantity: Number,
+      previousDayTotalPrice: Number,
+      dailyPriceChange: String,
+      priceDifference: Number,
+      priceChange: Number,
+      latestPrice: priceEntrySchema,
+      lastSavedPrice: priceEntrySchema,
+      dailyCollectionPriceHistory: [collectionPriceHistorySchema],
+      collectionPriceHistory: [collectionPriceHistorySchema],
+      chartData: {
+        name: String,
+        userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: false },
+        allXYValues: [{ label: String, x: Date, y: Number }],
       },
-    ],
-  },
-});
-
-module.exports = mongoose.model('Collection', collectionSchema);
+      cards: [{ type: Schema.Types.ObjectId, ref: 'CardInCollection' }],
+    },
+    { timestamps: true },
+  ),
+);
+const SearchHistory = model(
+  'SearchHistory',
+  new Schema(
+    {
+      userId: { type: Schema.Types.ObjectId, ref: 'User' },
+      sessions: [searchSessionSchema],
+      // Create new cards field which references all unique cards in all sessions
+      cards: [{ type: Schema.Types.ObjectId, ref: 'CardInSearch' }],
+    },
+    { timestamps: true },
+  ),
+);
+module.exports = {
+  Deck,
+  Cart,
+  Collection,
+  SearchHistory,
+};

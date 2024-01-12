@@ -3,8 +3,8 @@ const cron = require('node-cron');
 const { getIO } = require('../socket');
 const { logError, logData } = require('./loggingUtils');
 const { checkAndUpdateCardPrices } = require('./test');
-const CardInCollection = require('../models/CardInCollection');
-const Collection = require('../models/Collection');
+const { Collection } = require('../models/Collection');
+const { CardInCollection } = require('../models/Card');
 
 let emittedResponses = [];
 const cronQueue = [];
@@ -19,7 +19,6 @@ const emitResponse = (io, eventType, response) => {
   io.emit(eventType, response);
   addToEmittedResponses(response, eventType);
 };
-
 const emitError = (io, errorType, error) => {
   const errorDetails = getCustomErrorDetails(error);
   logError(error, error.message, {
@@ -38,7 +37,6 @@ const emitError = (io, errorType, error) => {
     error: errorDetails,
   });
 };
-
 // Helper function to create a new chart data entry
 const createChartDataEntry = (price) => {
   return {
@@ -46,7 +44,6 @@ const createChartDataEntry = (price) => {
     price: price,
   };
 };
-
 // Function to update the daily collection price history data
 const updateDailyCollectionPriceHistoryData = async (userId) => {
   try {
@@ -76,7 +73,6 @@ const updateDailyCollectionPriceHistoryData = async (userId) => {
     throw new Error(`Error updating daily collection price history: ${error.message}`);
   }
 };
-
 const updateChartDataForCards = async (selectedList) => {
   // Map each card to a promise that updates its data
   const updatePromises = selectedList.map(async (card) => {
@@ -95,7 +91,6 @@ const updateChartDataForCards = async (selectedList) => {
   // Wait for all update operations to complete
   await Promise.all(updatePromises);
 };
-
 async function processCardPriceRequest(data, io) {
   const userId = data?.userId;
   const selectedList = data?.data?.selectedList;
@@ -122,23 +117,18 @@ async function processCardPriceRequest(data, io) {
     emitError(io, 'ERROR', error);
   }
 }
-
 const addJobToQueue = (job) => {
   cronQueue.push(job);
 };
-
 const clearQueue = () => {
   cronQueue.length = 0;
 };
-
 const getQueue = () => {
   return cronQueue;
 };
-
 const getQueueLength = () => {
   return cronQueue.length;
 };
-
 function setupCronJob(io, jobFunction, cronSchedule) {
   // Ensure the jobFunction is a function and cronSchedule is a valid cron string
   if (typeof jobFunction !== 'function' || typeof cronSchedule !== 'string') {
@@ -167,7 +157,6 @@ function setupCronJob(io, jobFunction, cronSchedule) {
     }
   });
 }
-
 const executeNextCronJob = async (io) => {
   if (cronQueue.length === 0 || isJobRunning) return;
 

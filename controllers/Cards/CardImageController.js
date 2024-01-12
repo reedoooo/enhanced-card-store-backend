@@ -1,9 +1,19 @@
-const fs = require('fs').promises;
+// const fs = require('fs').promises;
+// const fs = require('fs'); // Correct way to import fs for existsSync
+const fs = require('fs').promises; // Use fs.promises for async operations
+
 const download = require('image-downloader');
 const path = require('path');
-const { respondWithError } = require('../../utils/utils');
 const { FILE_CONSTANTS } = require('../../constants');
 
+// Ensure the public/images folder exists
+// Define the public directory path
+const publicDirectory = path.join(__dirname, '..', 'public', 'images'); // Adjust '..' as necessary
+console.log('publicDirectory', publicDirectory);
+// Ensure the directory exists
+// if (!fs.existsSync(publicDirectory)) {
+//   fs.mkdirSync(publicDirectory, { recursive: true });
+// }
 async function loadData() {
   const filePath = path.join(__dirname, '..', 'data', 'cardinfo.php.json');
   try {
@@ -15,41 +25,59 @@ async function loadData() {
   }
 }
 
-async function downloadCard(card) {
+// async function downloadCard(card) {
+//   if (card.card_images && card.card_images.length > 0) {
+//     const name = card.name.replace(/[/\\?%*:|"<>]/g, '');
+//     const url = card.card_images[0].image_url;
+//     const extension = path.extname(url);
+//     const fullName = `${name}_${card.race}_${card.type}${card.level ? '_lvl' + card.level : ''}${
+//       card.attribute ? '_' + card.attribute : ''
+//     }${extension}`;
+
+//     try {
+//       // const destPath = path.join(FILE_CONSTANTS.DOWNLOADED_IMAGES_PATH, fullName);
+//       const destPath = path.join(FILE_CONSTANTS.DOWNLOADED_IMAGES_PATH, fullName);
+
+//       await download.image({ url: url, dest: destPath });
+//       console.log(`Downloaded: ${name}`);
+//     } catch (err) {
+//       console.error(`Error downloading ${name}:`, err);
+//     }
+//   }
+// }
+// Function to download a single card image
+// downloadCard function
+exports.downloadCard = async (card) => {
   if (card.card_images && card.card_images.length > 0) {
-    const name = card.name.replace(/[/\\?%*:|"<>]/g, '');
-    const url = card.card_images[0].image_url;
-    const extension = path.extname(url);
-    const fullName = `${name}_${card.race}_${card.type}${card.level ? '_lvl' + card.level : ''}${
-      card.attribute ? '_' + card.attribute : ''
-    }${extension}`;
+    const imageUrl = card.card_images[0].image_url;
+    const imageExtension = path.extname(imageUrl);
+    const imageName = card.name.replace(/[/\\?%*:|"<>]/g, '-');
+    const destImagePath = path.join(publicDirectory, `${imageName}${imageExtension}`);
 
     try {
-      const destPath =
-        process.env.NODE_ENV === 'production'
-          ? path.join(__dirname, '..', 'public', 'images', 'cards', fullName)
-          : path.join(__dirname, '..', 'data', 'cards', fullName);
-
-      await download.image({ url: url, dest: destPath });
-      console.log(`Downloaded: ${name}`);
-    } catch (err) {
-      console.error(`Error downloading ${name}:`, err);
+      await download.image({ url: imageUrl, dest: destImagePath });
+      console.log(`Downloaded image to ${destImagePath}`);
+      return destImagePath; // Return the path of the downloaded image
+    } catch (error) {
+      console.error(`Failed to download ${imageName}:`, error);
     }
   }
-}
-
-exports.startDownload = async (req, res, next) => {
-  try {
-    const data = await loadData();
-    for (const card of data) {
-      await downloadCard(card);
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Delay between downloads
-    }
-    res.json({ message: 'Download started for cards', data: data });
-  } catch (error) {
-    respondWithError(res, 500, 'Error starting download', error);
-  }
+  return null;
 };
+
+// exports.startDownload = async (req, res, next) => {
+//   try {
+//     const data = await loadData();
+//     for (const card of data) {
+//       await downloadCard(card);
+//       await new Promise((resolve) => setTimeout(resolve, 500)); // Delay between downloads
+//     }
+//     res.json({ message: 'Download started for cards', data: data });
+//   } catch (error) {
+//     console.error('Error starting download:', error);
+//     next(error);
+//   }
+// };
 
 async function getDownloadedImages() {
   try {
@@ -66,14 +94,21 @@ async function getDownloadedImages() {
 exports.getCardImageByFilename = async (req, res, next) => {
   try {
     const filename = req.params.filename;
-    const imagePath = path.join(FILE_CONSTANTS.DOWNLOADED_IMAGES_PATH, filename);
-    if (await fs.stat(imagePath).catch(() => false)) {
+    const imagePath = path.join(publicDirectory, filename);
+
+    // Check if the file exists using fs.promises.stat or fs.promises.access
+    try {
+      await fs.access(imagePath); // Throws error if file does not exist
+
+      // If file exists, send it
       res.sendFile(imagePath);
-    } else {
+    } catch (error) {
+      // File does not exist
       res.status(404).send('Image not found');
     }
   } catch (error) {
-    respondWithError(res, 500, 'Error getting card image by filename', error);
+    console.error('Error getting card image by filename:', error);
+    res.status(500).send('Error getting card image');
   }
 };
 

@@ -1,6 +1,7 @@
 const express = require('express');
-const cardController = require('../../controllers/Cards/CardController');
 const { asyncHandler } = require('../../utils/utils');
+const { default: axios } = require('axios');
+const { cardController } = require('../../controllers/Cards/CardController');
 
 const router = express.Router();
 
@@ -72,6 +73,65 @@ router.post(
   }),
 );
 
+// router.get('/ygopro/:imageUrl', async (req, res) => {
+//   const { imageUrl } = req.params;
+//   console.log('IMAGE URL FROM GET: -------------------------->', imageUrl);
+//   try {
+//     // response.data is an arraybuffer
+//     const response = await axios({
+//       method: 'GET',
+//       url: imageUrl,
+//       responseType: 'arraybuffer',
+//     });
+
+//     // Convert to base64 string and send to client
+//     const buffer = Buffer.from(response.data, 'binary');
+//     console.log('buffer', buffer);
+//     // Set the response headers to match the image type and length so the client can render it
+//     res.set({
+//       'Content-Type': response.headers['content-type'],
+//       'Content-Length': response.headers['content-length'],
+//     });
+
+//     // Send the image data to the client
+//     res.send(buffer);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).send('Error fetching image');
+//   }
+// });
+// Server-side route to fetch an image
+router.get(
+  '/image',
+  asyncHandler(async (req, res) => {
+    const { id, name } = req.query.imageURL; // Ensure you're using query parameters
+    console.log('id', id);
+    console.log('name', name);
+    const bufferedImage = await cardController.fetchCardImage(id, name);
+    console.log('bufferedImage', bufferedImage);
+    res.status(200).json({ message: 'Success', data: bufferedImage });
+  }),
+);
+
+// router.get('/image', async (req, res) => {
+//   const imageUrl = req.query.imageURL; // Ensure you're using query parameters
+
+//   try {
+//     const response = await axios.get(imageUrl, {
+//       responseType: 'arraybuffer',
+//     });
+
+//     const buffer = Buffer.from(response.data, 'binary');
+//     res.set({
+//       'Content-Type': response.headers['content-type'],
+//       'Content-Length': response.headers['content-length'],
+//     });
+//     res.send(buffer);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).send('Error fetching image', error);
+//   }
+// });
 router.post(
   '/ygopro',
   asyncHandler(async (req, res) => {

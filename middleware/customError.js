@@ -1,9 +1,9 @@
 class CustomError extends Error {
-  constructor(message, status = 500, isOperational = true, context = {}) {
+  constructor(message, status = 500, code, context = {}) {
     super(message);
     Error.captureStackTrace(this, this.constructor);
     this.status = status;
-    this.isOperational = isOperational;
+    this.code = code;
     this.context = context;
   }
 }

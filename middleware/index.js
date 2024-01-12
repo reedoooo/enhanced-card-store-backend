@@ -1,9 +1,9 @@
 const express = require('express');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const unifiedErrorHandler = require('./unifiedErrorHandler');
 const { logToSpecializedLogger } = require('./infoLogger');
 const { logData, logError } = require('../utils/loggingUtils');
+const { unifiedErrorHandler } = require('./unifiedErrorHandler');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_TEST_KEY);
 require('colors');
 const logRequestDetails = (req, eventType, message, duration = null) => {
@@ -25,12 +25,10 @@ const logRequestDetails = (req, eventType, message, duration = null) => {
     logInfo.duration = `${duration}ms`;
   }
 
-  logToSpecializedLogger(
-    'info',
-    `Request ${eventType}: ${req.method} ${req.originalUrl}`,
-    { data: logInfo, section: 'request' },
-    'log',
-  );
+  logToSpecializedLogger('info', `Request ${eventType}: ${req.method} ${req.originalUrl}`, {
+    data: logInfo,
+    section: 'request',
+  });
   // console.log('req.body', req.body.cards);
   if (req.body.cards) {
     logData(req.body.cards[0]);
