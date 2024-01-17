@@ -3,6 +3,8 @@ const { Deck, Cart, Collection } = require('../../models/Collection');
 const { default: mongoose } = require('mongoose');
 const { cardController } = require('../Cards/CardController');
 const { validateCardData } = require('../../middleware/validation/validators');
+const { User } = require('../../models');
+const { default: axios } = require('axios');
 // !--------------------------! USERS !--------------------------!
 /**
  * [] Helper functions for different methods
@@ -54,9 +56,21 @@ async function getDefaultCardForContext(context) {
  */
 async function createCardSets(cardSetsData, cardModel, cardId) {
   return Promise.all(
-    cardSetsData.map(async (set) => {
+    cardSetsData?.map(async (set) => {
+      let setPrice;
+
+      // Check if the set_price contains a dollar sign
+      if (set.set_price.startsWith('$')) {
+        // Remove dollar sign and convert to Decimal128
+        setPrice = mongoose.Types.Decimal128.fromString(set.set_price.replace('$', ''));
+      } else {
+        // Convert to Decimal128 directly
+        setPrice = mongoose.Types.Decimal128.fromString(set.set_price);
+      }
+
       const cardSet = new CardSet({
         ...set,
+        set_price: setPrice, // Use the converted price
         cardModel: cardModel,
         cardId: cardId,
       });
@@ -65,6 +79,19 @@ async function createCardSets(cardSetsData, cardModel, cardId) {
     }),
   );
 }
+// async function createCardSets(cardSetsData, cardModel, cardId) {
+//   return Promise.all(
+//     cardSetsData?.map(async (set) => {
+//       const cardSet = new CardSet({
+//         ...set,
+//         cardModel: cardModel,
+//         cardId: cardId,
+//       });
+//       await cardSet.save();
+//       return cardSet._id;
+//     }),
+//   );
+// }
 /**
  * [SECTION 6] Helper functions for different methods
  * Helper function to create a card data object.
@@ -110,7 +137,7 @@ async function createCardVariants(sets, cardModel, cardId) {
  * @throws {Error} If the card data is invalid
  */
 async function createSetsAndVariantsForCard(cardInstance, cardData, cardModel) {
-  const cardSetIds = await createCardSets(cardData.card_sets, cardModel, cardInstance._id);
+  const cardSetIds = await createCardSets(cardData?.card_sets, cardModel, cardInstance._id);
   cardInstance.card_sets = cardSetIds;
 
   const cardVariantIds = await createCardVariants(cardSetIds, cardModel, cardInstance._id);
@@ -152,6 +179,7 @@ function setAltArtDetails(card) {
  * @throws {Error} If the card doesn't exist
  */
 function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardModel) {
+  // console.log('SECTION 4.5: MAP CARD DATA TO MODEL FIELDS', cardData);
   const {
     id,
     name,
@@ -170,17 +198,17 @@ function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardM
   } = cardData;
 
   const priceEntry =
-    card_prices.length > 0
+    card_prices?.length > 0
       ? {
-          num: card_prices[0].tcgplayer_price || 0,
+          num: card_prices[0]?.tcgplayer_price || 0,
           timestamp: new Date(),
         }
       : { num: 0, timestamp: new Date() };
 
   return {
     name,
-    externalId: id.toString(),
-    id: id.toString(),
+    externalId: id?.toString(),
+    id: id?.toString(),
     alt_art_ids: [], // Add logic to populate this if necessary
     refId: null,
     collectionId,
@@ -188,9 +216,10 @@ function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardM
     cardModel: cardModel, // Assuming this is intended
     tag: '', // Add logic to populate this if necessary
     watchList: false,
-    price: priceEntry.num,
+    price: priceEntry?.num,
     quantity: quantity || 1,
-    totalPrice: priceEntry.num * quantity,
+    totalPrice: priceEntry?.num * quantity,
+    image: card_images[0]?.image_url || '',
     type,
     frameType,
     desc,
@@ -217,10 +246,10 @@ function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardM
       Cart: quantity,
     },
     contextualTotalPrice: {
-      SearchHistory: priceEntry.num * quantity,
-      Deck: priceEntry.num * quantity,
-      Collection: priceEntry.num * quantity,
-      Cart: priceEntry.num * quantity,
+      SearchHistory: priceEntry?.num * quantity,
+      Deck: priceEntry?.num * quantity,
+      Collection: priceEntry?.num * quantity,
+      Cart: priceEntry?.num * quantity,
     },
   };
 }
@@ -234,26 +263,97 @@ function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardM
  * @returns {CardInContext} A CardInContext instance
  */
 async function createAndSaveCardInContext(cardData, collectionId, cardModel, collectionModel) {
-  validateCardData(cardData, cardModel);
+  if (!cardData) {
+    throw new Error('Card data is required');
+  }
+  if (!collectionId) {
+    throw new Error('Collection ID is required');
+  }
+  if (!cardModel) {
+    throw new Error('Card model is required');
+  }
+  if (!collectionModel) {
+    throw new Error('Collection model is required');
+  }
 
   const CardModel = mongoose.model(cardModel);
-  const cardInstance = new CardModel(
-    mapCardDataToModelFields(cardData, collectionId, collectionModel, cardModel),
-  );
 
-  // Create card sets and variants
-  await createSetsAndVariantsForCard(cardInstance, cardData, cardModel);
+  // Check if the cardData tag is 'random'
+  let cardInstance;
+  if (cardData.tag === 'random') {
+    // Create a new card instance without mapping
+    console.log('SECTION 6.5a: CREATE CARD IN CONTEXT', cardData.name);
+    cardInstance = new CardModel({
+      collectionId: collectionId,
+      collectionModel: collectionModel,
+      ...cardData, // Use other cardData properties as needed
+    });
+  } else {
+    // Use mapCardDataToModelFields for other cases
+    cardInstance = new CardModel(
+      mapCardDataToModelFields(cardData, collectionId, collectionModel, cardModel),
+    );
+  }
 
-  // Set the alt art details and select the first variant
-  setAltArtDetails(cardInstance);
-  cardInstance.variant = selectFirstVariant(cardInstance.cardVariants);
   if (!cardInstance) {
     throw new Error('Failed to create card in context');
   }
+  console.log('SECTION 6.5c COMPLETE: CREATE CARD IN CONTEXT', cardInstance.name);
+  // Create card sets and variants
+  await createSetsAndVariantsForCard(cardInstance, cardData, cardModel);
+  console.log('SECTION 7 COMPLETE: CREATE CARD SETS AND VARIANTS');
+
+  // Set the alt art details and select the first variant
+  setAltArtDetails(cardInstance);
+
+  cardInstance.variant = selectFirstVariant(cardInstance.cardVariants);
+  if (!cardInstance.variant) {
+    throw new Error('No variant found for the card');
+  }
+
+  await cardInstance.populate('variant');
+  cardInstance.rarity = cardInstance?.variant?.rarity;
 
   await cardInstance.save();
   return cardInstance;
 }
+// async function createAndSaveCardInContext(cardData, collectionId, cardModel, collectionModel) {
+//   validateCardData(cardData, cardModel);
+//   if (!cardData) {
+//     throw new Error('Card data is required', cardData);
+//   }
+//   if (!collectionId) {
+//     throw new Error('Collection ID is required', collectionId);
+//   }
+//   if (!cardModel) {
+//     throw new Error('Card model is required', cardModel);
+//   }
+//   if (!collectionModel) {
+//     throw new Error('Collection model is required', collectionModel);
+//   }
+//   const CardModel = mongoose.model(cardModel);
+//   const cardInstance = new CardModel(
+//     mapCardDataToModelFields(cardData, collectionId, collectionModel, cardModel),
+//   );
+//   if (!cardInstance) {
+//     throw new Error('Failed to create card in context');
+//   }
+//   // Create card sets and variants
+//   await createSetsAndVariantsForCard(cardInstance, cardData, cardModel);
+//   console.log('SECTION 7 COMPLETE: CREATE CARD SETS AND VARIANTS');
+//   // Set the alt art details and select the first variant
+//   setAltArtDetails(cardInstance);
+//   cardInstance.variant = selectFirstVariant(cardInstance.cardVariants);
+//   if (!cardInstance.variant) {
+//     throw new Error('No variant found for the card');
+//   }
+
+//   await cardInstance.populate('variant');
+//   cardInstance.rarity = cardInstance?.variant?.rarity;
+
+//   await cardInstance.save();
+//   return cardInstance;
+// }
 /**
  * [SECTION 8] Helper functions for different methods
  * Function to push a card to a collection
@@ -291,10 +391,14 @@ const pushDefaultCardsToCollections = (collection, card) => {
  * @param {*} userId
  * @returns {Collection} A Collection instance
  */
-async function createAndSaveDefaultCollection(Model, collectionName, userId) {
+async function createAndSaveDefaultCollection(Model, collectionName, userId, collectionData = {}) {
   const collection = new Model({ userId, name: collectionName });
   if (!collection) {
     throw new Error('Failed to create default collection', collection);
+  }
+  if (collectionData.name) {
+    collection.name = collectionData.name;
+    collection.description = collectionData.description;
   }
   await collection.save();
   return collection;
@@ -383,22 +487,182 @@ async function createDefaultCollectionsAndCards(userId) {
 }
 /**
  * [SECTION 0] Helper functions for different methods
+ * @param {*} cardName
+ * @returns {Object} A random card from the YGOPRODeck API
+ */
+async function fetchAndSaveRandomCard(collectionId, collectionModel, cardModel) {
+  try {
+    const axiosInstance = axios.create({
+      baseURL: 'https://db.ygoprodeck.com/api/v7/',
+    });
+
+    const endpoint = 'randomcard.php';
+    const response = await axiosInstance.get(endpoint);
+
+    // Axios automatically parses the JSON response, so you can directly access the data
+    const card = response.data;
+    const tcgplayerPrice = card?.card_prices[0]?.tcgplayer_price || 0;
+    let card_set = null;
+    if (card?.card_sets && card?.card_sets?.length > 0) {
+      card_set = card?.card_sets[0];
+    }
+    const rarity = card_set?.set_rarity || '';
+    const data = {
+      // custom data
+      image: card?.card_images.length > 0 ? card.card_images[0].image_url : '',
+      quantity: 1,
+      price: tcgplayerPrice,
+      totalPrice: tcgplayerPrice,
+      tag: 'random',
+      collectionId: collectionId,
+      collectionModel: collectionModel,
+      cardModel: cardModel,
+      watchList: false,
+      rarity: rarity,
+      card_set: card_set ? card_set : {},
+      chart_datasets: [
+        {
+          x: Date.now(),
+          y: tcgplayerPrice,
+        },
+      ],
+      lastSavedPrice: {
+        num: tcgplayerPrice,
+        timestamp: Date.now(),
+      },
+      latestPrice: {
+        num: tcgplayerPrice,
+        timestamp: Date.now(),
+      },
+      priceHistory: [],
+      dailyPriceHistory: [],
+      // priceHistory: [
+      //   {
+      //     num: tcgplayerPrice,
+      //     timestamp: Date.now(),
+      //   },
+      // ],
+      // dailyPriceHistory: [
+      //   {
+      //     num: tcgplayerPrice,
+      //     timestamp: Date.now(),
+      //   },
+      // ],
+
+      // preset data
+      id: card.id.toString(),
+      name: card.name,
+      type: card.type,
+      frameType: card.frameType,
+      desc: card.desc,
+      atk: card.atk,
+      def: card.def,
+      level: card.level,
+      race: card.race,
+      attribute: card.attribute,
+      archetype: [], // Assuming logic to determine this
+      card_sets: card.card_sets,
+      card_images: card.card_images,
+      card_prices: card.card_prices,
+    };
+    const CardModel = mongoose.model(cardModel);
+    const cardInstance = new CardModel(data);
+
+    console.log('SECTION 6.5c COMPLETE: CREATE CARD IN CONTEXT', cardInstance.name);
+    // Create card sets and variants
+    await createSetsAndVariantsForCard(cardInstance, data, cardModel);
+    console.log('SECTION 7 COMPLETE: CREATE CARD SETS AND VARIANTS');
+
+    // Set the alt art details and select the first variant
+    setAltArtDetails(cardInstance);
+
+    cardInstance.variant = selectFirstVariant(cardInstance.cardVariants);
+
+    await cardInstance.populate('variant');
+    cardInstance.rarity = cardInstance?.variant?.rarity;
+
+    await cardInstance.save();
+    return cardInstance;
+  } catch (error) {
+    console.error('Failed to fetch random card:', error);
+    return null;
+  }
+}
+/**
+ * [SECTION 0] Helper functions for different methods
  * Function to create default collections and cards for a new user
  * @param {*} newUser
  * @returns {void}
  */
-async function setupDefaultCollectionsAndCards(newUser) {
-  const { defaultCollection, defaultDeck, defaultCart } = await createDefaultCollectionsAndCards(
-    newUser._id,
-  );
-  console.log('[SECTION X-0] COMPLETE: CREATE DEFAULT COLLECTIONS AND CARDS');
-  // await Promise.all([defaultCollection.save(), defaultDeck.save(), defaultCart.save()]);
+const setupDefaultCollectionsAndCards = async (user, collectionModel, collectionData) => {
+  try {
+    let newCollection;
+    if (collectionModel) {
+      newCollection = await createAndSaveDefaultCollection(
+        mongoose.model(collectionModel),
+        `${collectionModel} Name`,
+        user._id,
+        collectionData,
+      );
 
-  newUser.allCollections.push(defaultCollection._id);
-  newUser.allDecks.push(defaultDeck._id);
-  newUser.cart = defaultCart._id;
-  console.log('[SECTION X-1] COMPLETE: PUSH DEFAULT COLLECTIONS AND CARDS TO USER');
-  await newUser.save();
+      let randomCardData = await fetchAndSaveRandomCard(
+        newCollection._id,
+        collectionModel,
+        `CardIn${collectionModel}`,
+      );
+      if (!randomCardData) {
+        throw new Error('Failed to fetch random card data');
+      }
+
+      newCollection.cards.push(randomCardData._id);
+      await newCollection.save();
+      console.log('[SECTION X-0] COMPLETE: CREATE DEFAULT COLLECTIONS AND CARDS');
+      return newCollection; // Return the new collection
+    } else {
+      const { defaultCollection, defaultDeck, defaultCart } =
+        await createDefaultCollectionsAndCards(user._id);
+      console.log('[SECTION X-0] COMPLETE: CREATE DEFAULT COLLECTIONS AND CARDS');
+      // await Promise.all([defaultCollection.save(), defaultDeck.save(), defaultCart.save()]);
+
+      user.allCollections.push(defaultCollection._id);
+      user.allDecks.push(defaultDeck._id);
+      user.cart = defaultCart._id;
+      console.log('[SECTION X-1] COMPLETE: PUSH DEFAULT COLLECTIONS AND CARDS TO USER');
+
+      await user.save();
+      console.log('[SECTION X-2] COMPLETE: SAVE USER');
+    }
+  } catch (error) {
+    console.error('Error setting up default collections and cards:', error);
+    throw error;
+  }
+};
+/**
+ * [SECTION 0] Helper functions for different methods
+ * Function to create default collections and cards for a new user
+ * @param {*} newUser
+ * @returns {void}
+ */
+
+async function fetchUserIdsFromUserSecurityData() {
+  try {
+    const users = await User.find().populate('userSecurityData', 'userId'); // Assuming 'userId' is a field in UserSecurityData
+
+    const userIds = users
+      .map((user) => {
+        // Check if userSecurityData is populated
+        if (user.userSecurityData) {
+          return user.userSecurityData.userId; // Replace 'userId' with the actual field name
+        }
+        return null;
+      })
+      .filter((userId) => userId !== null);
+
+    return userIds;
+  } catch (error) {
+    console.error('Error fetching userIds:', error);
+    throw error;
+  }
 }
 
 module.exports = {
@@ -412,4 +676,5 @@ module.exports = {
   createAndSaveCardInContext,
   selectFirstVariant,
   setupDefaultCollectionsAndCards,
+  fetchUserIdsFromUserSecurityData,
 };

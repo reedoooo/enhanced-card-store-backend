@@ -2,12 +2,22 @@ const axios = require('axios');
 const User = require('../../models/User');
 const CustomError = require('../../middleware/customError');
 const { CardInCollection, CardInDeck, CardInSearch } = require('../../models/Card');
-const { queryBuilder } = require('./helpers');
+const { queryBuilder, fetchCardPrices } = require('./helpers');
 // const { createAndSaveCardInContext } = require('../User/helpers');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
 const cardController = {
+  fetchPriceData: async (cardName) => {
+    try {
+      const card_prices = await fetchCardPrices(cardName);
+      console.log('CARD PRICES:', card_prices);
+      return card_prices;
+    } catch (error) {
+      console.error('Error fetching card prices:', error);
+      throw error;
+    }
+  },
   /**
    * Fetches card data from the API and transforms it into CardInSearch instances.
    * @param {*} userId
@@ -22,6 +32,7 @@ const cardController = {
    */
   fetchAndTransformCardData: async (name, race, type, level, attribute) => {
     try {
+      // console.log('SECTION 3.1: FETCH AND TRANSFORM CARD DATA', name);
       const response = await axiosInstance.get(
         `/cardinfo.php?${queryBuilder(name, race, type, level, attribute)}`,
       );
@@ -52,25 +63,27 @@ const cardController = {
             },
           ],
           lastSavedPrice: {
-            num: tcgplayerPrice,
+            num: 0,
             timestamp: Date.now(),
           },
           latestPrice: {
             num: tcgplayerPrice,
             timestamp: Date.now(),
           },
-          priceHistory: [
-            {
-              num: tcgplayerPrice,
-              timestamp: Date.now(),
-            },
-          ],
-          dailyPriceHistory: [
-            {
-              num: tcgplayerPrice,
-              timestamp: Date.now(),
-            },
-          ],
+          priceHistory: [],
+          dailyPriceHistory: [],
+          // priceHistory: [
+          //   {
+          //     num: tcgplayerPrice,
+          //     timestamp: Date.now(),
+          //   },
+          // ],
+          // dailyPriceHistory: [
+          //   {
+          //     num: tcgplayerPrice,
+          //     timestamp: Date.now(),
+          //   },
+          // ],
 
           // preset data
           id: card.id.toString(),
@@ -146,39 +159,38 @@ const cardController = {
   getCardByName: async (name) => {
     return await CardInSearch.findOne({ name: name });
   },
+  // fetchCardImage: async (id, name) => {
+  //   try {
+  //     if (!id && !name) {
+  //       throw new CustomError('Card ID or name is required', 400);
+  //     }
+  //     const response = await axiosInstance.get(`/cardinfo.php?name=${name}`);
+  //     console.log('RESPONSE:', response);
+  //     const fetchedCard = response?.data?.data?.[0];
 
-  fetchCardImage: async (id, name) => {
-    try {
-      if (!id && !name) {
-        throw new CustomError('Card ID or name is required', 400);
-      }
-      const response = await axiosInstance.get(`/cardinfo.php?name=${name}`);
-      console.log('RESPONSE:', response);
-      const fetchedCard = response?.data?.data?.[0];
+  //     if (!fetchedCard) {
+  //       throw new CustomError('Card not found', 404);
+  //     }
 
-      if (!fetchedCard) {
-        throw new CustomError('Card not found', 404);
-      }
+  //     const bufferedImage = fetchedCard?.card_images?.[0]?.image_url;
 
-      const bufferedImage = fetchedCard?.card_images?.[0]?.image_url;
+  //     // if (!imageUrl) {
+  //     //   throw new CustomError('Image not found', 404);
+  //     // }
 
-      // if (!imageUrl) {
-      //   throw new CustomError('Image not found', 404);
-      // }
+  //     return bufferedImage;
 
-      return bufferedImage;
+  //     // const imageResponse = await axios.get(imageUrl, {
+  //     //   responseType: 'arraybuffer',
+  //     // });
 
-      // const imageResponse = await axios.get(imageUrl, {
-      //   responseType: 'arraybuffer',
-      // });
-
-      // const buffer = Buffer.from(imageResponse.data, 'binary');
-      // return buffer;
-    } catch (error) {
-      console.error('Error fetching card image:', error);
-      throw error; // Propagate the error
-    }
-  },
+  //     // const buffer = Buffer.from(imageResponse.data, 'binary');
+  //     // return buffer;
+  //   } catch (error) {
+  //     console.error('Error fetching card image:', error);
+  //     throw error; // Propagate the error
+  //   }
+  // },
   updateExistingCardInUserCollection: async (userId, collectionId, cardUpdates) => {
     try {
       if (!Array.isArray(cardUpdates)) {

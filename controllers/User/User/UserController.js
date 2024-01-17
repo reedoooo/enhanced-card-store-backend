@@ -2,8 +2,9 @@ const User = require('../../../models/User');
 const CustomError = require('../../../middleware/customError');
 const { logError } = require('../../../utils/loggingUtils');
 const { STATUS, MESSAGES } = require('../../../constants');
-const { generateToken, extractData } = require('../../../utils/utils');
+const { extractData } = require('../../../utils/utils');
 const { setupDefaultCollectionsAndCards } = require('../helpers');
+const jwt = require('jsonwebtoken');
 const {
   validateSignupInput,
   checkForExistingUser,
@@ -12,51 +13,53 @@ const {
   validateSigninInput,
   handleSigninError,
 } = require('../../../middleware/validation/validators');
-const { createUser } = require('./userHelpers');
+const { createUser, createUserValidationData } = require('./userHelpers');
 const { populateUserDataByContext } = require('../dataUtils');
+const {
+  generateRefreshToken,
+  updateRefreshToken,
+  invalidateToken,
+  isRefreshTokenValid,
+  saveRefreshToken,
+  generateToken,
+  saveTokens,
+} = require('../../../services/auth');
 // !--------------------------! USERS !--------------------------!
 
 // USER ROUTES: SIGNUP / SIGNIN
 exports.signup = async (req, res, next) => {
   try {
     const { username, password, email, role_data, firstName, lastName } = extractData(req);
-
     validateSignupInput(username, password, email);
     await checkForExistingUser(username, email);
 
-    const { newUser, newUserSecurityData, newUserBasicData } = await createUser(
-      username,
-      password,
-      email,
-      role_data,
-      firstName,
-      lastName,
-    );
+    const { newUser } = await createUser(username, password, email, role_data, firstName, lastName);
+    const verifiedUser = await createUserValidationData(newUser);
 
-    await setupDefaultCollectionsAndCards(newUser);
+    await setupDefaultCollectionsAndCards(verifiedUser, '', {});
 
-    // Populating user data for multiple contexts
-    const populatedUser = await populateUserDataByContext(newUser._id, [
+    const populatedUser = await populateUserDataByContext(verifiedUser._id, [
       'decks',
       'collections',
       'cart',
     ]);
 
-    const token = generateToken(populatedUser);
-
-    console.log('Signup Complete', populatedUser);
-
     res.status(201).json({
       message: 'User created successfully, default collections created, and default cards added',
-      data: { user: populatedUser, token },
+      data: {
+        user: populatedUser,
+        accessToken: verifiedUser.userSecurityData.accessToken,
+        refreshToken: verifiedUser.userSecurityData.refreshToken,
+      },
     });
   } catch (error) {
     handleSignupError(error, res, next);
   }
 };
+
 exports.signin = async (req, res, next) => {
   try {
-    const { username, password } = req.body;
+    const { username, password } = req.body.userSecurityData;
     validateSigninInput(username, password);
 
     const user = await findAndValidateUser(username, password);
@@ -66,14 +69,57 @@ exports.signin = async (req, res, next) => {
       'cart',
     ]);
 
-    const token = generateToken(user); // Assuming generateToken is the same as used in signup
+    const accessToken = await generateToken(populatedUser._id); // Access token
+    const refreshToken = await generateRefreshToken(populatedUser._id); // New refresh token
+    await saveTokens(populatedUser._id, accessToken, refreshToken);
+
+    // await updateRefreshToken(populatedUser._id, refreshToken);
+
+    // await populatedUser.save();
 
     res.status(200).json({
       message: 'Sign in successful: Fetched user data successfully',
-      data: { token, user: populatedUser },
+      data: { accessToken, refreshToken, user: populatedUser },
     });
   } catch (error) {
     handleSigninError(error, res, next);
+  }
+};
+exports.signout = async (req, res, next) => {
+  try {
+    const { userId, refreshToken } = req.body;
+    const user = await User.findById(userId).populate('userSecurityData');
+
+    if (user && user.userSecurityData && user.userSecurityData.refreshToken) {
+      invalidateToken(refreshToken);
+      await updateRefreshToken(userId, null); // Set the refreshToken to null
+    }
+
+    res.status(200).json({ message: 'Logout successful', data: { userId } });
+  } catch (error) {
+    console.error('Logout Error:', error);
+    res.status(500).json({ message: 'Internal Server Error', error: error.message });
+    next(error);
+  }
+};
+exports.checkToken = async (req, res, next) => {
+  // Extract the token from the Authorization header
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send({ message: 'Access denied. No token provided.' });
+  }
+
+  const token = authHeader.split(' ')[1]; // Assuming the format is "Bearer <token>"
+
+  try {
+    // Verify the token
+    const decoded = jwt.verify(token, process.env.SECRET_KEY);
+    req.user = decoded; // Add decoded user data to the request object
+    return res.status(200).send({ message: 'Token is valid', data: decoded });
+    // next(); // Proceed to the next middleware or route handler
+  } catch (error) {
+    // If the token is not valid, catch the error and return an unauthorized status
+    return res.status(401).send({ message: 'Invalid token' });
   }
 };
 // USER DATA ROUTES (GET)

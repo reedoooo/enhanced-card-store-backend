@@ -92,55 +92,46 @@ exports.updateCart = async (req, res, next) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
-
-// Helper functions for different methods
 async function addToCart(user, cartItems) {
   for (const item of cartItems) {
-    const existingItem = user.cart.cart.find((ci) => ci.id === item.id);
-    if (existingItem) {
-      existingItem.quantity += item.quantity;
-    } else {
-      user.cart.cart.push(item);
-    }
-
     let cardInCart = await CardInCart.findOne({ cardId: item.id, userId: user._id });
     if (cardInCart) {
       cardInCart.quantity += item.quantity;
     } else {
-      cardInCart = new CardInCart({ ...item, userId: user._id });
+      cardInCart = new CardInCart({ cardId: item.id, userId: user._id, quantity: item.quantity });
     }
     await cardInCart.save();
+    // Add the reference of the CardInCart to the user's cart
+    if (!user.cart.cart.includes(cardInCart._id)) {
+      user.cart.cart.push(cardInCart._id);
+    }
   }
 }
-
 async function removeFromCart(user, cartItems) {
-  user.cart.cart = user.cart.cart.filter((ci) => !cartItems.some((item) => item.id === ci.id));
   for (const item of cartItems) {
     await CardInCart.findOneAndRemove({ cardId: item.id, userId: user._id });
   }
+  // Filter the cart to remove the deleted items
+  user.cart.cart = user.cart.cart.filter(
+    (cardInCartId) => !cartItems.some((item) => item.id === cardInCartId),
+  );
 }
-
 async function updateCartItems(user, cartItems) {
   for (const item of cartItems) {
-    const cartItemIndex = user.cart.cart.findIndex((ci) => ci.id === item.id);
-    if (cartItemIndex > -1) {
-      const cartItem = user.cart.cart[cartItemIndex];
+    let cardInCart = await CardInCart.findOne({ cardId: item.id, userId: user._id });
+    if (cardInCart) {
       if (item.quantity > 0) {
-        cartItem.quantity = item.quantity;
+        cardInCart.quantity = item.quantity;
+        await cardInCart.save();
       } else {
-        user.cart.cart.splice(cartItemIndex, 1);
-      }
-
-      let cardInCart = await CardInCart.findOne({ cardId: item.id, userId: user._id });
-      if (cardInCart) {
-        if (item.quantity > 0) {
-          cardInCart.quantity = item.quantity;
-          await cardInCart.save();
-        } else {
-          await CardInCart.findOneAndRemove({ cardId: item.id, userId: user._id });
-        }
+        await CardInCart.findOneAndRemove({ cardId: item.id, userId: user._id });
+        // Remove from user's cart
+        user.cart.cart = user.cart.cart.filter(
+          (cartItem) => cartItem.toString() !== cardInCart._id.toString(),
+        );
       }
     }
   }
 }
+
 // !--------------------------! CARTS !--------------------------!

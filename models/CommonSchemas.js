@@ -18,7 +18,7 @@ const cardPriceSchema = createCommonSchema({
   amazon_price: Types.Decimal128,
   coolstuffinc_price: Types.Decimal128,
 });
-const chartDatasetsSchema = createCommonSchema({ x: String, y: Number });
+const chartDatasetsSchema = createCommonSchema({ label: String, x: Date, y: Number });
 const collectionPriceHistorySchema = createCommonSchema({
   timestamp: Date,
   num: Number,
@@ -57,6 +57,24 @@ const cardVariantSchema = new Schema(
   },
   { timestamps: true },
 );
+// const variantSchema = new Schema(
+//   {
+//     set_name: String,
+//     set_code: String,
+//     rarity: String,
+//     rarity_code: String,
+//     price: Types.Decimal128,
+//     selected: { type: Boolean, default: false },
+//     alt_art_image_url: String,
+//     set: { type: Schema.Types.ObjectId, ref: 'CardSet' }, // Reference to the CardSet
+//     cardModel: {
+//       type: String,
+//       enum: ['CardInSearch', 'CardInCollection', 'CardInDeck', 'CardInCart'],
+//     },
+//     cardId: { type: Schema.Types.ObjectId, refPath: 'cardModel' },
+//   },
+//   { timestamps: true },
+// );
 const searchTermSchema = new Schema({
   name: { type: String },
   race: { type: String },
@@ -93,4 +111,5 @@ module.exports = {
   searchTermSchema,
   searchResultSchema,
   searchSessionSchema,
+  // variantSchema,
 };

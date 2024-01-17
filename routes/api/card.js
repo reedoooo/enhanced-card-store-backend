@@ -112,7 +112,23 @@ router.get(
     res.status(200).json({ message: 'Success', data: bufferedImage });
   }),
 );
+// function convertRequestBodyToConcatenatedString(requestBody) {
+//   // Extract the body from the request
+//   const { body } = requestBody;
 
+//   // Initialize an empty string to hold the concatenated result
+//   let concatenatedString = '';
+
+//   // Loop through the keys of the body object
+//   for (const key in body) {
+//     // Check if the current key is numeric, which indicates a character
+//     if (!isNaN(key)) {
+//       concatenatedString += body[key];
+//     }
+//   }
+
+//   return concatenatedString;
+// }
 // router.get('/image', async (req, res) => {
 //   const imageUrl = req.query.imageURL; // Ensure you're using query parameters
 

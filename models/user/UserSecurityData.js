@@ -11,13 +11,14 @@ const roleSchema = new Schema({
   capabilities: { type: Array, required: false, default: ['read', 'write', 'update', 'delete'] },
 });
 const userSecurityDataSchema = new Schema({
-  // _id: { type: Schema.Types.ObjectId, required: true },
+  // USER AUTHENTICATION
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: false },
-  // Basic Account Information
+  accessToken: { type: String, required: false },
+  refreshToken: { type: String, required: false },
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   email: { type: String, unique: true, sparse: true }, // sparse: true allows for null values but enforces uniqueness where the field is not null
-  token: { type: String, required: false },
+
   // Role Data
   role_data: roleSchema,
 

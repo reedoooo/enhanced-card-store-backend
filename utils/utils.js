@@ -291,22 +291,6 @@ const extractData = ({ body }) => {
     lastName,
   };
 };
-/**
- * Generates a JWT token for the user.
- * @param {object} userData - The user data to be used to generate the token.
- * @returns {string} - The generated token.
- * */
-function generateToken(user) {
-  return jwt.sign(
-    {
-      userId: user._id,
-      username: user.username,
-      role_data: user.userSecurityData.role_data,
-    },
-    process.env.SECRET_KEY,
-    { expiresIn: '1h' },
-  ); // Replace '1h' with your desired token expiration
-}
 
 /**
  * Creates a new collection object.
@@ -421,7 +405,6 @@ module.exports = {
   validateObjectId,
   handleValidationErrors,
   extractData,
-  generateToken,
   validateVarType,
   createCollectionObject,
   formatDateTime,

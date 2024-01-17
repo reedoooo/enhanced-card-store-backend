@@ -7,7 +7,30 @@ const {
   chartDatasetsSchema,
   cardVariantSchema,
   cardSetSchema,
+  // variantSchema,
 } = require('./CommonSchemas');
+const createNewPriceEntry = (price) => {
+  return {
+    num: price,
+    date: new Date(),
+  };
+};
+function calculateContextualQuantity(card, context) {
+  // Logic to calculate the quantity of card in a specific context (SearchHistory, Deck, etc.)
+  // Return the calculated quantity for the given context
+  switch (context) {
+    case 'SearchHistory':
+      return card.quantity;
+    case 'Deck':
+      return card.quantity;
+    case 'Collection':
+      return card.quantity;
+    case 'Cart':
+      return card.quantity;
+    default:
+      throw new Error('Invalid context');
+  }
+}
 // COMMON FIELD SCHEMAS: this data comes straight from the API
 // SAVE FUNCTION: fetchAndTransformCardData
 const commonFields_API_Data = {
@@ -55,6 +78,7 @@ const uniqueVariantFields = {
   // cardVariants: [cardVariantSchema], // AUTOSET: false
   cardVariants: [{ type: Schema.Types.ObjectId, ref: 'CardVariant' }], // Reference to CardSet
   variant: { type: Schema.Types.ObjectId, ref: 'CardVariant' }, // Reference to CardSet
+  // variant: { type: Schema.Types.ObjectId, ref: 'Variant' }, // AUTOSET: true
   rarity: String, // AUTOSET: true
   contextualQuantity: {
     SearchHistory: Number,
@@ -96,35 +120,63 @@ const genericCardSchema = new Schema(
 // Middleware for genericCardSchema
 genericCardSchema.pre('save', async function (next) {
   if (!this.refId) {
-    this.refId = this._id; // Set the refId to the document's _id
+    this.refId = this._id;
   }
   if (!this.cardModel) {
-    this.cardModel = this.constructor.modelName; // Set the cardModel to the document's modelName
+    this.cardModel = this.constructor.modelName;
+  }
+  if (!this.image) {
+    this.image = this.card_images[0].image_url;
   }
 
-  // Check for empty or null fields, ignoring 'tag' and 'rarity' fields
-  const fieldsToCheck = Object.keys(this.toObject()).filter(
-    (field) => field !== 'tag' && field !== 'rarity',
-  );
-  fieldsToCheck.forEach((field) => {
-    if (this[field] === null || this[field] === '') {
-      console.log(
-        `[PRE-SAVE CHECK] Field '${field}' is empty or null. Current value:`,
-        this[field],
-      );
+  // Ensure variant is set to a valid ID from cardVariants
+  if (this.cardVariants && this.cardVariants.length > 0) {
+    const variantIsInCardVariants = this.cardVariants.includes(this.variant);
+    if (!this.variant || !variantIsInCardVariants) {
+      this.variant = this.cardVariants[0];
     }
-  });
-
-  try {
-    // Other pre-save logic here
-    next();
-  } catch (error) {
-    console.log(`[GENERIC CARD: ${this.name}]`.red + ' PRE SAVE ERROR: ', error);
-    next(error);
+  } else {
+    // If no variants available, log and skip setting rarity
+    console.log(`[WARNING] No variants available for card: ${this.name}`);
+    return next();
   }
+
+  // SECTION FOR VALUES THAT ARE UPDATED AND SET BY THE SERVER
+  // Calculate totalPrice based on quantity and latestPrice
+  // TODO: this is a temporary fix to prevent latestPrice from being set to 0, but ill create funtion for getting it and handle it later
+  if (this.isModified('quantity')) {
+    this.latestPrice = createNewPriceEntry(this.price);
+    this.lastSavedPrice = createNewPriceEntry(this.price);
+    this.totalPrice = this.quantity * this.price;
+    this.priceHistory.push(createNewPriceEntry(this.totalPrice));
+
+    // Update contextual quantities and total prices
+    const contextKeys = ['SearchHistory', 'Deck', 'Collection', 'Cart'];
+    contextKeys.forEach((context) => {
+      this.contextualQuantity[context] = calculateContextualQuantity(this, context);
+      this.contextualTotalPrice[context] = this.contextualQuantity[context] * this.price;
+    });
+  }
+  // Populate the variant field
+  try {
+    await this.populate('variant');
+
+    // Set rarity after successful population
+    if (this.variant) {
+      this.rarity = this.variant.rarity;
+    } else {
+      console.log(`[WARNING] Variant not populated for card: ${this.name}`);
+    }
+  } catch (error) {
+    console.log(`[GENERIC CARD: ${this.name}] PRE SAVE ERROR: `, error);
+    return next(error);
+  }
+
+  next();
 });
 
 const CardSet = model('CardSet', cardSetSchema);
+// const Variant = model('Variant', variantSchema);
 const CardVariant = model('CardVariant', cardVariantSchema);
 const CardInCollection = mongoose.model('CardInCollection', genericCardSchema);
 const CardInDeck = mongoose.model('CardInDeck', genericCardSchema);

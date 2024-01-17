@@ -4,7 +4,7 @@ const fs = require('fs').promises; // Use fs.promises for async operations
 
 const download = require('image-downloader');
 const path = require('path');
-const { FILE_CONSTANTS } = require('../../constants');
+const { FILE_CONSTANTS } = require('../../../constants');
 
 // Ensure the public/images folder exists
 // Define the public directory path

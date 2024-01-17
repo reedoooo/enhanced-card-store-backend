@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const UserController = require('../../controllers/User/User/UserController.js');
+// const UserAuthController = require('../../controllers/User/User/UserAuthController.js');
+
 const UserCartController = require('../../controllers/User/Cart/UserCartController.js');
 const UserDeckController = require('../../controllers/User/Deck/UserDeckController.js');
 const UserCollectionController = require('../../controllers/User/Collection/UserCollectionController.js');
@@ -9,6 +11,9 @@ const { asyncHandler } = require('../../utils/utils.js');
 // USER SIGNUP AND SIGNIN ROUTES
 router.post('/signup', asyncHandler(UserController.signup));
 router.post('/signin', asyncHandler(UserController.signin));
+router.post('/signout', asyncHandler(UserController.signout));
+router.get('/checkToken', asyncHandler(UserController.checkToken));
+
 // USER DATA ROUTES
 router.get('/:userId/userData', asyncHandler(UserController.getUserData));
 router.put('/:userId/userData/update', asyncHandler(UserController.updateUserData));
@@ -27,8 +32,14 @@ router.put(
 );
 
 // COLLECTION ROUTES
-router.post('/:userId/collections', asyncHandler(UserCollectionController.createNewCollection));
-router.get('/:userId/collections', asyncHandler(UserCollectionController.getAllCollectionsForUser));
+router.post(
+  '/:userId/collections/create',
+  asyncHandler(UserCollectionController.createNewCollection),
+);
+router.get(
+  '/:userId/collections/allCollections',
+  asyncHandler(UserCollectionController.getAllCollectionsForUser),
+);
 router.put(
   '/:userId/collections/:collectionId',
   asyncHandler(UserCollectionController.updateAndSyncCollection),

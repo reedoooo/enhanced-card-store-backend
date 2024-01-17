@@ -24,6 +24,8 @@ async function getContextualValue(card, contexts, context, property) {
  * @returns {string} - A query string containing the parameters.
  */
 function queryBuilder(name, race, type, level, attribute, id) {
+  console.log(`[SEARCH QUERY CONTENTS][${(name, race, type, level, attribute, id)}]`);
+
   const queryParts = [
     name && `fname=${encodeURIComponent(name)}`,
     race && `race=${encodeURIComponent(race)}`,
