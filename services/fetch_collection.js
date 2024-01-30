@@ -22,11 +22,11 @@ exports.getCollectionsForUser = async (userId) => {
 };
 
 async function main() {
-  const userId = 'specificUserId'; // Replace with the actual user ID
+  const userId = '65b8e155b4885b451a5071c8'; // Replace with the actual user ID
 
   try {
     const collections = await exports.getCollectionsForUser(userId);
-
+    console.log('COLLECTIONS IN CRONFETCH RETREIVED', collections);
     if (collections && collections.length > 0) {
       const totalPrice = collections.reduce((acc, collection) => {
         // Ensure collection has a 'price' and it's a number

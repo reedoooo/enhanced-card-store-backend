@@ -22,4 +22,4 @@ jobs:
       run: npm install
 
     - name: Fetch and Log Collections
-      run: node fetch_collections_cron.js
+      run: node fetch_collections.js

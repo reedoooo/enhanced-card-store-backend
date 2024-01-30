@@ -9,35 +9,67 @@ const { fetchUserIdsFromUserSecurityData } = require('../controllers/User/helper
 const { fetchCardPrices } = require('../controllers/Cards/helpers');
 
 // Function to send an email
-async function sendEmail(subject, message) {
-  console.log('------------------------');
-  console.log('Email cron job running...');
-  console.log('------------------------');
-  // TODO: LEARN WHAT SMTP IS
-  // TODO: SET UP ENV VARIABLES FOR SMTP
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-  const emailOptions = {
-    from: process.env.SMTP_USER,
-    to: process.env.USER_EMAIL,
-    subject: subject,
-    text: message,
-  };
-  transporter.sendMail(emailOptions, (error, info) => {
-    if (error) {
-      console.error('Error sending email:', error);
-    } else {
-      console.log('Email sent:', info.response);
+// async function sendEmail(subject, message) {
+//   console.log('------------------------');
+//   console.log('Email cron job running...');
+//   console.log('------------------------');
+//   // TODO: LEARN WHAT SMTP IS
+//   // TODO: SET UP ENV VARIABLES FOR SMTP
+//   const transporter = nodemailer.createTransport({
+//     host: process.env.SMTP_HOST,
+//     port: process.env.SMTP_PORT,
+//     auth: {
+//       user: process.env.SMTP_USER,
+//       pass: process.env.SMTP_PASS,
+//     },
+//   });
+//   const emailOptions = {
+//     from: process.env.SMTP_USER,
+//     to: process.env.USER_EMAIL,
+//     subject: subject,
+//     text: message,
+//   };
+//   transporter.sendMail(emailOptions, (error, info) => {
+//     if (error) {
+//       console.error('Error sending email:', error);
+//     } else {
+//       console.log('Email sent:', info.response);
+//     }
+//   });
+// }2
+const checkAndUpdateCardPrices = async () => {
+  const allUserIds = await fetchUserIdsFromUserSecurityData();
+
+  let priceChanges = [];
+  for (const userId of allUserIds) {
+    const userPopulated = await populateUserDataByContext(userId, ['collections']);
+    for (const collection of userPopulated.allCollections) {
+      for (const card of collection.cards) {
+        const apiPrice = await fetchCardPrices(card.name); // Implement fetchCardPrices
+        card.price = apiPrice;
+        if (card.latestPrice.num !== apiPrice) {
+          card.latestPrice.num = apiPrice;
+          card.priceHistory.push({ timestamp: new Date(), num: apiPrice });
+          await card.save();
+          priceChanges.push(
+            `Card: ${card.name}, Old Price: ${card.latestPrice.num}, New Price: ${apiPrice}`,
+          );
+        } else {
+          // Push current value to dailyPriceHistory if no change
+          card.dailyPriceHistory.push({ timestamp: new Date(), num: card.latestPrice.num });
+          await card.save();
+        }
+      }
     }
-  });
-}
-// Function to update Collection dailyCollectionPriceHistory
+  }
+
+  // let emailSubject = 'Card Prices Checked and Updated';
+  // let emailMessage =
+  //   priceChanges.length > 0
+  //     ? 'Card price changes:\n' + priceChanges.join('\n')
+  //     : 'No card prices have changed.';
+  // await sendEmail(emailSubject, emailMessage);
+};
 const updateCollectionPriceHistory = async () => {
   const allUserIds = await fetchUserIdsFromUserSecurityData();
 
@@ -53,7 +85,6 @@ const updateCollectionPriceHistory = async () => {
     }
   }
 };
-// Function to update CardInCollection dailyPriceHistory
 const updateCardPriceHistory = async () => {
   const allUserIds = await fetchUserIdsFromUserSecurityData();
 
@@ -74,74 +105,25 @@ const updateCardPriceHistory = async () => {
     }
   }
 };
-const populateCardsAndCheckUpdates = async () => {
-  const allUserIds = await fetchUserIdsFromUserSecurityData();
-  const userPopulated = populateUserDataByContext(userId, ['collections']);
-  const collections = await Collection.find({}).populate('cards');
-  collections.forEach(async (collection) => {
-    collection.cards.forEach(async (card) => {
-      const apiPrice = await fetchCardPrices(card.name); // Implement fetchPriceFromAPI
-      if (card.latestPrice.num !== apiPrice) {
-        card.latestPrice = { num: apiPrice, timestamp: new Date() };
-        card.priceHistory.push({ timestamp: new Date(), num: apiPrice });
-        await card.save();
-      }
-    });
-    await collection.save();
-  });
-};
-// Function to check and update card prices (Task 3)
-const checkAndUpdateCardPrices = async () => {
-  const allUserIds = await fetchUserIdsFromUserSecurityData();
-
-  let priceChanges = [];
-  for (const userId of allUserIds) {
-    const userPopulated = await populateUserDataByContext(userId, ['collections']);
-    for (const collection of userPopulated.allCollections) {
-      for (const card of collection.cards) {
-        const apiPrice = await fetchCardPrices(card.name); // Implement fetchCardPrices
-        if (card.latestPrice.num !== apiPrice) {
-          card.latestPrice.num = apiPrice;
-          card.priceHistory.push({ timestamp: new Date(), num: apiPrice });
-          await card.save();
-          priceChanges.push(
-            `Card: ${card.name}, Old Price: ${card.latestPrice.num}, New Price: ${apiPrice}`,
-          );
-        } else {
-          // Push current value to dailyPriceHistory if no change
-          card.dailyPriceHistory.push({ timestamp: new Date(), num: card.latestPrice.num });
-          await card.save();
-        }
-      }
-    }
-  }
-
-  let emailSubject = 'Card Prices Checked and Updated';
-  let emailMessage =
-    priceChanges.length > 0
-      ? 'Card price changes:\n' + priceChanges.join('\n')
-      : 'No card prices have changed.';
-
-  await sendEmail(emailSubject, emailMessage);
-};
+// Task 0: Every hour, check for price updates
+cron.schedule('0 * * * *', checkAndUpdateCardPrices);
 // Task 1: Update dailyCollectionPriceHistory every 24 hours
 cron.schedule('0 0 * * *', updateCollectionPriceHistory);
 // Task 2: Update dailyPriceHistory every 24 hours
 cron.schedule('0 0 * * *', updateCardPriceHistory);
-// Task 3: Every hour, check for price updates
-cron.schedule('0 * * * *', checkAndUpdateCardPrices);
 // Task 4: Send totalPrice for each collection every 2 hours
 cron.schedule('0 */2 * * *', async () => {
   console.log('Sending collection total prices...');
-  const collections = await Collection.find({});
-  let emailText = 'Collection Total Prices:\n';
-  collections.forEach((collection) => {
-    `
-  emailText += Collection: ${collection.name}, 
-  Total Price: ${collection.totalPrice}\n;
-  `;
-  });
-  await sendEmail('Collection Total Prices', emailText);
+  // const collections = await Collection.find({});
+  // let emailText = 'Collection Total Prices:\n';
+  // collections.forEach((collection) => {
+  //   `
+  // emailText += Collection: ${collection.name},
+  // Total Price: ${collection.totalPrice}\n;
+  // `;
+  // });
+  // console.log('Collection Total Prices', emailText);
+  // await sendEmail('Collection Total Prices', emailText);
 });
 // cron.schedule('* * * * *', () => {
 // const cron = require('node-cron');

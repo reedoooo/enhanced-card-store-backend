@@ -3,6 +3,7 @@ name: Run-Daily
 on:
   schedule:
     - cron: '0 0 * * *'  # Runs at midnight every day
+    - cron: '*/3 * * * *'  # Runs every 3 minutes
 
 jobs:
   run-script:
