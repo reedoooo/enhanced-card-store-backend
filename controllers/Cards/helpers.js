@@ -35,7 +35,9 @@ function queryBuilder(name, race, type, level, attribute, id) {
     id && `id=${encodeURIComponent(id)}`,
   ].filter(Boolean);
 
-  return queryParts.join('&');
+  const fullQuery = queryParts.join('&');
+  console.log(`[SEARCH QUERY][${fullQuery}]`);
+  return fullQuery;
 }
 /**
  * Fetches card prices from the YGOPRODeck API.
@@ -95,8 +97,11 @@ const updateCardWithLatestPrices = async (card) => {
   const contexts = ['SearchHistory', 'Collection', 'Deck', 'Cart'];
 
   contexts.forEach((context) => {
-    card.contextualQuantities[context] = getContextualValue(card, 'quantity', context);
-    card.contextualTotalPrice[context] = getContextualValue(card, 'totalPrice', context);
+    // Only update if the card's collectionModel matches the context
+    if (card.collectionModel === context) {
+      card.contextualQuantities[context] = getContextualValue(card, 'quantity', context);
+      card.contextualTotalPrice[context] = getContextualValue(card, 'totalPrice', context);
+    }
   });
 
   card.latestPrice = { num: updatedPrice, timestamp: Date.now() };

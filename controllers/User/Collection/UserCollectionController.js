@@ -7,6 +7,8 @@ const {
   getDefaultCardForContext,
   createAndSaveCardInContext,
   setupDefaultCollectionsAndCards,
+  mapCardDataToModelFields,
+  reFetchForSave,
 } = require('../helpers');
 
 // COLLECTION ROUTES (GET, CREATE, UPDATE, DELETE)
@@ -245,6 +247,8 @@ exports.updateChartDataInCollection = async (req, res, next) => {
 
 // COLLECTION ROUTES: CARDS-IN-COLLECTION Routes (GET, CREATE, UPDATE, DELETE)
 /**
+ * STATUS:
+ * [O] OPERATIONAL
  * Adds a new card to a collection or updates the data of an existing card and returns the updated data
  * @param {Request} req - The request object
  * @param {Response} res - The response object
@@ -254,13 +258,11 @@ exports.updateChartDataInCollection = async (req, res, next) => {
 exports.addCardsToCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
   const { cards } = req.body;
-
   if (!Array.isArray(cards)) {
     return res.status(400).json({ message: 'Invalid card data, expected an array.' });
   }
-
   try {
-    const populatedUser = await populateUserDataByContext(userId);
+    const populatedUser = await populateUserDataByContext(userId, ['collections']);
 
     const collection = populatedUser.allCollections.find(
       (coll) => coll._id.toString() === collectionId,
@@ -268,19 +270,35 @@ exports.addCardsToCollection = async (req, res, next) => {
     if (!collection) {
       return res.status(404).json({ message: 'Collection not found.' });
     }
+    const processedCardIds = new Set(); // Set to track processed card IDs
+
     for (const cardData of cards) {
-      let card = await CardInCollection.findOne({ 'card.id': cardData.id, collectionId });
-      if (card) {
-        // Update existing card
-        card.quantity += cardData.quantity;
-        await card.save(); // pre-save will handle totalPrice and other calculations
-      } else {
-        // Create new card and add to collection
-        const newCardData = { ...cardData, collectionId };
-        const newCard = new CardInCollection(newCardData);
-        await newCard.save();
-        collection.cards.push(newCard._id);
+      if (processedCardIds.has(cardData.id)) {
+        console.log('Skipping duplicate card:', cardData.id);
+        continue; // Skip duplicate card IDs
       }
+      let cardInCollection = collection?.cards?.find((c) => c.id.toString() === cardData.id);
+      if (cardInCollection) {
+        console.log('Updating existing card:', cardInCollection.name.blue);
+        cardInCollection.quantity += cardData.quantity;
+        await cardInCollection.save(); // pre-save will handle totalPrice and other calculations
+
+        // Update collection's total quantity and price
+        collection.totalQuantity += cardData.quantity;
+        collection.totalPrice += cardData.quantity * cardInCollection.price;
+      } else {
+        const reSavedCard = await reFetchForSave(
+          cardData,
+          collectionId,
+          'Collection',
+          'CardInCollection',
+        );
+        // console.log('Re-saved card:', reSavedCard.name);
+        // const newCard = new CardInCollection(newCardData);
+        // await newCard.save();
+        collection.cards.push(reSavedCard?._id);
+      }
+      processedCardIds.add(cardData.id); // Add card ID to the Set
     }
 
     await collection.save();
@@ -301,7 +319,7 @@ exports.addCardsToCollection = async (req, res, next) => {
 // TODO: UPDATE REMOVE CARD FUNCTION DESCRIPTION TO NOTE IT IS OPERATIONAL
 /**
  * STATUS:
- * !OPERATIONAL
+ *![X] NOT OPERATIONAL
  * Removes cards from a collection and returns the updated collection data.
  * @param {Request} req - The request object
  * req.body = {
@@ -335,13 +353,11 @@ exports.removeCardsFromCollection = async (req, res, next) => {
     }
 
     // Remove specified cards
-    const cardIdsToRemove = cards.map((c) => c.id);
+    const cardIdsToRemove = cards.map((c) => c._id);
     collection.cards = collection.cards.filter((card) => !cardIdsToRemove.includes(card.id));
 
     // Now, you'll have to remove these cards from the CardInCollection model as well
-    await CardInCollection.deleteMany({ _id: { $in: cardIdsToRemove }, collectionId });
-
-    await collection.save();
+    await CardInCollection.deleteOne({ _id: { $in: cardIdsToRemove }, collectionId });
 
     await collection.save();
 
@@ -370,7 +386,7 @@ exports.removeCardsFromCollection = async (req, res, next) => {
  */
 exports.updateCardsInCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
-  const { cards } = req.body;
+  const { cards, type } = req.body;
 
   if (!Array.isArray(cards)) {
     return res.status(400).json({ message: 'Invalid card data, expected an array.' });
@@ -378,7 +394,7 @@ exports.updateCardsInCollection = async (req, res, next) => {
 
   try {
     const populatedUser = await populateUserDataByContext(userId, ['collections']);
-    const collection = populatedUser.allCollections.find(
+    const collection = populatedUser?.allCollections.find(
       (coll) => coll._id.toString() === collectionId,
     );
 
@@ -386,26 +402,54 @@ exports.updateCardsInCollection = async (req, res, next) => {
       return res.status(404).json({ message: 'Collection not found.' });
     }
 
-    for (const update of cards) {
-      const card = await CardInCollection.findById(update._id).populate([deepPopulateCardFields()]);
-      if (card) {
-        card.quantity = update.quantity;
-        await card.save();
+    for (const cardData of cards) {
+      const cardInCollection = await CardInCollection.findById(cardData?._id);
+
+      if (cardInCollection) {
+        console.log('Updating existing card:', cardInCollection.name.blue);
+        // set the card's quantity to the updated quantity
+        if (cardInCollection.quantity !== cardData.quantity) {
+          console.log('Updating card quantity');
+          cardInCollection.quantity = cardData.quantity;
+        }
+        if (cardInCollection.quantity === cardData.quantity && type === 'increment') {
+          console.log('Incrementing card quantity');
+          cardInCollection.quantity += 1;
+        }
+        if (cardInCollection.quantity === cardData.quantity && type === 'decrement') {
+          console.log('Decrementing card quantity');
+          cardInCollection.quantity -= 1;
+        }
+        console.log('Card quantity:', cardInCollection.quantity);
+
+        // Save the card with pre-save hooks
+        await cardInCollection.save();
+
+        // Update collection's total quantity and price
+        collection.totalQuantity += cardInCollection.quantity;
+        collection.totalPrice += cardInCollection.quantity * cardInCollection.price;
+
+        // Update the card's contextual quantities and prices
       } else {
-        console.log(`Card not found in collection: ${update._id}`);
+        console.log(`Card not found in collection: ${cardData._id}`);
       }
     }
 
+    await collection.save();
+
+    await populatedUser.save();
+
+    // Repopulate the collection
     await collection.populate({
       path: 'cards',
       model: 'CardInCollection',
       populate: deepPopulateCardFields(),
     });
 
-    // Filter out duplicate card objects
-    const uniqueCardsMap = new Map();
-    collection.cards.forEach((card) => uniqueCardsMap.set(card._id.toString(), card));
-    collection.cards = Array.from(uniqueCardsMap.values());
+    // // Filter out duplicate card objects
+    // const uniqueCardsMap = new Map();
+    // collection.cards.forEach((card) => uniqueCardsMap.set(card._id.toString(), card));
+    // collection.cards = Array.from(uniqueCardsMap.values());
 
     res
       .status(200)

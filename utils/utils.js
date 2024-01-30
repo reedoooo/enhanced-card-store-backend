@@ -99,6 +99,17 @@ const findUser = async (username) => {
   return await User.findOne({ 'userSecurityData.username': username });
 };
 /**
+ * Creates a new price entry object.
+ * @param {number} price - The price to be added to the price entry.
+ * @returns {object} - The new price entry object.
+ * */
+const createNewPriceEntry = (price) => {
+  return {
+    num: price,
+    timestamp: new Date(),
+  };
+};
+/**
  * Updates a document with a retry mechanism to handle VersionErrors.
  * @param {mongoose.Model} model - The model to be updated.
  * @param {object} update - The update object.
@@ -133,15 +144,16 @@ async function updateDocumentWithRetry(model, update, options = {}, retryCount =
 }
 /**
  * Fetches card info from the YGOProDeck API.
- * @param {string} cardId - The ID of the card to fetch.
+ * @param {string} cardName - The ID of the card to fetch.
  * @returns {object} - The card info object.
  * */
-const getCardInfo = async (cardId) => {
+const getCardInfo = async (cardName) => {
   try {
-    const { data } = await axiosInstance.get(`/cardinfo.php?id=${encodeURIComponent(cardId)}`);
-    return data.data[0];
+    const { data } = await axiosInstance.get(`/cardinfo.php?name=${encodeURIComponent(cardName)}`);
+    // console.log('Card info:', data?.data[0]);
+    return data?.data[0];
   } catch (error) {
-    console.error(`Error fetching card info for card ID ${cardId}:`, error);
+    console.error(`Error fetching card info for card NAME ${cardName}:`, error);
     throw error;
   }
 };
@@ -412,4 +424,5 @@ module.exports = {
   filterDailyCollectionPriceHistory,
   filterUniqueYValues,
   asyncErrorHandler,
+  createNewPriceEntry,
 };

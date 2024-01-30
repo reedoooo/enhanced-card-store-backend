@@ -56,7 +56,6 @@ exports.signup = async (req, res, next) => {
     handleSignupError(error, res, next);
   }
 };
-
 exports.signin = async (req, res, next) => {
   try {
     const { username, password } = req.body.userSecurityData;

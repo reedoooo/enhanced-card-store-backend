@@ -5,6 +5,7 @@ const { cardController } = require('../Cards/CardController');
 const { validateCardData } = require('../../middleware/validation/validators');
 const { User } = require('../../models');
 const { default: axios } = require('axios');
+const { getCardInfo } = require('../../utils/utils');
 // !--------------------------! USERS !--------------------------!
 /**
  * [] Helper functions for different methods
@@ -55,6 +56,9 @@ async function getDefaultCardForContext(context) {
  * @throws {Error} If the card data is invalid
  */
 async function createCardSets(cardSetsData, cardModel, cardId) {
+  if (cardSetsData && cardModel && cardId) {
+    console.log('SECTION 5: CREATE CARD SETS', cardSetsData[0].set_name);
+  }
   return Promise.all(
     cardSetsData?.map(async (set) => {
       let setPrice;
@@ -137,6 +141,9 @@ async function createCardVariants(sets, cardModel, cardId) {
  * @throws {Error} If the card data is invalid
  */
 async function createSetsAndVariantsForCard(cardInstance, cardData, cardModel) {
+  if (cardData && cardInstance && cardModel) {
+    console.log('SECTION 6: CREATE CARD SETS AND VARIANTS', cardData.name);
+  }
   const cardSetIds = await createCardSets(cardData?.card_sets, cardModel, cardInstance._id);
   cardInstance.card_sets = cardSetIds;
 
@@ -179,7 +186,7 @@ function setAltArtDetails(card) {
  * @throws {Error} If the card doesn't exist
  */
 function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardModel) {
-  // console.log('SECTION 4.5: MAP CARD DATA TO MODEL FIELDS', cardData);
+  console.log('SECTION 4.5: MAP CARD DATA TO MODEL FIELDS', cardData);
   const {
     id,
     name,
@@ -193,10 +200,12 @@ function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardM
     attribute,
     card_images,
     card_prices,
+    card_sets,
     archetype,
-    quantity = 1,
+    // quantity = 1,
   } = cardData;
-
+  const contextualQuantity = {};
+  const contextualTotalPrice = {};
   const priceEntry =
     card_prices?.length > 0
       ? {
@@ -204,7 +213,15 @@ function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardM
           timestamp: new Date(),
         }
       : { num: 0, timestamp: new Date() };
+  const quantityUpdate = cardData.quantity === 0 ? 1 : cardData.quantity;
+  const contexts = ['SearchHistory', 'Deck', 'Collection', 'Cart'];
 
+  contexts.forEach((context) => {
+    if (context === collectionModel) {
+      contextualQuantity[context] = quantityUpdate;
+      contextualTotalPrice[context] = priceEntry?.num * quantityUpdate;
+    }
+  });
   return {
     name,
     externalId: id?.toString(),
@@ -217,8 +234,8 @@ function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardM
     tag: '', // Add logic to populate this if necessary
     watchList: false,
     price: priceEntry?.num,
-    quantity: quantity || 1,
-    totalPrice: priceEntry?.num * quantity,
+    quantity: quantityUpdate || 1,
+    totalPrice: priceEntry?.num * quantityUpdate,
     image: card_images[0]?.image_url || '',
     type,
     frameType,
@@ -232,25 +249,16 @@ function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardM
     rarity: '', // Add logic to determine this if necessary
     card_images,
     card_prices,
+    card_sets,
     latestPrice: priceEntry,
     lastSavedPrice: priceEntry,
     priceHistory: [priceEntry],
     dailyPriceHistory: [],
     chart_datasets: [],
-    card_sets: [],
+    // card_sets: [],
     cardVariants: [],
-    contextualQuantity: {
-      SearchHistory: quantity,
-      Deck: quantity,
-      Collection: quantity,
-      Cart: quantity,
-    },
-    contextualTotalPrice: {
-      SearchHistory: priceEntry?.num * quantity,
-      Deck: priceEntry?.num * quantity,
-      Collection: priceEntry?.num * quantity,
-      Cart: priceEntry?.num * quantity,
-    },
+    contextualQuantity,
+    contextualTotalPrice,
   };
 }
 /**
@@ -317,43 +325,6 @@ async function createAndSaveCardInContext(cardData, collectionId, cardModel, col
   await cardInstance.save();
   return cardInstance;
 }
-// async function createAndSaveCardInContext(cardData, collectionId, cardModel, collectionModel) {
-//   validateCardData(cardData, cardModel);
-//   if (!cardData) {
-//     throw new Error('Card data is required', cardData);
-//   }
-//   if (!collectionId) {
-//     throw new Error('Collection ID is required', collectionId);
-//   }
-//   if (!cardModel) {
-//     throw new Error('Card model is required', cardModel);
-//   }
-//   if (!collectionModel) {
-//     throw new Error('Collection model is required', collectionModel);
-//   }
-//   const CardModel = mongoose.model(cardModel);
-//   const cardInstance = new CardModel(
-//     mapCardDataToModelFields(cardData, collectionId, collectionModel, cardModel),
-//   );
-//   if (!cardInstance) {
-//     throw new Error('Failed to create card in context');
-//   }
-//   // Create card sets and variants
-//   await createSetsAndVariantsForCard(cardInstance, cardData, cardModel);
-//   console.log('SECTION 7 COMPLETE: CREATE CARD SETS AND VARIANTS');
-//   // Set the alt art details and select the first variant
-//   setAltArtDetails(cardInstance);
-//   cardInstance.variant = selectFirstVariant(cardInstance.cardVariants);
-//   if (!cardInstance.variant) {
-//     throw new Error('No variant found for the card');
-//   }
-
-//   await cardInstance.populate('variant');
-//   cardInstance.rarity = cardInstance?.variant?.rarity;
-
-//   await cardInstance.save();
-//   return cardInstance;
-// }
 /**
  * [SECTION 8] Helper functions for different methods
  * Function to push a card to a collection
@@ -485,6 +456,129 @@ async function createDefaultCollectionsAndCards(userId) {
     );
   }
 }
+// Common function to handle card data creation and saving
+async function createAndSaveCard(cardData, collectionId, collectionModel, cardModel, tag) {
+  const tcgplayerPrice = cardData?.card_prices[0]?.tcgplayer_price || 0;
+  let card_set =
+    cardData?.card_sets && cardData?.card_sets?.length > 0 ? cardData?.card_sets[0] : null;
+
+  const data = {
+    image: cardData?.card_images.length > 0 ? cardData.card_images[0].image_url : '',
+    quantity: 1,
+    price: tcgplayerPrice,
+    totalPrice: tcgplayerPrice,
+    tag: tag,
+    collectionId: collectionId,
+    collectionModel: collectionModel,
+    cardModel: cardModel,
+    watchList: false,
+    rarity: card_set?.set_rarity || '',
+    card_set: card_set ? card_set : {},
+    card_sets: cardData?.card_sets,
+    card_images: cardData?.card_images,
+    card_prices: cardData?.card_prices,
+    id: cardData?.id?.toString() || '',
+    name: cardData?.name,
+    chart_datasets: [
+      {
+        x: Date.now(),
+        y: tcgplayerPrice,
+      },
+    ],
+    lastSavedPrice: {
+      num: tcgplayerPrice,
+      timestamp: Date.now(),
+    },
+    latestPrice: {
+      num: tcgplayerPrice,
+      timestamp: Date.now(),
+    },
+    priceHistory: [],
+    dailyPriceHistory: [],
+    // priceHistory: [
+    //   {
+    //     num: tcgplayerPrice,
+    //     timestamp: Date.now(),
+    //   },
+    // ],
+    // dailyPriceHistory: [
+    //   {
+    //     num: tcgplayerPrice,
+    //     timestamp: Date.now(),
+    //   },
+    // ],
+  };
+
+  const CardModel = mongoose.model(cardModel);
+  const cardInstance = new CardModel(data);
+
+  console.log(
+    `SECTION (${cardInstance?.cardmodel} - 6 - COMPLETE: CREATE CARD IN CONTEXT', cardInstance.cardmodel`,
+  );
+  // Create card sets and variants
+  await createSetsAndVariantsForCard(cardInstance, data, cardModel);
+  console.log(`SECTION (${cardInstance?.name} - 7 - COMPLETE: VARIANTS SET', cardInstance.name`);
+
+  // Set the alt art details and select the first variant
+  setAltArtDetails(cardInstance);
+  console.log(
+    `SECTION (${cardInstance?.card_images} - 8 - COMPLETE: ALT ART SET', cardInstance.name`,
+  );
+
+  cardInstance.variant = selectFirstVariant(cardInstance.cardVariants);
+
+  await cardInstance.populate('variant');
+
+  cardInstance.rarity = cardInstance?.variant?.rarity;
+  console.log(
+    `SECTION (${cardInstance.rarity} - 9 - COMPLETE: DATA FETCH AND MAP COMPLETE', cardInstance.name`
+      .green,
+  );
+
+  await cardInstance.save();
+  return cardInstance;
+}
+
+// Refactored reFetchForSave function
+async function reFetchForSave(card, collectionId, collectionModel, cardModel) {
+  try {
+    if (!card) {
+      throw new Error('Card is required in reFetchForSave');
+    }
+    if (!collectionId) {
+      throw new Error('Collection ID is required in reFetchForSave');
+    }
+    if (!collectionModel) {
+      throw new Error('Collection model is required in reFetchForSave');
+    }
+    if (!cardModel) {
+      throw new Error('Card model is required in reFetchForSave');
+    }
+    const response = await getCardInfo(card?.name);
+    // const cardData = response;
+    // console.log('CARD DATA AFTER REFETCH: ', response);
+    return await createAndSaveCard(response, collectionId, collectionModel, cardModel, 'refetch');
+  } catch (error) {
+    console.error(`Failed to re-fetch card Name ${card.name}:`, error);
+    return null;
+  }
+}
+
+// Refactored fetchAndSaveRandomCard function
+// async function fetchAndSaveRandomCard(collectionId, collectionModel, cardModel) {
+//   try {
+//     const axiosInstance = axios.create({
+//       baseURL: 'https://db.ygoprodeck.com/api/v7/',
+//     });
+//     const response = await axiosInstance.get('randomcard.php');
+//     const card = response.data;
+//     return await createAndSaveCard(card, collectionId, collectionModel, cardModel, 'random');
+//   } catch (error) {
+//     console.error('Failed to fetch random card:', error);
+//     return null;
+//   }
+// }
+
 /**
  * [SECTION 0] Helper functions for different methods
  * @param {*} cardName
@@ -677,4 +771,56 @@ module.exports = {
   selectFirstVariant,
   setupDefaultCollectionsAndCards,
   fetchUserIdsFromUserSecurityData,
+  fetchAndSaveRandomCard,
+  reFetchForSave,
 };
+
+// async function reFetchForSave(cardId, collectionId, collectionModel, cardModel) {
+//   try {
+//     // Fetch card data using the getCardInfo function
+//     const card = await getCardInfo(cardId);
+
+//     // Extract necessary information from the fetched card data
+//     const tcgplayerPrice = card?.card_prices[0]?.tcgplayer_price || 0;
+//     let card_set = card?.card_sets && card?.card_sets?.length > 0 ? card?.card_sets[0] : null;
+//     const rarity = card_set?.set_rarity || '';
+
+//     // Construct the data object
+//     const data = {
+//       image: card?.card_images.length > 0 ? card.card_images[0].image_url : '',
+//       quantity: 1,
+//       price: tcgplayerPrice,
+//       totalPrice: tcgplayerPrice,
+//       tag: 'refetch',
+//       collectionId: collectionId,
+//       collectionModel: collectionModel,
+//       cardModel: cardModel,
+//       watchList: false,
+//       rarity: rarity,
+//       card_set: card_set ? card_set : {},
+//       chart_datasets: [{ x: Date.now(), y: tcgplayerPrice }],
+//       lastSavedPrice: { num: tcgplayerPrice, timestamp: Date.now() },
+//       latestPrice: { num: tcgplayerPrice, timestamp: Date.now() },
+//       priceHistory: [],
+//       dailyPriceHistory: [],
+//       // other card details...
+//       id: card.id.toString(),
+//       name: card.name,
+//       // ... other fields from the original function
+//     };
+
+//     // Create a new card instance
+//     const CardModel = mongoose.model(cardModel);
+//     const cardInstance = new CardModel(data);
+
+//     // Additional processing (if any)
+//     // ...
+
+//     // Save the card instance
+//     await cardInstance.save();
+//     return cardInstance;
+//   } catch (error) {
+//     console.error(`Failed to re-fetch card ID ${cardId}:`, error);
+//     return null;
+//   }
+// }

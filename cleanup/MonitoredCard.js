@@ -5,7 +5,7 @@ const CardBaseSchema = require('../models/CardBase').schema;
 const priceEntrySchema = new mongoose.Schema({
   num: {
     type: Number,
-    required: true,
+    required: false,
   },
   timestamp: {
     type: Date,

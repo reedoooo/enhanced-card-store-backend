@@ -6,7 +6,22 @@ const {
   searchSessionSchema,
 } = require('./CommonSchemas');
 const { CardInCollection, CardInDeck, CardInCart } = require('./Card');
+const { format } = require('date-fns');
 require('colors');
+const createNewPriceEntry = (price) => {
+  return {
+    num: price,
+    timestamp: new Date(),
+  };
+};
+function createNivoXYValue(date, value, idPrefix) {
+  const formattedTime = format(date, 'h:mma'); // Formats time to 12-hour format with AM/PM
+  return {
+    x: formattedTime,
+    y: value,
+    // id: `${idPrefix}${formattedTime}`,
+  };
+}
 const DeckSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: false },
@@ -14,6 +29,7 @@ const DeckSchema = new Schema(
     description: String,
     totalPrice: { type: Number, default: 0 },
     quantity: { type: Number, default: 0 },
+    totalQuantity: { type: Number, default: 0 },
     tags: [String],
     color: String,
     cards: [{ type: Schema.Types.ObjectId, ref: 'CardInDeck' }],
@@ -21,11 +37,28 @@ const DeckSchema = new Schema(
   { timestamps: true },
 );
 DeckSchema.pre('save', async function (next) {
+  console.log('pre save hook for collection', this.name.blue);
+
+  // Reset statistics
   this.totalPrice = 0;
   this.quantity = 0;
+  // this.collectionStatistics.highPoint = 0;
+  // this.collectionStatistics.lowPoint = Infinity;
 
   if (this.cards && this.cards.length > 0) {
     const deckCards = await CardInDeck.find({ _id: { $in: this.cards } });
+
+    // Calculate totalQuantity by iterating over cards
+    this.totalQuantity = deckCards.reduce((total, card) => {
+      this.totalPrice += card.price * card.quantity;
+      // this.collectionStatistics.highPoint = Math.max(
+      //   this.collectionStatistics.highPoint,
+      //   card.price,
+      // );
+      // this.collectionStatistics.lowPoint = Math.min(this.collectionStatistics.lowPoint, card.price);
+      return total + card.quantity;
+    }, 0);
+    console.log('totalQuantity', this.totalQuantity);
 
     for (const card of deckCards) {
       this.totalPrice += card.price * card.quantity;
@@ -112,63 +145,128 @@ const CollectionSchema = new Schema(
       // the x y values for the colectionPriceHistory
       allXYValues: [{ label: String, x: Date, y: Number }],
     },
+    nivoChartData: [
+      {
+        id: String,
+        color: String,
+        data: [{ x: Date, y: Number }],
+      },
+    ],
+    muiChartData: [
+      {
+        id: String,
+        value: Number,
+        label: String,
+        color: String,
+      },
+    ],
     cards: [{ type: Schema.Types.ObjectId, ref: 'CardInCollection' }],
   },
   { timestamps: true },
 );
 CollectionSchema.pre('save', async function (next) {
-  // Reset statistics
-  this.totalPrice = 0;
-  this.totalQuantity = 0;
-  this.collectionStatistics.highPoint = 0;
-  this.collectionStatistics.lowPoint = Infinity;
+  try {
+    console.log('pre save hook for collection', this.name);
 
-  if (this.cards && this.cards.length > 0) {
-    const cardsData = await CardInCollection.find({
-      _id: { $in: this.cards },
-    });
+    // Reset statistics
+    this.totalPrice = 0;
+    this.totalQuantity = 0;
+    this.collectionStatistics.highPoint = 0;
+    this.collectionStatistics.lowPoint = Infinity;
+    this.nivoChartData = [{ id: this.name, color: '#2e7c67', data: [] }];
+    this.muiChartData = [];
 
-    // Iterate over cards to calculate statistics
-    for (const card of cardsData) {
-      this.totalPrice += card.price * card.quantity;
-      this.totalQuantity += card.quantity;
-
-      this.collectionStatistics.highPoint = Math.max(
-        this.collectionStatistics.highPoint,
-        card.price,
-      );
-      this.collectionStatistics.lowPoint = Math.min(this.collectionStatistics.lowPoint, card.price);
-    }
-
-    this.collectionStatistics.average = this.totalPrice / this.totalQuantity;
-  }
-
-  if (this.cards.length === 0) {
-    this.collectionStatistics.lowPoint = 0;
-  }
-
-  const now = new Date();
-
-  // Check if it's an update (not a new creation)
-  if (!this.isNew) {
-    // Append to dailyCollectionPriceHistory
-    this.dailyCollectionPriceHistory.push({
-      timestamp: now,
-      price: this.totalPrice,
-    });
-
-    // Determine if there should be a new entry in collectionPriceHistory
-    // This can be based on time since last update or significant price change
-    const lastEntry = this.collectionPriceHistory[this.collectionPriceHistory.length - 1];
-    if (!lastEntry || significantPriceChange(lastEntry.price, this.totalPrice)) {
-      this.collectionPriceHistory.push({
-        timestamp: now,
-        price: this.totalPrice,
+    if (this.cards && this.cards.length > 0) {
+      const cardsInCollection = await CardInCollection.find({
+        _id: { $in: this.cards },
       });
-    }
-  }
 
-  next();
+      let lastXValue = new Date();
+      let runningTotalPrice = 0;
+
+      for (const card of cardsInCollection) {
+        const cardTotalPrice = card.price * card.quantity;
+
+        this.totalPrice += cardTotalPrice;
+        this.totalQuantity += card.quantity;
+
+        for (let i = 0; i < card.quantity; i++) {
+          runningTotalPrice += card.price;
+          // NIVO BASIC DATA
+          this.nivoChartData[0].data.push({
+            // id: `${card.name}-${this.totalPrice}`,
+            x: new Date(lastXValue.getTime() + 6 * 60 * 60 * 1000), // 6 hours ahead of lastXValue
+            y: runningTotalPrice,
+          });
+          lastXValue = new Date(lastXValue.getTime() + 6 * 60 * 60 * 1000); // Update lastXValue
+        }
+
+        this.collectionStatistics.highPoint = Math.max(
+          this.collectionStatistics.highPoint,
+          card.price,
+        );
+        this.collectionStatistics.lowPoint = Math.min(
+          this.collectionStatistics.lowPoint,
+          card.price,
+        );
+      }
+
+      this.latestPrice = createNewPriceEntry(this.totalPrice);
+      this.lastSavedPrice = createNewPriceEntry(this.totalPrice);
+      this.collectionPriceHistory.push(createNewPriceEntry(this.totalPrice));
+      this.collectionStatistics.average =
+        this.totalQuantity > 0 ? this.totalPrice / this.totalQuantity : 0;
+      this.chartData.allXYValues.push({
+        label: this.name,
+        x: new Date(),
+        y: this.totalPrice,
+      });
+      // Fetch all collections
+      const allCollections = await this.model('Collection').find().populate('cards');
+
+      // Define the colors array
+      const colors = [
+        'darkest',
+        'darker',
+        'dark',
+        'default',
+        'light',
+        'lighter',
+        'lightest',
+        'contrastText',
+      ];
+      // Create muiChartData
+      // Create muiChartData
+      this.muiChartData = allCollections.map((collection, index) => {
+        const label = `${collection.name} - ${collection.totalPrice} - ${index}`;
+        const value = collection.totalPrice;
+        const colorIndex = index % colors.length; // Cycle through the colors array
+        const color = colors[colorIndex];
+        const id = collection._id; // Assuming _id is a unique identifier
+
+        return { id, label, value, color };
+      });
+
+      // this.nivoChartData?.data?.push(
+      //   createNivoXYValue(new Date(), this.totalPrice, `${this.name}-nivo-chart-`),
+      // );
+    }
+
+    const now = new Date();
+    if (!this.isNew) {
+      this.dailyCollectionPriceHistory.push({ timestamp: now, price: this.totalPrice });
+
+      const lastEntry = this.collectionPriceHistory[this.collectionPriceHistory.length - 1];
+      if (!lastEntry || significantPriceChange(lastEntry.price, this.totalPrice)) {
+        this.collectionPriceHistory.push({ timestamp: now, price: this.totalPrice });
+      }
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error in CollectionSchema pre-save hook:', error);
+    next(error);
+  }
 });
 
 function significantPriceChange(lastPrice, newPrice) {

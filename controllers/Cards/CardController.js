@@ -1,9 +1,7 @@
 const axios = require('axios');
 const User = require('../../models/User');
-const CustomError = require('../../middleware/customError');
 const { CardInCollection, CardInDeck, CardInSearch } = require('../../models/Card');
 const { queryBuilder, fetchCardPrices } = require('./helpers');
-// const { createAndSaveCardInContext } = require('../User/helpers');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
@@ -30,15 +28,22 @@ const cardController = {
    * @param {*} id
    * @returns
    */
-  fetchAndTransformCardData: async (name, race, type, level, attribute) => {
+  fetchAndTransformCardData: async (data) => {
     try {
+      console.log('SECTION 3.1: FETCH AND TRANSFORM CARD DATA', data.name);
+      // Fetch user's collections and decks
+      // const userCollections = await getUserCollections(userId);
+      // const userDecks = await getUserDecks(userId);
+
       // console.log('SECTION 3.1: FETCH AND TRANSFORM CARD DATA', name);
       const response = await axiosInstance.get(
-        `/cardinfo.php?${queryBuilder(name, race, type, level, attribute)}`,
+        `/cardinfo.php?${queryBuilder(data.name, data.race, data.type, data.level, data.attribute)}`,
       );
       const fetchedCards = response?.data?.data?.slice(0, 90); // Limiting to 30 cards
+      // console.log('SECTION 3.1A: FETCH AND TRANSFORM CARD DATA', fetchedCards);
 
       const transformedCards = fetchedCards?.map((card) => {
+        console.log('SECTION 3.1A: FETCH AND TRANSFORM CARD DATA', card.name);
         const tcgplayerPrice = card?.card_prices[0]?.tcgplayer_price || 0;
         let card_set = null;
         if (card?.card_sets && card?.card_sets?.length > 0) {

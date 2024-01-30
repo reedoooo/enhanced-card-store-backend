@@ -19,12 +19,16 @@ router.get('/:userId/userData', asyncHandler(UserController.getUserData));
 router.put('/:userId/userData/update', asyncHandler(UserController.updateUserData));
 
 // DECK ROUTES
-router.get('/:userId/decks', asyncHandler(UserDeckController.getAllDecksForUser));
+router.get('/:userId/decks/allDecks', asyncHandler(UserDeckController.getAllDecksForUser));
 router.put('/:userId/decks/:deckId/updateDeck', asyncHandler(UserDeckController.updateAndSyncDeck));
 router.post('/:userId/decks/createDeck', asyncHandler(UserDeckController.createNewDeck));
 router.delete('/:userId/decks/:deckId/deleteDeck', asyncHandler(UserDeckController.deleteDeck));
 router.post('/:userId/decks/:deckId/add', asyncHandler(UserDeckController.addCardsToDeck));
-router.post('/:userId/decks/:deckId/remove', asyncHandler(UserDeckController.removeCardsFromDeck));
+// router.post('/:userId/decks/:deckId/remove', asyncHandler(UserDeckController.removeCardsFromDeck));
+router.delete(
+  '/:userId/decks/:deckId/remove',
+  asyncHandler(UserDeckController.removeCardsFromDeck),
+);
 router.put('/:userId/decks/:deckId/update', asyncHandler(UserDeckController.updateCardsInDeck));
 router.put(
   '/:userId/decks/:deckId/deckDetails',
@@ -52,7 +56,11 @@ router.post(
   '/:userId/collections/:collectionId/add',
   asyncHandler(UserCollectionController.addCardsToCollection),
 );
-router.post(
+// router.post(
+//   '/:userId/collections/:collectionId/remove',
+//   asyncHandler(UserCollectionController.removeCardsFromCollection),
+// );
+router.delete(
   '/:userId/collections/:collectionId/remove',
   asyncHandler(UserCollectionController.removeCardsFromCollection),
 );

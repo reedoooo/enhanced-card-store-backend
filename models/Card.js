@@ -12,12 +12,19 @@ const {
 const createNewPriceEntry = (price) => {
   return {
     num: price,
-    date: new Date(),
+    timestamp: new Date(),
+  };
+};
+const createNivoXYValue = (x, y) => {
+  return {
+    x,
+    y,
   };
 };
 function calculateContextualQuantity(card, context) {
   // Logic to calculate the quantity of card in a specific context (SearchHistory, Deck, etc.)
   // Return the calculated quantity for the given context
+  console.log('calculating contextual quantity for: ', card.name, 'in context: ', context);
   switch (context) {
     case 'SearchHistory':
       return card.quantity;
@@ -71,6 +78,11 @@ const uniqueFields_Custom_Dynamic_Data = {
   priceHistory: [priceEntrySchema], // AUTOSET: true
   dailyPriceHistory: [priceEntrySchema], // AUTOSET: false
   chart_datasets: [chartDatasetsSchema], // AUTOSET: false
+  nivoChartData: {
+    id: String,
+    color: String,
+    data: [{ x: Date, y: Number }],
+  },
 };
 // UNIQUE FIELD SCHEMAS: this data is set initially by server (cardVariants) and then updated by user (variant), but the default value is automatically set to first cardVariant
 // SAVE FUNCTION: fetchAndTransformCardData
@@ -125,8 +137,9 @@ genericCardSchema.pre('save', async function (next) {
   if (!this.cardModel) {
     this.cardModel = this.constructor.modelName;
   }
+  console.log(`Pre save hook for ${this?.cardModel.blue}`);
   if (!this.image) {
-    this.image = this.card_images[0].image_url;
+    this.image = this.card_images[0]?.image_url || '';
   }
 
   // Ensure variant is set to a valid ID from cardVariants
@@ -145,17 +158,38 @@ genericCardSchema.pre('save', async function (next) {
   // Calculate totalPrice based on quantity and latestPrice
   // TODO: this is a temporary fix to prevent latestPrice from being set to 0, but ill create funtion for getting it and handle it later
   if (this.isModified('quantity')) {
-    this.latestPrice = createNewPriceEntry(this.price);
-    this.lastSavedPrice = createNewPriceEntry(this.price);
+    console.log('quantity modified', this.quantity);
+    this.latestPrice =
+      createNewPriceEntry(this?.price || this?.latestPrice?.num) || createNewPriceEntry(0);
+    this.lastSavedPrice =
+      createNewPriceEntry(this?.price || this?.latestPrice?.num) || createNewPriceEntry(0);
     this.totalPrice = this.quantity * this.price;
     this.priceHistory.push(createNewPriceEntry(this.totalPrice));
+    this.tag = '' || 'default';
+    this?.chart_datasets?.data?.push(createNivoXYValue(this.addedAt, this.totalPrice));
 
     // Update contextual quantities and total prices
     const contextKeys = ['SearchHistory', 'Deck', 'Collection', 'Cart'];
     contextKeys.forEach((context) => {
-      this.contextualQuantity[context] = calculateContextualQuantity(this, context);
-      this.contextualTotalPrice[context] = this.contextualQuantity[context] * this.price;
+      if (context === this.collectionModel) {
+        this.contextualQuantity[context] = calculateContextualQuantity(this, context);
+        this.contextualTotalPrice[context] = this.contextualQuantity[context] * this.price;
+      }
     });
+  }
+
+  if (!this.totalPrice) {
+    if (!this.quantity) {
+      console.log('quantity not set, setting to 1');
+      this.quantity = 1;
+    }
+    if (!this.price) {
+      console.log('price not set, destructuring tcgPrice');
+      this.price = this.card_prices[0]?.tcgplayer_price || 0;
+    }
+    console.log('totalPrice not set, attempting update');
+    this.totalPrice = this.quantity * this.price;
+    console.log('totalPrice updated', this.totalPrice.green);
   }
   // Populate the variant field
   try {
