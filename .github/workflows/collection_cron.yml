@@ -1,0 +1,25 @@
+name: Collection Cron Job
+
+on:
+  schedule:
+    # Runs every 3 minutes
+    - cron: '*/3 * * * *'
+
+jobs:
+  fetch-and-log-collection:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '14' # Use the Node.js version your project requires
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Fetch and Log Collections
+      run: node fetch_collections_cron.js

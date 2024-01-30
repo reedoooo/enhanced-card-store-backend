@@ -118,7 +118,10 @@ exports.checkToken = async (req, res, next) => {
     // next(); // Proceed to the next middleware or route handler
   } catch (error) {
     // If the token is not valid, catch the error and return an unauthorized status
-    return res.status(401).send({ message: 'Invalid token' });
+    res.status(401).send({ message: 'Invalid token' });
+
+    // If the token is not valid, catch the error and return an unauthorized status
+    next(error);
   }
 };
 // USER DATA ROUTES (GET)
