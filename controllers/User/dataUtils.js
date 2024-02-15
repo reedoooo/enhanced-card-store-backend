@@ -60,7 +60,8 @@ async function populateUserDataByContext(userId, contexts) {
 
   let query = User.findById(userId)
     .populate('userSecurityData', 'username email role_data')
-    .populate('userBasicData', 'firstName lastName');
+    .populate('userBasicData', 'firstName lastName')
+    .populate('generalUserStats', 'totalDecks totalCollections totalCardsInCollections');
 
   contexts.forEach((context) => {
     const populatePath = getPopulatePathForContext(context);

@@ -319,11 +319,11 @@ exports.updateCardsInDeck = async (req, res, next) => {
           console.log('Updating card quantity');
           cardInDeck.quantity = cardData.quantity;
         }
-        if (cardInDeck.quantity === cardData.quantity && type === 'increment') {
+        if (type === 'increment') {
           console.log('Incrementing card quantity');
           cardInDeck.quantity += 1;
         }
-        if (cardInDeck.quantity === cardData.quantity && type === 'decrement') {
+        if (type === 'decrement') {
           console.log('Decrementing card quantity');
           cardInDeck.quantity -= 1;
         }

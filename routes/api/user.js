@@ -56,6 +56,10 @@ router.post(
   '/:userId/collections/:collectionId/add',
   asyncHandler(UserCollectionController.addCardsToCollection),
 );
+router.put(
+  '/:userId/collections/allCollections/automatedPriceUpdate',
+  asyncHandler(UserCollectionController.checkAndUpdateCardPrices),
+);
 // router.post(
 //   '/:userId/collections/:collectionId/remove',
 //   asyncHandler(UserCollectionController.removeCardsFromCollection),
@@ -76,6 +80,8 @@ router.put(
 // CART ROUTES
 router.get('/:userId/cart', asyncHandler(UserCartController.getUserCart));
 router.post('/:userId/cart/createCart', asyncHandler(UserCartController.createEmptyCart));
+router.post('/:userId/cart/:cartId/add', asyncHandler(UserCartController.addCardsToCart));
+router.delete('/:userId/cart/:cartId/remove', asyncHandler(UserCartController.removeCardsFromCart));
 router.put('/:userId/cart/:cartId/update', asyncHandler(UserCartController.updateCart));
 
 module.exports = router;

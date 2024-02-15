@@ -120,6 +120,24 @@ const genericCardSchema = new Schema(
       type: String,
       enum: ['CardInSearch', 'CardInCollection', 'CardInDeck', 'CardInCart'],
     },
+    deckRefs: [
+      {
+        deckId: { type: Schema.Types.ObjectId, ref: 'Deck' },
+        quantity: Number,
+      },
+    ],
+    collectionRefs: [
+      {
+        collectionId: { type: Schema.Types.ObjectId, ref: 'Collection' },
+        quantity: Number,
+      },
+    ],
+    cartRefs: [
+      {
+        cartId: { type: Schema.Types.ObjectId, ref: 'Cart' },
+        quantity: Number,
+      },
+    ],
     collectionId: { type: Schema.Types.ObjectId, refPath: 'collectionModel' },
     collectionModel: {
       type: String,
@@ -137,7 +155,7 @@ genericCardSchema.pre('save', async function (next) {
   if (!this.cardModel) {
     this.cardModel = this.constructor.modelName;
   }
-  console.log(`Pre save hook for ${this?.cardModel.blue}`);
+  // console.log(`Pre save hook for ${this?.cardModel.blue}`);
   if (!this.image) {
     this.image = this.card_images[0]?.image_url || '';
   }
@@ -157,7 +175,7 @@ genericCardSchema.pre('save', async function (next) {
   // SECTION FOR VALUES THAT ARE UPDATED AND SET BY THE SERVER
   // Calculate totalPrice based on quantity and latestPrice
   // TODO: this is a temporary fix to prevent latestPrice from being set to 0, but ill create funtion for getting it and handle it later
-  if (this.isModified('quantity')) {
+  if (this.isModified('quantity') || this.isModified('price')) {
     console.log('quantity modified', this.quantity);
     this.latestPrice =
       createNewPriceEntry(this?.price || this?.latestPrice?.num) || createNewPriceEntry(0);
@@ -190,6 +208,54 @@ genericCardSchema.pre('save', async function (next) {
     console.log('totalPrice not set, attempting update');
     this.totalPrice = this.quantity * this.price;
     console.log('totalPrice updated', this.totalPrice.green);
+  }
+  if (this.updateRefs) {
+    // Handle deck references
+    if (this.updateRefs.deckRefs) {
+      this.updateRefs.deckRefs.forEach((updateRef) => {
+        const index = this.deckRefs.findIndex((ref) => ref.deckId.equals(updateRef.deckId));
+        if (index > -1) {
+          // Update existing reference
+          this.deckRefs[index].quantity = updateRef.quantity;
+        } else {
+          // Add new reference
+          this.deckRefs.push(updateRef);
+        }
+      });
+    }
+
+    // Handle collection references
+    if (this.updateRefs.collectionRefs) {
+      this.updateRefs.collectionRefs.forEach((updateRef) => {
+        const index = this.collectionRefs.findIndex((ref) =>
+          ref.collectionId.equals(updateRef.collectionId),
+        );
+        if (index > -1) {
+          // Update existing reference
+          this.collectionRefs[index].quantity = updateRef.quantity;
+        } else {
+          // Add new reference
+          this.collectionRefs.push(updateRef);
+        }
+      });
+    }
+
+    // Handle cart references
+    if (this.updateRefs.cartRefs) {
+      this.updateRefs.cartRefs.forEach((updateRef) => {
+        const index = this.cartRefs.findIndex((ref) => ref.cartId.equals(updateRef.cartId));
+        if (index > -1) {
+          // Update existing reference
+          this.cartRefs[index].quantity = updateRef.quantity;
+        } else {
+          // Add new reference
+          this.cartRefs.push(updateRef);
+        }
+      });
+    }
+
+    // Clear the updateRefs to prevent reprocessing
+    this.updateRefs = null;
   }
   // Populate the variant field
   try {

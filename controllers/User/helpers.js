@@ -740,19 +740,15 @@ const setupDefaultCollectionsAndCards = async (user, collectionModel, collection
 
 async function fetchUserIdsFromUserSecurityData() {
   try {
-    const users = await User.find().populate('userSecurityData', 'userId'); // Assuming 'userId' is a field in UserSecurityData
+    // console.log('SECTION X-3: FETCH USER IDS');
+    const users = await User.find({}).select('_id'); // This query retrieves all users but only their _id field
+    const allUserIds = [];
+    const userIds = users.map((user) => user._id); // Extract the _id field from each user document
+    allUserIds.push(...userIds);
 
-    const userIds = users
-      .map((user) => {
-        // Check if userSecurityData is populated
-        if (user.userSecurityData) {
-          return user.userSecurityData.userId; // Replace 'userId' with the actual field name
-        }
-        return null;
-      })
-      .filter((userId) => userId !== null);
+    console.log('SECTION X-4: COMPLETE'.yellow);
 
-    return userIds;
+    return { userIdData: users, allUserIds };
   } catch (error) {
     console.error('Error fetching userIds:', error);
     throw error;

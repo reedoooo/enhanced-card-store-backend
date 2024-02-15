@@ -38,24 +38,17 @@ const DeckSchema = new Schema(
 );
 DeckSchema.pre('save', async function (next) {
   console.log('pre save hook for collection', this.name.blue);
-
-  // Reset statistics
   this.totalPrice = 0;
   this.quantity = 0;
-  // this.collectionStatistics.highPoint = 0;
-  // this.collectionStatistics.lowPoint = Infinity;
+  this.totalQuantity = 0;
 
   if (this.cards && this.cards.length > 0) {
     const deckCards = await CardInDeck.find({ _id: { $in: this.cards } });
 
-    // Calculate totalQuantity by iterating over cards
     this.totalQuantity = deckCards.reduce((total, card) => {
       this.totalPrice += card.price * card.quantity;
-      // this.collectionStatistics.highPoint = Math.max(
-      //   this.collectionStatistics.highPoint,
-      //   card.price,
-      // );
-      // this.collectionStatistics.lowPoint = Math.min(this.collectionStatistics.lowPoint, card.price);
+      this.quantity += card.quantity;
+      this.totalQuantity += card.quantity;
       return total + card.quantity;
     }, 0);
     console.log('totalQuantity', this.totalQuantity);
@@ -74,11 +67,14 @@ const CartSchema = new Schema(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: false },
     totalPrice: { type: Number, default: 0 },
     totalQuantity: { type: Number, default: 0 },
+    quantity: { type: Number, default: 0 },
     cart: [{ type: Schema.Types.ObjectId, ref: 'CardInCart' }],
   },
   { timestamps: true },
 );
 CartSchema.pre('save', async function (next) {
+  console.log('pre save hook for collection', this.totalPrice);
+
   this.totalPrice = 0;
   this.totalQuantity = 0;
 
@@ -139,6 +135,22 @@ const CollectionSchema = new Schema(
     dailyCollectionPriceHistory: [collectionPriceHistorySchema],
     // price history of collection every time a card is added or removed
     collectionPriceHistory: [collectionPriceHistorySchema],
+    priceChangeHistory: [
+      {
+        timestamp: Date,
+        priceChanges: [
+          {
+            collectionName: String,
+            cardName: String,
+            oldPrice: Number,
+            newPrice: Number,
+            priceDifference: Number,
+            message: String,
+          },
+        ],
+        difference: Number,
+      },
+    ],
     chartData: {
       name: String,
       userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: false },

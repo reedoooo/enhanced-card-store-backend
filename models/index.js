@@ -3,6 +3,7 @@
 const User = require('./User');
 const UserBasicData = require('./user/UserBasicData');
 const UserSecurityData = require('./user/UserSecurityData');
+const GeneralUserStats = require('./user/GeneralUserStats');
 const Card = require('./Card');
 const { CardInCart, CardInDeck, CardInCollection, CardInSearch, CardSet, CardVariant } = Card;
 const CollectionModels = require('./Collection');
@@ -31,6 +32,7 @@ module.exports = {
   User,
   UserBasicData,
   UserSecurityData,
+  GeneralUserStats,
   Card,
   CardInCart,
   CardInDeck,

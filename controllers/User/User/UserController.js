@@ -35,6 +35,9 @@ exports.signup = async (req, res, next) => {
 
     const { newUser } = await createUser(username, password, email, role_data, firstName, lastName);
     const verifiedUser = await createUserValidationData(newUser);
+    // const accessToken = await generateToken(newUser._id); // Access token generation
+    // const refreshToken = await generateRefreshToken(newUser._id); // Refresh token generation
+    // await saveTokens(newUser._id, accessToken, refreshToken); // Save both tokens
 
     await setupDefaultCollectionsAndCards(verifiedUser, '', {});
 
@@ -67,8 +70,7 @@ exports.signin = async (req, res, next) => {
       'collections',
       'cart',
     ]);
-
-    const accessToken = await generateToken(populatedUser._id); // Access token
+    const accessToken = await generateToken(populatedUser._id, false);
     const refreshToken = await generateRefreshToken(populatedUser._id); // New refresh token
     await saveTokens(populatedUser._id, accessToken, refreshToken);
 
@@ -132,6 +134,15 @@ exports.getUserData = async (req, res, next) => {
     if (!populatedUser) {
       throw new CustomError(MESSAGES.USER_NOT_FOUND, STATUS.NOT_FOUND);
     }
+
+    // UPDATE USER STATS
+
+    // populatedUser.generalUserStats.totalDecks = populatedUser?.allDecks?.length || 0;
+    // populatedUser.generalUserStats.totalCollections = populatedUser?.allCollections?.length || 0;
+    // populatedUser.generalUserStats.totalCardsInCollections = populatedUser?.allCollections?.reduce(
+    //   (acc, collection) => acc + collection.cards.length,
+    //   0,
+    // );
 
     res.status(200).json({
       message: 'Fetched user data successfully',

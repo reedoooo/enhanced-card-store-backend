@@ -152,6 +152,9 @@ router.post(
   '/ygopro',
   asyncHandler(async (req, res) => {
     const { searchParams, user, searchTerm } = req.body;
+    console.log('searchParams', searchParams);
+    console.log('user', user);
+    console.log('searchTerm', searchTerm);
     const transformedCards = await cardController.fetchAndTransformCardData({
       name: searchTerm,
       race: searchParams?.race,
@@ -160,7 +163,7 @@ router.post(
       attribute: searchParams?.attribute,
       userId: user,
     });
-    console.log('transformedCards', transformedCards);
+    // console.log('transformedCards', transformedCards);
     res.json({ data: transformedCards });
   }),
 );

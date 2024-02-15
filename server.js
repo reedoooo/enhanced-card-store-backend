@@ -18,6 +18,9 @@ const applyCustomMiddleware = require('./middleware');
 const routes = require('./routes');
 const path = require('path');
 
+require('./services/runCron');
+// require('./controllers/User/Collection/UserCollectionController');
+
 // Load environment variables
 require('dotenv').config();
 

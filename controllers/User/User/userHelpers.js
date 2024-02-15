@@ -1,5 +1,5 @@
 const bcrypt = require('bcrypt');
-const { UserSecurityData, UserBasicData, User } = require('../../../models');
+const { UserSecurityData, UserBasicData, GeneralUserStats, User } = require('../../../models');
 const { generateToken, generateRefreshToken, saveTokens } = require('../../../services/auth');
 async function createUser(username, password, email, role_data, firstName, lastName) {
   const hashedPassword = await bcrypt.hash(password, 10);

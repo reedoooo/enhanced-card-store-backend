@@ -6,7 +6,10 @@ const UserSchema = new Schema(
     username: { type: String, required: true, unique: true },
     accessToken: { type: String, required: false },
     refreshToken: { type: String, required: false },
-    // Assuming you have other schemas like UserBasicData and UserSecurityData elsewhere
+    generalUserStats: {
+      type: Schema.Types.ObjectId,
+      ref: 'GeneralUserStats',
+    },
     userBasicData: {
       type: Schema.Types.ObjectId,
       ref: 'UserBasicData',

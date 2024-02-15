@@ -364,6 +364,21 @@ const formatDateTime = (date) => {
   return `${day}/${month}/${year}, ${hours}:${minutes}`;
 };
 /**
+ * Formats a date object to the format "DD/MM, HH:MMam/pm".
+ * @param {Date} date - The date object to be formatted.
+ * @returns {string} - The formatted date string.
+ * */
+const formatDate = (date) => {
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'pm' : 'am';
+  hours = hours % 12;
+  hours = hours ? hours.toString().padStart(2, '0') : '12'; // the hour '0' should be '12'
+  return `${day}/${month}, ${hours}:${minutes}${ampm}`;
+};
+/**
  * Calculates the total value of the collection.
  * @param {object} cards - The collection object.
  * @returns {number} - The total value of the collection.
@@ -425,4 +440,5 @@ module.exports = {
   filterUniqueYValues,
   asyncErrorHandler,
   createNewPriceEntry,
+  formatDate,
 };

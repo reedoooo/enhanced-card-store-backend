@@ -2,13 +2,12 @@
 const { CardInCollection } = require('../../../models/Card');
 const { Collection } = require('../../../models/Collection');
 const { cardController } = require('../../Cards/CardController');
+const { fetchCardPrices } = require('../../Cards/helpers');
 const { populateUserDataByContext, deepPopulateCardFields } = require('../dataUtils');
 const {
-  getDefaultCardForContext,
-  createAndSaveCardInContext,
   setupDefaultCollectionsAndCards,
-  mapCardDataToModelFields,
   reFetchForSave,
+  fetchUserIdsFromUserSecurityData,
 } = require('../helpers');
 
 // COLLECTION ROUTES (GET, CREATE, UPDATE, DELETE)
@@ -48,20 +47,18 @@ exports.createNewCollection = async (req, res, next) => {
   const { userId } = req.params;
   const { collectionData } = req.body; // Assume the body contains new collection details
   const collectionModel = 'Collection'; // Adjust according to your schema
-
   try {
+    console.log('Creating new collection for user:', userId, collectionData);
     const populatedUser = await populateUserDataByContext(userId, ['collections']);
     if (!populatedUser) {
       return res.status(404).json({ message: 'User not found' });
     }
-
     // Create the new collection
     const newCollection = await setupDefaultCollectionsAndCards(
       populatedUser,
       collectionModel,
       collectionData,
     );
-
     // Push the new collection ID to user's collections
     populatedUser.allCollections.push(newCollection._id);
     await populatedUser.save();
@@ -78,7 +75,6 @@ exports.createNewCollection = async (req, res, next) => {
     next(error);
   }
 };
-
 /**
  * Updates a collection for a user and syncs the collection's cards with the database.
  * @param {Request} req - The request object
@@ -244,7 +240,6 @@ exports.updateChartDataInCollection = async (req, res, next) => {
     next(error);
   }
 };
-
 // COLLECTION ROUTES: CARDS-IN-COLLECTION Routes (GET, CREATE, UPDATE, DELETE)
 /**
  * STATUS:
@@ -316,7 +311,6 @@ exports.addCardsToCollection = async (req, res, next) => {
     next(error);
   }
 };
-// TODO: UPDATE REMOVE CARD FUNCTION DESCRIPTION TO NOTE IT IS OPERATIONAL
 /**
  * STATUS:
  *![X] NOT OPERATIONAL
@@ -326,12 +320,6 @@ exports.addCardsToCollection = async (req, res, next) => {
  * @param {Array} cardIds - The IDs of the cards to remove
  * }
  * @param {Response} res - The response object
- * res.status(200).json({
- * @param {String} message - 'Cards removed from collection successfully.'
- * @param {Object} collection - The updated collection data with the removed cards (populated)
- * })
- * @param {NextFunction} next - The next middleware function
- * TODO: UPDATE REMOVE CARD FUNCTION TO OPERATE ON CARD IDS INSTEAD OF CARD OBJECTS
  */
 exports.removeCardsFromCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
@@ -457,6 +445,34 @@ exports.updateCardsInCollection = async (req, res, next) => {
   } catch (error) {
     console.error('Error updating cards in collection:', error);
     next(error);
+  }
+};
+exports.checkAndUpdateCardPrices = async (req, res, next) => {
+  const { allUserIds } = fetchUserIdsFromUserSecurityData();
+  if (allUserIds && allUserIds.length > 0) {
+    console.log('SECTION Z: COMPLETE'.green, allUserIds);
+  }
+  let priceChanges = [];
+  for (const userId of allUserIds) {
+    const userPopulated = await populateUserDataByContext(userId, ['collections']);
+    for (const collection of userPopulated.allCollections) {
+      for (const card of collection.cards) {
+        const apiPrice = await fetchCardPrices(card.name); // Implement fetchCardPrices
+        card.price = apiPrice;
+        if (card.latestPrice.num !== apiPrice) {
+          card.latestPrice.num = apiPrice;
+          card.priceHistory.push({ timestamp: new Date(), num: apiPrice });
+          await card.save();
+          priceChanges.push(
+            `Card: ${card.name}, Old Price: ${card.latestPrice.num}, New Price: ${apiPrice}`,
+          );
+        } else {
+          // Push current value to dailyPriceHistory if no change
+          card.dailyPriceHistory.push({ timestamp: new Date(), num: card.latestPrice.num });
+          await card.save();
+        }
+      }
+    }
   }
 };
 
