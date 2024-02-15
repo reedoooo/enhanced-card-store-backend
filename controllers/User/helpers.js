@@ -83,19 +83,6 @@ async function createCardSets(cardSetsData, cardModel, cardId) {
     }),
   );
 }
-// async function createCardSets(cardSetsData, cardModel, cardId) {
-//   return Promise.all(
-//     cardSetsData?.map(async (set) => {
-//       const cardSet = new CardSet({
-//         ...set,
-//         cardModel: cardModel,
-//         cardId: cardId,
-//       });
-//       await cardSet.save();
-//       return cardSet._id;
-//     }),
-//   );
-// }
 /**
  * [SECTION 6] Helper functions for different methods
  * Helper function to create a card data object.
@@ -106,7 +93,7 @@ async function createCardSets(cardSetsData, cardModel, cardId) {
  */
 async function createCardVariants(sets, cardModel, cardId) {
   return Promise.all(
-    sets.map(async (setId) => {
+    sets.map(async (setId, index) => {
       // Assuming 'sets' array contains objects with the required fields
       const set = await CardSet.findById(setId);
 
@@ -125,6 +112,7 @@ async function createCardVariants(sets, cardModel, cardId) {
         set: setId, // Reference to the CardSet's ObjectId
         cardModel: cardModel,
         cardId: cardId,
+        variant: index + 1, // Assuming the index is 0-based
       });
 
       await cardVariant.save();
@@ -461,7 +449,6 @@ async function createAndSaveCard(cardData, collectionId, collectionModel, cardMo
   const tcgplayerPrice = cardData?.card_prices[0]?.tcgplayer_price || 0;
   let card_set =
     cardData?.card_sets && cardData?.card_sets?.length > 0 ? cardData?.card_sets[0] : null;
-
   const data = {
     image: cardData?.card_images.length > 0 ? cardData.card_images[0].image_url : '',
     quantity: 1,
@@ -470,6 +457,9 @@ async function createAndSaveCard(cardData, collectionId, collectionModel, cardMo
     tag: tag,
     collectionId: collectionId,
     collectionModel: collectionModel,
+    collectionRefs: [],
+    deckRefs: [],
+    cartRefs: [],
     cardModel: cardModel,
     watchList: false,
     rarity: card_set?.set_rarity || '',
@@ -512,6 +502,13 @@ async function createAndSaveCard(cardData, collectionId, collectionModel, cardMo
   const CardModel = mongoose.model(cardModel);
   const cardInstance = new CardModel(data);
 
+  if (collectionModel === 'Cart') {
+    cardInstance.cartRefs.push(collectionId);
+  } else if (collectionModel === 'Deck') {
+    cardInstance.deckRefs.push(collectionId);
+  } else {
+    cardInstance.collectionRefs.push(collectionId);
+  }
   console.log(
     `SECTION (${cardInstance?.cardmodel} - 6 - COMPLETE: CREATE CARD IN CONTEXT', cardInstance.cardmodel`,
   );
@@ -538,8 +535,20 @@ async function createAndSaveCard(cardData, collectionId, collectionModel, cardMo
   await cardInstance.save();
   return cardInstance;
 }
-
-// Refactored reFetchForSave function
+/**
+ * [SECTION 10] Helper functions for different methods
+ * Function to re-fetch card data and save it
+ * @param {*} card
+ * @param {*} collectionId
+ * @param {*} collectionModel
+ * @param {*} cardModel
+ * @returns {CardInContext} A CardInContext instance
+ * @throws {Error} If the card doesn't exist
+ * @throws {Error} If the collection ID is invalid
+ * @throws {Error} If the collection model is invalid
+ * @throws {Error} If the card model is invalid
+ * @throws {Error} If the card data is invalid
+ * */
 async function reFetchForSave(card, collectionId, collectionModel, cardModel) {
   try {
     if (!card) {
@@ -563,22 +572,6 @@ async function reFetchForSave(card, collectionId, collectionModel, cardModel) {
     return null;
   }
 }
-
-// Refactored fetchAndSaveRandomCard function
-// async function fetchAndSaveRandomCard(collectionId, collectionModel, cardModel) {
-//   try {
-//     const axiosInstance = axios.create({
-//       baseURL: 'https://db.ygoprodeck.com/api/v7/',
-//     });
-//     const response = await axiosInstance.get('randomcard.php');
-//     const card = response.data;
-//     return await createAndSaveCard(card, collectionId, collectionModel, cardModel, 'random');
-//   } catch (error) {
-//     console.error('Failed to fetch random card:', error);
-//     return null;
-//   }
-// }
-
 /**
  * [SECTION 0] Helper functions for different methods
  * @param {*} cardName
@@ -737,7 +730,6 @@ const setupDefaultCollectionsAndCards = async (user, collectionModel, collection
  * @param {*} newUser
  * @returns {void}
  */
-
 async function fetchUserIdsFromUserSecurityData() {
   try {
     // console.log('SECTION X-3: FETCH USER IDS');
@@ -770,53 +762,3 @@ module.exports = {
   fetchAndSaveRandomCard,
   reFetchForSave,
 };
-
-// async function reFetchForSave(cardId, collectionId, collectionModel, cardModel) {
-//   try {
-//     // Fetch card data using the getCardInfo function
-//     const card = await getCardInfo(cardId);
-
-//     // Extract necessary information from the fetched card data
-//     const tcgplayerPrice = card?.card_prices[0]?.tcgplayer_price || 0;
-//     let card_set = card?.card_sets && card?.card_sets?.length > 0 ? card?.card_sets[0] : null;
-//     const rarity = card_set?.set_rarity || '';
-
-//     // Construct the data object
-//     const data = {
-//       image: card?.card_images.length > 0 ? card.card_images[0].image_url : '',
-//       quantity: 1,
-//       price: tcgplayerPrice,
-//       totalPrice: tcgplayerPrice,
-//       tag: 'refetch',
-//       collectionId: collectionId,
-//       collectionModel: collectionModel,
-//       cardModel: cardModel,
-//       watchList: false,
-//       rarity: rarity,
-//       card_set: card_set ? card_set : {},
-//       chart_datasets: [{ x: Date.now(), y: tcgplayerPrice }],
-//       lastSavedPrice: { num: tcgplayerPrice, timestamp: Date.now() },
-//       latestPrice: { num: tcgplayerPrice, timestamp: Date.now() },
-//       priceHistory: [],
-//       dailyPriceHistory: [],
-//       // other card details...
-//       id: card.id.toString(),
-//       name: card.name,
-//       // ... other fields from the original function
-//     };
-
-//     // Create a new card instance
-//     const CardModel = mongoose.model(cardModel);
-//     const cardInstance = new CardModel(data);
-
-//     // Additional processing (if any)
-//     // ...
-
-//     // Save the card instance
-//     await cardInstance.save();
-//     return cardInstance;
-//   } catch (error) {
-//     console.error(`Failed to re-fetch card ID ${cardId}:`, error);
-//     return null;
-//   }
-// }

@@ -77,7 +77,7 @@ const updateCollectionsWithNewCardValues = async (userId, priceUpdates, io) => {
       throw new Error('User not found');
     }
 
-    // Update CardInCollection records
+    // Update CardInCollection recordsk
     for (const update of priceUpdates) {
       // console.log('update', update);
       await CardInCollection.findOneAndUpdate(

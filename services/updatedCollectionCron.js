@@ -1,6 +1,6 @@
 const { fetchCardPrices } = require('../controllers/Cards/helpers');
 const { populateUserDataByContext } = require('../controllers/User/dataUtils');
-const { formatDate } = require('../utils/utils');
+const { formatDate, removeDuplicatePriceHistoryFromCollection } = require('../utils/utils');
 const { User } = require('../models');
 require('dotenv').config();
 const fs = require('fs');
@@ -76,6 +76,8 @@ const updatedCollectionCron = async () => {
             globalPriceChanges.push(formatPriceChangeMessage(priceChange)); // Format and add to global changes
           }
         }
+        // Remove duplicate price history entries for each card before saving
+        collection.cards = removeDuplicatePriceHistoryFromCollection(collection.cards);
 
         // Save only if there are changes with a difference of $0.01 or more
         if (collectionPriceChanges.length > 0) {
@@ -104,125 +106,3 @@ function formatPriceChangeMessage(change) {
   // Format the price change message here based on the change object
   return `[Time: ${formatDate(new Date())}], [Collection: ${change.collectionName}] | [Card: ${change.cardName}, Old Price: ${change.oldPrice}, New Price: ${change.newPrice}] Difference: ${change.priceDifference.toFixed(2)}`;
 }
-
-// // const cron = require('node-cron');
-// const { fetchCardPrices } = require('../controllers/Cards/helpers');
-// const { populateUserDataByContext } = require('../controllers/User/dataUtils');
-// const { formatDate } = require('../utils/utils');
-// const { User } = require('../models');
-// require('color');
-// require('dotenv').config();
-// const fs = require('fs');
-// const path = require('path');
-// const logPriceChangesToFile = (priceChanges) => {
-//   const filePath = path.join(__dirname, 'priceChangesLog.txt');
-//   const logMessage = priceChanges.join('\n') + '\n';
-
-//   fs.appendFile(filePath, logMessage, (err) => {
-//     if (err) {
-//       console.error('Error saving price changes to file:', err);
-//     } else {
-//       console.log('Price changes logged to file successfully.');
-//     }
-//   });
-// };
-
-// const updatedCollectionCron = async () => {
-//   try {
-//     const CRONJOB = 'CRONJOB'.blue;
-//     console.log(`[${CRONJOB}]` + 'STARTING COLLECTION UPDATE CRON JOB...');
-//     let priceChanges = [];
-
-//     const users = await User.find({}).select('_id'); // This query retrieves all users but only their _id field
-//     const userIds = users.map((user) => user._id); // Extract the _id field from each user document
-
-//     for (const userId of userIds) {
-//       const userPopulated = await populateUserDataByContext(userId, ['collections']);
-//       if (!userPopulated || !userPopulated.allCollections) {
-//         console.warn(`No collections found for user ID: ${userId}`);
-//         continue;
-//       }
-
-//       for (const collection of userPopulated.allCollections) {
-//         const status = userPopulated ? 'SUCCESS'.green : 'FAILURE'.red;
-//         for (const card of collection.cards) {
-//           const apiPricesArray = await fetchCardPrices(card.name);
-//           if (!apiPricesArray) {
-//             console.warn(`No price fetched for card: ${card.name}`);
-//             continue;
-//           }
-//           // card.price = apiPricesArray[0]?.tcgplayer_price;
-//           if (card.latestPrice.num !== apiPricesArray[0]?.tcgplayer_price) {
-//             const oldPrice = card.latestPrice.num;
-//             const newPrice = apiPricesArray[0]?.tcgplayer_price;
-//             if (oldPrice !== newPrice) {
-//               const priceDifference = newPrice - oldPrice;
-//               let priceChangeMessage =
-//                 `[Time: ${formatDate(new Date())}], ` +
-//                 `[Collection: ${collection.name}] | ` +
-//                 '['.blue +
-//                 `Card: ${card.name}, Old Price: ${oldPrice}, New Price: ${newPrice} ` +
-//                 ']'.blue +
-//                 `Difference: ${priceDifference.toFixed(2)}`.blue;
-//               card.price = apiPricesArray[0]?.tcgplayer_price;
-//               card.latestPrice.num = newPrice;
-//               card.priceHistory.push({
-//                 timestamp: new Date(),
-//                 num: newPrice,
-//               });
-//               await card.save();
-//               if (priceDifference > 0) {
-//                 priceChangeMessage = priceChangeMessage.green;
-//                 priceChanges.push({
-//                   message: priceChangeMessage,
-//                   data: {
-//                     collectionName: collection.name,
-//                     cardName: card.name,
-//                     oldPrice,
-//                     newPrice,
-//                     priceDifference,
-//                   },
-//                 });
-//               } else if (priceDifference < 0) {
-//                 priceChangeMessage = priceChangeMessage.red;
-//               } else {
-//                 priceChangeMessage = priceChangeMessage.grey;
-//               }
-//               // console.log(`[${status}] ${priceChangeMessage}`);
-//               // priceChanges.push(priceChangeMessage);
-//             } else {
-//               card.dailyPriceHistory.push({ timestamp: new Date(), num: card.latestPrice.num });
-//               await card.save();
-//             }
-//           }
-//         }
-//         // SAVE PRICE CHANGE DATA TO COLLECTION
-//         if (priceChanges.length > 0) {
-//           console.log('Price changes:\n'.yellow, priceChanges.join('\n'));
-//           console.log(`[${status}] ${priceChanges.join('\n')}`);
-
-//           collection.priceChangeHistory.push({
-//             timestamp: new Date(),
-//             priceChanges,
-//           });
-//           await collection.save();
-//         }
-//       }
-
-//       if (priceChanges.length > 0) {
-//         console.log('Price changes:\n', priceChanges.join('\n'));
-//         logPriceChangesToFile(
-//           priceChanges.filter(
-//             (message) => Math.abs(parseFloat(message.split('Difference:')[1])) > 0.01,
-//           ),
-//         ); // Save significant price changes to a file
-//       } else {
-//         console.log('No price changes detected.');
-//       }
-//     }
-//   } catch (error) {
-//     console.error('Error in cron job:', error);
-//   }
-// };
-
-// exports.updatedCollectionCron = updatedCollectionCron;

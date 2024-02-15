@@ -8,12 +8,12 @@ const {
 const { CardInCollection, CardInDeck, CardInCart } = require('./Card');
 const { format } = require('date-fns');
 require('colors');
-const createNewPriceEntry = (price) => {
-  return {
-    num: price,
-    timestamp: new Date(),
-  };
-};
+// const createNewPriceEntry = (price) => {
+//   return {
+//     num: price,
+//     timestamp: new Date(),
+//   };
+// };
 function createNivoXYValue(date, value, idPrefix) {
   const formattedTime = format(date, 'h:mma'); // Formats time to 12-hour format with AM/PM
   return {
@@ -22,86 +22,78 @@ function createNivoXYValue(date, value, idPrefix) {
     // id: `${idPrefix}${formattedTime}`,
   };
 }
-const DeckSchema = new Schema(
-  {
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: false },
-    name: String,
-    description: String,
-    totalPrice: { type: Number, default: 0 },
-    quantity: { type: Number, default: 0 },
-    totalQuantity: { type: Number, default: 0 },
-    tags: [String],
-    color: String,
-    cards: [{ type: Schema.Types.ObjectId, ref: 'CardInDeck' }],
-  },
-  { timestamps: true },
-);
-DeckSchema.pre('save', async function (next) {
-  console.log('pre save hook for collection', this.name.blue);
-  this.totalPrice = 0;
-  this.quantity = 0;
-  this.totalQuantity = 0;
-
-  if (this.cards && this.cards.length > 0) {
-    const deckCards = await CardInDeck.find({ _id: { $in: this.cards } });
-
-    this.totalQuantity = deckCards.reduce((total, card) => {
-      this.totalPrice += card.price * card.quantity;
-      this.quantity += card.quantity;
-      this.totalQuantity += card.quantity;
-      return total + card.quantity;
-    }, 0);
-    console.log('totalQuantity', this.totalQuantity);
-
-    for (const card of deckCards) {
-      this.totalPrice += card.price * card.quantity;
-      this.quantity += card.quantity;
-    }
-  }
-
-  next();
+// Utility function to create common fields
+const createCommonFields = () => ({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  totalPrice: { type: Number, default: 0 },
+  totalQuantity: { type: Number, default: 0 },
+  quantity: { type: Number, default: 0 },
 });
 
-const CartSchema = new Schema(
-  {
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: false },
-    totalPrice: { type: Number, default: 0 },
-    totalQuantity: { type: Number, default: 0 },
-    quantity: { type: Number, default: 0 },
-    cart: [{ type: Schema.Types.ObjectId, ref: 'CardInCart' }],
-  },
-  { timestamps: true },
-);
-CartSchema.pre('save', async function (next) {
-  console.log('pre save hook for collection', this.totalPrice);
+// Reusable function to create a new price entry
+const createNewPriceEntry = (price) => ({
+  num: price,
+  timestamp: new Date(),
+});
 
+// Common pre-save logic for updating totals
+async function updateTotals(cardModel, cardsField) {
   this.totalPrice = 0;
   this.totalQuantity = 0;
-
-  if (this.cart && this.cart.length > 0) {
-    const cartItems = await CardInCart.find({ _id: { $in: this.cart } });
-
-    for (const item of cartItems) {
+  if (this[cardsField] && this[cardsField].length > 0) {
+    const items = await cardModel.find({ _id: { $in: this[cardsField] } });
+    for (const item of items) {
       this.totalPrice += item.price * item.quantity;
       this.totalQuantity += item.quantity;
     }
   }
+}
 
-  next();
+const commonSchemaOptions = { timestamps: true };
+
+// Schemas
+const DeckSchema = new Schema(
+  {
+    ...createCommonFields(),
+    name: String,
+    description: String,
+    tags: [String],
+    color: String,
+    cards: [{ type: Schema.Types.ObjectId, ref: 'CardInDeck' }],
+  },
+  commonSchemaOptions,
+);
+
+DeckSchema.pre('save', function (next) {
+  updateTotals.call(this, mongoose.model('CardInDeck'), 'cards').then(next);
+});
+
+const CartSchema = new Schema(
+  {
+    ...createCommonFields(),
+    cart: [{ type: Schema.Types.ObjectId, ref: 'CardInCart' }],
+  },
+  commonSchemaOptions,
+);
+
+CartSchema.pre('save', function (next) {
+  updateTotals.call(this, mongoose.model('CardInCart'), 'cart').then(next);
 });
 
 const CollectionSchema = new Schema(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: false },
+    ...createCommonFields(),
+
+    // userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: false },
     // user customizable fields
     name: String,
     description: String,
     // aggregate of each card totalPrice
-    totalPrice: Number,
+    // totalPrice: Number,
     // num different cards
-    quantity: Number,
+    // quantity: Number,
     // num total cards
-    totalQuantity: Number,
+    // totalQuantity: Number,
     // price change ($) within the last 24 hours at any given time
     dailyPriceChange: Number,
     // price change (%) within the last 24 hours at any given time
@@ -174,8 +166,9 @@ const CollectionSchema = new Schema(
     ],
     cards: [{ type: Schema.Types.ObjectId, ref: 'CardInCollection' }],
   },
-  { timestamps: true },
+  commonSchemaOptions,
 );
+
 CollectionSchema.pre('save', async function (next) {
   try {
     console.log('pre save hook for collection', this.name);
@@ -184,6 +177,7 @@ CollectionSchema.pre('save', async function (next) {
     this.totalPrice = 0;
     this.totalQuantity = 0;
     this.collectionStatistics.highPoint = 0;
+    this.collectionStatistics.avgPrice = 0;
     this.collectionStatistics.lowPoint = Infinity;
     this.nivoChartData = [{ id: this.name, color: '#2e7c67', data: [] }];
     this.muiChartData = [];
@@ -217,6 +211,7 @@ CollectionSchema.pre('save', async function (next) {
           this.collectionStatistics.highPoint,
           card.price,
         );
+        this.collectionStatistics.avgPrice = this.collectionPriceHistory / 2;
         this.collectionStatistics.lowPoint = Math.min(
           this.collectionStatistics.lowPoint,
           card.price,
@@ -287,24 +282,35 @@ function significantPriceChange(lastPrice, newPrice) {
   return Math.abs(newPrice - lastPrice) / lastPrice > 0.1;
 }
 
-const Deck = model('Deck', DeckSchema);
-const Cart = model('Cart', CartSchema);
-const Collection = model('Collection', CollectionSchema);
-const SearchHistory = model(
-  'SearchHistory',
-  new Schema(
-    {
-      userId: { type: Schema.Types.ObjectId, ref: 'User' },
-      sessions: [searchSessionSchema],
-      // Create new cards field which references all unique cards in all sessions
-      cards: [{ type: Schema.Types.ObjectId, ref: 'CardInSearch' }],
-    },
-    { timestamps: true },
-  ),
-);
+// const Deck = model('Deck', DeckSchema);
+// const Cart = model('Cart', CartSchema);
+// const Collection = model('Collection', CollectionSchema);
+// const SearchHistory = model(
+//   'SearchHistory',
+//   new Schema(
+//     {
+//       userId: { type: Schema.Types.ObjectId, ref: 'User' },
+//       sessions: [searchSessionSchema],
+//       // Create new cards field which references all unique cards in all sessions
+//       cards: [{ type: Schema.Types.ObjectId, ref: 'CardInSearch' }],
+//     },
+//     { timestamps: true },
+//   ),
+// );
 module.exports = {
-  Deck,
-  Cart,
-  Collection,
-  SearchHistory,
+  Deck: model('Deck', DeckSchema),
+  Cart: model('Cart', CartSchema),
+  Collection: model('Collection', CollectionSchema),
+  SearchHistory: model(
+    'SearchHistory',
+    new Schema(
+      {
+        userId: { type: Schema.Types.ObjectId, ref: 'User' },
+        sessions: [searchSessionSchema],
+        cards: [{ type: Schema.Types.ObjectId, ref: 'CardInSearch' }],
+      },
+      { timestamps: true },
+    ),
+  ),
+  // Other models as needed
 };

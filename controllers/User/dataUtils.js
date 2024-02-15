@@ -11,6 +11,7 @@ function deepPopulateCardFields() {
         // { path: 'variant', model: 'CardVariant' },
       ],
     },
+    { path: 'variant', model: 'CardVariant' },
   ];
 }
 

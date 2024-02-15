@@ -143,6 +143,43 @@ async function updateDocumentWithRetry(model, update, options = {}, retryCount =
   }
 }
 /**
+ * Removes duplicate price history entries from a collection of cards.
+ * @param {object[]} cards - The collection of cards to be deduplicated.
+ * @returns {object[]} - The collection of cards with deduplicated price history.
+ * */
+function removeDuplicatePriceHistoryFromCollection(cards) {
+  // Iterate over each card in the collection
+  return cards.map((card) => {
+    // Extract the card's price history
+    const { priceHistory } = card;
+
+    // Remove duplicates from this card's price history
+    const uniquePriceHistory = priceHistory.reduce((unique, currentEntry) => {
+      const duplicate = unique.find((entry) => entry.num === currentEntry.num);
+      if (!duplicate) {
+        unique.push(currentEntry); // If it's not a duplicate, add to the result
+      } else {
+        // If it is a duplicate, keep the entry with the earliest timestamp
+        const currentTimestamp = new Date(currentEntry.timestamp).getTime();
+        const duplicateTimestamp = new Date(duplicate.timestamp).getTime();
+
+        if (currentTimestamp < duplicateTimestamp) {
+          // Replace the duplicate with the current entry if it's earlier
+          const duplicateIndex = unique.indexOf(duplicate);
+          unique[duplicateIndex] = currentEntry;
+        }
+      }
+      return unique;
+    }, []);
+
+    // Return the card with the updated (deduplicated) price history
+    return {
+      ...card,
+      priceHistory: uniquePriceHistory,
+    };
+  });
+}
+/**
  * Fetches card info from the YGOProDeck API.
  * @param {string} cardName - The ID of the card to fetch.
  * @returns {object} - The card info object.
@@ -441,4 +478,5 @@ module.exports = {
   asyncErrorHandler,
   createNewPriceEntry,
   formatDate,
+  removeDuplicatePriceHistoryFromCollection,
 };

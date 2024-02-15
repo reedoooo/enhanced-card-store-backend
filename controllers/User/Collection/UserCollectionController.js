@@ -1,4 +1,5 @@
 // !--------------------------! COLLECTIONS !--------------------------!
+const moment = require('moment'); // Assuming moment.js is used for date formatting
 const { CardInCollection } = require('../../../models/Card');
 const { Collection } = require('../../../models/Collection');
 const { cardController } = require('../../Cards/CardController');
@@ -171,7 +172,6 @@ exports.deleteCollection = async (req, res, next) => {
  * @param {NextFunction} next - The next middleware function
  * @returns {Promise<Response>} A promise that resolves to a response object
  */
-const moment = require('moment'); // Assuming moment.js is used for date formatting
 exports.updateChartDataInCollection = async (req, res, next) => {
   const { collectionId, userId } = req.params;
   const { cards } = req.body;
@@ -272,7 +272,13 @@ exports.addCardsToCollection = async (req, res, next) => {
         console.log('Skipping duplicate card:', cardData.id);
         continue; // Skip duplicate card IDs
       }
+      console.log('Processing card:'.red, cardData.id);
+      console.log(
+        'IDS OF ALL CARDS IN COLLECTION:'.red,
+        collection.cards.map((c) => c.id),
+      );
       let cardInCollection = collection?.cards?.find((c) => c.id.toString() === cardData.id);
+      console.log('Card in collection: '.red, cardInCollection);
       if (cardInCollection) {
         console.log('Updating existing card:', cardInCollection.name.blue);
         cardInCollection.quantity += cardData.quantity;

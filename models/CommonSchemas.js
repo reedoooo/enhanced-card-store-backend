@@ -1,95 +1,94 @@
 // Require Mongoose
 const mongoose = require('mongoose');
 const { Schema, Types } = mongoose;
-
-const createCommonSchema = (fields) => new Schema(fields, { _id: false });
-
-const priceEntrySchema = createCommonSchema({ num: Number, timestamp: Date });
-const cardImageSchema = createCommonSchema({
-  id: { type: Number, required: false },
-  image_url: String,
-  image_url_small: String,
-  image_url_cropped: String,
+// Enhanced DRY approach: Common field configurations
+const requiredString = { type: String, required: true };
+const requiredDecimal128 = { type: Types.Decimal128, required: true };
+const requiredObjectId = (refPath) => ({
+  type: Schema.Types.ObjectId,
+  refPath,
+  required: true,
 });
-const cardPriceSchema = createCommonSchema({
-  cardmarket_price: Types.Decimal128,
+// Common schema fields as functions to apply DRY
+const createPriceFields = () => ({
+  cardmarket_price: requiredDecimal128,
   tcgplayer_price: Types.Decimal128,
   ebay_price: Types.Decimal128,
   amazon_price: Types.Decimal128,
   coolstuffinc_price: Types.Decimal128,
 });
-const chartDatasetsSchema = createCommonSchema({ label: String, x: Date, y: Number });
-const collectionPriceHistorySchema = createCommonSchema({
-  timestamp: Date,
-  num: Number,
+
+const createReferenceFields = (enumOptions) => ({
+  cardModel: { type: String, enum: enumOptions, required: true },
+  cardId: { type: Schema.Types.ObjectId, refPath: 'cardModel', required: true },
+});
+
+// Simplifying schema creation
+const createSchema = (fields, options = {}) => new Schema(fields, { _id: false, ...options });
+
+const priceEntrySchema = createSchema({
+  num: { type: Number, min: 0 },
+  timestamp: { type: Date, default: Date.now },
+});
+const cardImageSchema = createSchema({
+  // id: { type: String, required: true },
+  id: { type: Number, required: true },
+  image_url: { type: String, required: true },
+  image_url_small: String,
+  image_url_cropped: String,
+});
+const cardPriceSchema = createSchema(createPriceFields());
+
+const chartDatasetsSchema = createSchema({ label: String, x: Date, y: { type: Number, min: 0 } });
+const collectionPriceHistorySchema = createSchema({
+  timestamp: { type: Date, default: Date.now },
+  num: { type: Number, min: 0 },
 });
 const cardSetSchema = new Schema(
   {
     set_name: String,
-    set_code: String,
+    set_code: requiredString,
     set_rarity: String,
     set_rarity_code: String,
-    set_price: Types.Decimal128,
-    // model of the card which this set belongs to
-    cardModel: {
-      type: String,
-      enum: ['CardInSearch', 'CardInCollection', 'CardInDeck', 'CardInCart'],
-    },
-    cardId: { type: Schema.Types.ObjectId, refPath: 'cardModel' },
+    set_price: requiredDecimal128,
+    ...createReferenceFields(['CardInSearch', 'CardInCollection', 'CardInDeck', 'CardInCart']),
   },
   { timestamps: true },
 );
+
+cardSetSchema.index({ set_code: 1 }); // Index for performance
+
 const cardVariantSchema = new Schema(
   {
     set_name: String,
-    set_code: String,
+    set_code: requiredString,
     rarity: String,
     rarity_code: String,
-    price: Types.Decimal128,
+    price: requiredDecimal128,
     selected: { type: Boolean, default: false },
     alt_art_image_url: String,
-    set: { type: Schema.Types.ObjectId, ref: 'CardSet' }, // Reference to the CardSet
-    cardModel: {
-      type: String,
-      enum: ['CardInSearch', 'CardInCollection', 'CardInDeck', 'CardInCart'],
-    },
-    cardId: { type: Schema.Types.ObjectId, refPath: 'cardModel' },
+    set: requiredObjectId('CardSet'),
+    ...createReferenceFields(['CardInSearch', 'CardInCollection', 'CardInDeck', 'CardInCart']),
   },
   { timestamps: true },
 );
-// const variantSchema = new Schema(
-//   {
-//     set_name: String,
-//     set_code: String,
-//     rarity: String,
-//     rarity_code: String,
-//     price: Types.Decimal128,
-//     selected: { type: Boolean, default: false },
-//     alt_art_image_url: String,
-//     set: { type: Schema.Types.ObjectId, ref: 'CardSet' }, // Reference to the CardSet
-//     cardModel: {
-//       type: String,
-//       enum: ['CardInSearch', 'CardInCollection', 'CardInDeck', 'CardInCart'],
-//     },
-//     cardId: { type: Schema.Types.ObjectId, refPath: 'cardModel' },
-//   },
-//   { timestamps: true },
-// );
-const searchTermSchema = new Schema({
-  name: { type: String },
-  race: { type: String },
-  attribute: { type: String },
-  type: { type: String },
-  level: { type: Number },
-  id: { type: String },
+
+const searchTermSchema = createSchema({
+  name: String,
+  race: String,
+  attribute: String,
+  type: String,
+  level: { type: Number, min: 0 },
+  id: requiredString,
 });
-const searchResultSchema = new Schema({
-  cardId: { type: Schema.Types.ObjectId, ref: 'CardInSearch' },
-  // Additional fields as needed
+
+const searchResultSchema = createSchema({
+  cardId: requiredObjectId('CardInSearch'),
 });
+
 const searchSessionSchema = new Schema(
   {
-    label: { type: String, required: true },
+    label: requiredString,
     searchTerms: [searchTermSchema],
     results: [searchResultSchema],
   },
@@ -97,19 +96,14 @@ const searchSessionSchema = new Schema(
 );
 
 module.exports = {
-  // cards
   priceEntrySchema,
   cardSetSchema,
   cardImageSchema,
   cardPriceSchema,
   chartDatasetsSchema,
-  // collections
   collectionPriceHistorySchema,
-  // variants
   cardVariantSchema,
-  // search
   searchTermSchema,
   searchResultSchema,
   searchSessionSchema,
-  // variantSchema,
 };
