@@ -32,7 +32,7 @@ const priceEntrySchema = createSchema({
 });
 const cardImageSchema = createSchema({
   // id: { type: String, required: true },
-  id: { type: Number, required: true },
+  id: { type: Number, required: false },
   image_url: { type: String, required: true },
   image_url_small: String,
   image_url_cropped: String,
@@ -94,6 +94,14 @@ const searchSessionSchema = new Schema(
   },
   { timestamps: true },
 );
+const dataPointSchema = new Schema(
+  {
+    x: String,
+    y: Number,
+    label: String,
+  },
+  { _id: false },
+); // Define this if you have a consistent structure for data points
 
 module.exports = {
   priceEntrySchema,
@@ -103,6 +111,7 @@ module.exports = {
   chartDatasetsSchema,
   collectionPriceHistorySchema,
   cardVariantSchema,
+  dataPointSchema,
   searchTermSchema,
   searchResultSchema,
   searchSessionSchema,

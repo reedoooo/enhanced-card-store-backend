@@ -104,9 +104,9 @@ exports.getUserCart = async (req, res, next) => {
     }
     user = await populateUserDataByContext(userId, ['cart']);
 
-    return res.status(200).json(user.cart);
+    return res.status(200).json({ message: 'Cart retrieved', data: user.cart });
   } catch (error) {
-    console.error(error);
+    console.error('Error getting user cart:', { error });
     next(error);
   }
 };
@@ -115,11 +115,9 @@ exports.createEmptyCart = async (req, res, next) => {
 
   try {
     let user = await populateUserDataByContext(userId, ['cart']);
-
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-
     if (user.cart) {
       return res.status(409).json({ error: 'A cart for this user already exists.' });
     }

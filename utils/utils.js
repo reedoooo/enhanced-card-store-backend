@@ -451,6 +451,112 @@ const calculateCollectionValue = (cards) => {
   }, 0);
 };
 
+function constructCardDataObject(cardData, additionalData) {
+  const tcgplayerPrice = cardData?.card_prices[0]?.tcgplayer_price || 0;
+  const cardSet =
+    cardData?.card_sets && cardData?.card_sets.length > 0 ? cardData.card_sets[0] : null;
+  const defaultPriceObj = createNewPriceEntry(tcgplayerPrice);
+
+  return {
+    image: cardData?.card_images.length > 0 ? cardData.card_images[0].image_url : '',
+    quantity: additionalData.quantity || 1,
+    price: tcgplayerPrice,
+    totalPrice: tcgplayerPrice,
+    tag: additionalData.tag || '',
+    collectionId: additionalData.collectionId,
+    collectionModel: additionalData.collectionModel,
+    cardModel: additionalData.cardModel,
+    watchList: false,
+    rarity: cardSet?.set_rarity || '',
+    card_set: cardSet ? cardSet : {},
+    card_sets: cardData?.card_sets,
+    card_images: cardData?.card_images,
+    card_prices: cardData?.card_prices,
+    id: cardData?.id?.toString() || '',
+    name: cardData?.name,
+    chart_datasets: [defaultPriceObj],
+    lastSavedPrice: defaultPriceObj,
+    latestPrice: defaultPriceObj,
+    priceHistory: [],
+    dailyPriceHistory: [],
+    type: cardData?.type,
+    frameType: cardData?.frameType,
+    desc: cardData?.desc,
+    atk: cardData?.atk,
+    def: cardData?.def,
+    level: cardData?.level,
+    race: cardData?.race,
+    attribute: cardData?.attribute,
+    ...additionalData.contextualFields, // Merge any additional contextual fields
+  };
+}
+
+function calculatePriceAndPercentChange(priceChangeHistory, initialTotalPrice) {
+  // Aggregate total price difference
+  const totalDifference = priceChangeHistory.reduce((acc, changeEntry) => {
+    // Sum up all price differences in this entry's priceChanges array
+    const entryTotalDifference = changeEntry.priceChanges.reduce((entryAcc, priceChange) => {
+      return entryAcc + priceChange.priceDifference;
+    }, 0);
+
+    return acc + entryTotalDifference;
+  }, 0);
+
+  // Assuming initialTotalPrice is the price of the collection before these changes
+  const finalTotalPrice = initialTotalPrice + totalDifference;
+
+  // Calculate percent change based on the initial and final total price
+  // Note: This calculation assumes the initialTotalPrice is non-zero
+  const percentChange = ((finalTotalPrice - initialTotalPrice) / initialTotalPrice) * 100;
+
+  return {
+    priceChange: totalDifference,
+    percentChange: parseFloat(percentChange.toFixed(2)), // Round to 2 decimal places for readability
+  };
+}
+const filterDataByTimeRange = (data, timeRange) => {
+  const now = new Date();
+  const timeRanges = {
+    '24h': new Date(now - 24 * 60 * 60 * 1000),
+    '7d': new Date(now - 7 * 24 * 60 * 60 * 1000),
+    '30d': new Date(now - 30 * 24 * 60 * 60 * 1000),
+    '90d': new Date(now - 90 * 24 * 60 * 60 * 1000),
+    '180d': new Date(now - 180 * 24 * 60 * 60 * 1000),
+    '270d': new Date(now - 270 * 24 * 60 * 60 * 1000),
+    '365d': new Date(now - 365 * 24 * 60 * 60 * 1000),
+  };
+  const thresholdDate = timeRanges[timeRange];
+  return data.filter((entry) => new Date(entry.x) >= thresholdDate);
+};
+const groupAndAverageData = (data, threshold = 600000, timeRange) => {
+  if (!data || data.length === 0) return [];
+  // console.log('GROUPING and averaging data...'.red, data);
+  data = filterDataByTimeRange(data, timeRange);
+  console.log('FILTERED DATA: '.red, data);
+
+  const clusters = [];
+  let currentCluster = [data[0]];
+
+  for (let i = 1; i < data.length; i++) {
+    const prevTime = new Date(data[i - 1].x).getTime();
+    const currentTime = new Date(data[i].x).getTime();
+    if (currentTime - prevTime <= threshold) {
+      currentCluster.push(data[i]);
+    } else {
+      clusters.push(currentCluster);
+      currentCluster = [data[i]];
+    }
+  }
+  clusters.push(currentCluster); // Include the last cluster
+
+  // Average data within each cluster
+  return clusters.map((cluster) => {
+    const avgY = cluster.reduce((acc, { y }) => acc + y, 0) / cluster.length;
+    const middleIndex = Math.floor(cluster.length / 2);
+    const middleDatum = cluster[middleIndex];
+    return { x: middleDatum.x, y: avgY, label: `Average from ${cluster.length} points` };
+  });
+};
 module.exports = {
   findUser,
   asyncHandler,
@@ -479,4 +585,7 @@ module.exports = {
   createNewPriceEntry,
   formatDate,
   removeDuplicatePriceHistoryFromCollection,
+  constructCardDataObject,
+  calculatePriceAndPercentChange,
+  groupAndAverageData,
 };

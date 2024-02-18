@@ -46,7 +46,7 @@ exports.getAllCollectionsForUser = async (req, res, next) => {
  */
 exports.createNewCollection = async (req, res, next) => {
   const { userId } = req.params;
-  const { collectionData } = req.body; // Assume the body contains new collection details
+  const collectionData = req.body; // Assume the body contains new collection details
   const collectionModel = 'Collection'; // Adjust according to your schema
   try {
     console.log('Creating new collection for user:', userId, collectionData);

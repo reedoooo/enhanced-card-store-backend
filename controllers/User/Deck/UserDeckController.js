@@ -3,7 +3,7 @@ const { CardInDeck } = require('../../../models/Card');
 const { Deck } = require('../../../models/Collection');
 const User = require('../../../models/User');
 const { populateUserDataByContext } = require('../dataUtils');
-const { mapCardDataToModelFields, reFetchForSave } = require('../helpers');
+const { reFetchForSave } = require('../helpers');
 
 /**
  * Gets a default card for a deck.
