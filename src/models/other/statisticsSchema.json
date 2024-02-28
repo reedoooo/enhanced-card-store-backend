@@ -1,0 +1,117 @@
+
+{
+  "data": {
+    "primary": {
+      "highPoint": Number,
+      "lowPoint": Number,
+      "twentyFourHourAverage": {
+        "startDate": "averageData[0]?.startDate",
+        "endDate": "averageData[0]?.endDate",
+        "lowPoint": Number,
+        "highPoint": Number,
+        "priceChange": Number,
+        "percentageChange": Number,
+        "priceIncreased": Boolean
+      },
+      "average": Number,
+      "volume": Number,
+      "volatility": Number,
+      "general": {
+        "totalPrice": Number,
+        "topCard": "topCard?.name",
+        "topCollection": "topCollection?.name"
+      }
+    },
+    "totalCards": Number,
+    "totalUniqueCards": Number,
+    "totalCardsByRarity": {
+      "common": Number,
+      "rare": Number,
+      "superRare": Number,
+      "ultraRare": Number,
+      "secretRare": Number,
+      "ultimateRare": Number,
+      "ghostRare": Number,
+      "platinumRare": Number,
+      "rareParallel": Number,
+      "superRareParallel": Number,
+      "ultraRareParallel": Number,
+      "secretRareParallel": Number,
+      "ultimateRareParallel": Number,
+      "ghostRareParallel": Number,
+      "platinumRareParallel": Number,
+      "starfoilRare": Number,
+      "mosaicRare": Number,
+      "prismaticSecretRare": Number,
+      "parallelRare": Number,
+      "parallelSuperRare": Number,
+      "parallelUltraRare": Number,
+      "parallelSecretRare": Number,
+      "parallelUltimateRare": Number,
+      "parallelGhostRare": Number,
+      "parallelPlatinumRare": Number,
+      "shortPrint": Number,
+      "shortPrintParallel": Number,
+      "normalParallelRare": Number,
+      "normalParallelSuperRare": Number,
+      "normalParallelUltraRare": Number,
+      "normalParallelSecretRare": Number,
+      "normalParallelUltimateRare": Number,
+      "normalParallelGhostRare": Number,
+      "normalParallelPlatinumRare": Number,
+      "normalRare": Number,
+      "normalSuperRare": Number,
+      "normalUltraRare": Number,
+      "normalSecretRare": Number,
+      "normalUltimateRare": Number,
+      "normalGhostRare": Number,
+      "normalPlatinumRare": Number,
+      "normalStarfoilRare": Number,
+      "normalMosaicRare": Number,
+      "normalPrismaticSecretRare": Number,
+      "normalParallelRare": Number,
+      "normalParallelSuperRare": Number,
+      "normalParallelUltraRare": Number,
+      "normalParallelSecretRare": Number,
+      "normalParallelUltimateRare": Number,
+      "normalParallelGhostRare": Number,
+      "normalParallelPlatinumRare": Number,
+      "normalShortPrint": Number,
+      "normalShortPrintParallel": Number
+    },
+    "totalCardsByAttribute": {
+      "dark": Number,
+      "divine": Number,
+      "earth": Number,
+      "fire": Number,
+      "light": Number,
+      "water": Number,
+      "wind": Number
+    },
+    "totalCardsByType": {
+      "aqua": Number,
+      "beast": Number,
+      "beastWarrior": Number,
+      "creatorGod": Number,
+      "cyberse": Number,
+      "dinosaur": Number,
+      "divineBeast": Number
+    },
+    "totalCardsBySubType": {
+      "normal": Number,
+      "effect": Number,
+      "fusion": Number,
+      "ritual": Number,
+      "synchro": Number,
+      "xyz": Number,
+      "link": Number,
+      "pendulum": Number
+    },
+    "totalCardsByArchetype": {
+      "Archetype Name": Number
+    },
+    "totalCardsBySet": {
+      "Set Name": Number
+    },
+	},
+}
