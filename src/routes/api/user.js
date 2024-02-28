@@ -36,42 +36,48 @@ router.put(
 );
 
 // COLLECTION ROUTES
-router.post(
-  '/:userId/collections/create',
-  asyncHandler(UserCollectionController.createNewCollection),
-);
 router.get(
   '/:userId/collections/allCollections',
   asyncHandler(UserCollectionController.getAllCollectionsForUser),
 );
+router.post(
+  '/:userId/collections/create',
+  asyncHandler(UserCollectionController.createNewCollection),
+);
 router.put(
-  '/:userId/collections/:collectionId',
-  asyncHandler(UserCollectionController.updateAndSyncCollection),
+  '/:userId/collections/:collectionId/update',
+  asyncHandler(UserCollectionController.updateExistingCollection),
 );
 router.delete(
-  '/:userId/collections/:collectionId',
-  asyncHandler(UserCollectionController.deleteCollection),
+  '/:userId/collections/:collectionId/delete',
+  asyncHandler(UserCollectionController.deleteExistingCollection),
 );
+
+// COLLECTION DATA ROUTES
 router.post(
-  '/:userId/collections/:collectionId/add',
+  '/:userId/collections/:collectionId/cards/add',
   asyncHandler(UserCollectionController.addCardsToCollection),
 );
 router.put(
-  '/:userId/collections/allCollections/automatedPriceUpdate',
-  asyncHandler(UserCollectionController.checkAndUpdateCardPrices),
+  '/:userId/collections/:collectionId/cards/remove',
+  asyncHandler(UserCollectionController.removeCardsFromCollection),
 );
+// router.delete(
+//   '/:userId/collections/:collectionId/cards/remove',
+//   asyncHandler(UserCollectionController.removeCardsFromCollection),
+// );
+router.put(
+  '/:userId/collections/:collectionId/cards/update',
+  asyncHandler(UserCollectionController.updateCardsInCollection),
+);
+// router.put(
+//   '/:userId/collections/allCollections/automatedPriceUpdate',
+//   asyncHandler(UserCollectionController.checkAndUpdateCardPrices),
+// );
 // router.post(
 //   '/:userId/collections/:collectionId/remove',
 //   asyncHandler(UserCollectionController.removeCardsFromCollection),
 // );
-router.delete(
-  '/:userId/collections/:collectionId/remove',
-  asyncHandler(UserCollectionController.removeCardsFromCollection),
-);
-router.put(
-  '/:userId/collections/:collectionId/update',
-  asyncHandler(UserCollectionController.updateCardsInCollection),
-);
 router.put(
   '/:userId/collections/:collectionId/updateChartData',
   asyncHandler(UserCollectionController.updateChartDataInCollection),

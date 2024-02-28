@@ -1,3 +1,5 @@
+const { loggers } = require("./infoLogger");
+
 // src/middleware/logPerformance.js
 require("colors");
 const logRequestDetails = (req, eventType, message, duration = null) => {
@@ -19,27 +21,18 @@ const logRequestDetails = (req, eventType, message, duration = null) => {
     logInfo.duration = `${duration}ms`;
   }
 
-  logToSpecializedLogger(
-    "info",
-    `Request ${eventType}: ${req.method} ${req.originalUrl}`,
-    {
-      data: logInfo,
-      section: "request",
-    }
-  );
-  // console.log('req.body', req.body.cards);
-  if (req.body.cards) {
-    logData(req.body.cards[0]);
-  }
-  if (req.body.card) {
-    logData(req.body.card);
-  }
-  if (req.body.allXYValues) {
-    logData("allXYValues", req.body.allXYValues[0]);
-  }
-  if (req.body.updatedCollection) {
-    logData(req.body.updatedCollection);
-  }
+  // if (req.body.cards) {
+  //   logData(req.body.cards[0]);
+  // }
+  // if (req.body.card) {
+  //   logData(req.body.card);
+  // }
+  // if (req.body.allXYValues) {
+  //   logData("allXYValues", req.body.allXYValues[0]);
+  // }
+  // if (req.body.updatedCollection) {
+  //   logData(req.body.updatedCollection);
+  // }
 
   // logData('LOGGING REQUEST BODY', req.body);
 };

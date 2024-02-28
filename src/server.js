@@ -13,12 +13,12 @@ const compression = require("compression");
 const fs = require("fs");
 
 // Custom Modules
-const { initSocket } = require("./socket");
-const { setupSocketEvents } = require("./socketEvents");
+// const { initSocket } = require("./socket");
+// const { setupSocketEvents } = require("./socketEvents");
 const routes = require("./routes");
 // const errorHandler = require("./middleware/errorHandler");
-const apiLimiter = require("./middleware/rateLimit");
-// const logPerformance = require("./middleware/logPerformance");
+// const apiLimiter = require("./middleware/rateLimit");
+const logPerformance = require("./middleware/logPerformance");
 const handleStripePayment = require("./middleware/handleStripePayment");
 const { unifiedErrorHandler } = require("./middleware/unifiedErrorHandler");
 
@@ -49,8 +49,8 @@ app.use(
     ),
   })
 );
-app.use("/api/", apiLimiter);
-// app.use(logPerformance);
+// app.use("/api/", apiLimiter);
+app.use(logPerformance);
 app.use(express.static(path.join(__dirname, "../public"))); // Corrected path for static files
 
 // Stripe Payment Route
@@ -72,8 +72,8 @@ app.use((error, req, res, next) => {
 });
 // Socket Initialization
 const server = http.createServer(app);
-initSocket(server);
-setupSocketEvents();
+// initSocket(server);
+// setupSocketEvents();
 
 // MongoDB Connection and Server Start
 mongoose
