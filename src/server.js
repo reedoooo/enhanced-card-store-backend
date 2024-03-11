@@ -1,5 +1,6 @@
 "use strict";
 
+// 1. Environment and Dependencies
 // Core Dependencies
 const express = require("express");
 const helmet = require("helmet");
@@ -8,73 +9,64 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const http = require("http");
 const path = require("path");
-// const morgan = require("morgan");
 const compression = require("compression");
-const fs = require("fs");
 
+// Middleware and Routes
 const routes = require("./routes");
-// const errorHandler = require("./middleware/errorHandler");
-// const apiLimiter = require("./middleware/rateLimit");
-// const logPerformance = require("./middleware/logPerformance");
 const handleStripePayment = require("./middleware/handleStripePayment");
 const { morganMiddleware } = require("./middleware/morganMiddleware");
 const { unifiedErrorHandler } = require("./middleware/logErrors");
 
-// Load Environment Variables
+// Load environment variables
 require("dotenv").config({
   path: path.join(__dirname, "configs", ".env"),
 });
 
-// App Initialization
+// 2. App Initialization
 const app = express();
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/myapp";
-console.log("MONGO_URI: ", MONGO_URI);
 const PORT = process.env.PORT || 3001;
-// Apply Middleware
-app.use(cors()); // Simplified CORS (customize as needed)
+
+// 3. Middleware Configuration
+// CORS options
+const corsOptions = {
+  origin: "*",
+  methods: "GET,POST,PUT,DELETE",
+  allowedHeaders: "Content-Type,Authorization",
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
 app.use(helmet());
 app.use(compression());
-app.use(express.json({ limit: "10mb" })); // Optimized limit
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
-app.use(morganMiddleware);  // Corrected usage
-// app.use(
-//   morgan("common", {
-//     stream: fs.createWriteStream(
-//       path.join(__dirname, "./logs/info/access.log"),
-//       {
-//         flags: "a",
-//       }
-//     ),
-//   })
-// );
-// app.use("/api/", apiLimiter);
-// app.use(logPerformance);
-app.use(express.static(path.join(__dirname, "../public"))); // Corrected path for static files
+app.use(morganMiddleware);
+app.use(express.static(path.join(__dirname, "../public")));
 
+// 4. Route Definitions
 // Stripe Payment Route
 app.post("/api/stripe/checkout", handleStripePayment);
 
 // API Routes
 app.use("/api", routes);
 
-// Basic Routes
+// Basic route
 app.get("/", (req, res) => res.send("Welcome to the API."));
 
-// Unified Error Handling
-// app.use(errorHandler); // Note: This replaces the generic error handler
+// 5. Error Handling
 app.use((error, req, res, next) => {
   if (res.headersSent) {
     return next(error);
   }
   unifiedErrorHandler(error, req, res, next);
 });
-// Socket Initialization
-const server = http.createServer(app);
-// initSocket(server);
-// setupSocketEvents();
 
-// MongoDB Connection and Server Start
+// 6. Server and Database Initialization
+const server = http.createServer(app);
+
 mongoose
   .connect(MONGO_URI, {
     useNewUrlParser: true,
