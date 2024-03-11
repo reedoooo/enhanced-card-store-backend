@@ -45,10 +45,50 @@ const chartDatasetsSchema = createSchema({
   x: Date,
   y: { type: Number, min: 0 },
 });
+
 const collectionPriceHistorySchema = createSchema({
   timestamp: { type: Date, default: Date.now },
   num: { type: Number, min: 0 },
 });
+
+// Define the inner data structure inside the 'data' array
+const nivoDataPointSchema = new Schema({
+  label: {
+    type: String,
+    enum: ["24h", "7d", "30d", "90d", "180d", "270d", "365d"],
+    required: true,
+  },
+  x: {
+    type: Date,
+    required: true,
+  },
+  y: {
+    type: Number,
+    required: true,
+  },
+});
+
+// Define the main structure of each object in the 'nivoChartData' array
+const chartDataSchema = new Schema({
+  id: {
+    type: String,
+    required: true,
+  },
+  name: {
+    type: String,
+    required: false,
+  },
+  color: {
+    type: String,
+  },
+  data: [nivoDataPointSchema],
+});
+
+// Define the schema for the overall document, which includes 'nivoChartData' as an array
+const nivoChartSchema = new Schema({
+  nivoChartData: [chartDataSchema],
+});
+
 const cardSetSchema = new Schema(
   {
     set_name: String,
@@ -166,4 +206,5 @@ module.exports = {
   searchResultSchema,
   searchSessionSchema,
   collectionStatisticsSchema,
+  nivoChartSchema,
 };

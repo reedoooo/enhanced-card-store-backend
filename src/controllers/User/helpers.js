@@ -3,7 +3,6 @@ const { cardController } = require("../Cards/CardController");
 const { validateCardData } = require("../../middleware/validation/validators");
 const { default: axios } = require("axios");
 const { validationResult } = require("express-validator");
-const { unifiedErrorHandler } = require("../../middleware/unifiedErrorHandler");
 const { constructCardDataObject, getCardInfo } = require("../../utils/utils");
 const { CardSet, CardVariant } = require("../../models");
 function setCollectionRefs(instance, collectionId, collectionModel) {

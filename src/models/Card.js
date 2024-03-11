@@ -193,7 +193,6 @@ genericCardSchema.pre("save", async function (next) {
   if (!this.cardModel) {
     this.cardModel = this.constructor.modelName;
   }
-  // console.log(`Pre save hook for ${this?.cardModel.blue}`);
   if (!this.image) {
     this.image = this.card_images[0]?.image_url || "";
   }
@@ -209,10 +208,6 @@ genericCardSchema.pre("save", async function (next) {
     console.log(`[WARNING] No variants available for card: ${this.name}`);
     return next();
   }
-
-  // SECTION FOR VALUES THAT ARE UPDATED AND SET BY THE SERVER
-  // Calculate totalPrice based on quantity and latestPrice
-  // TODO: this is a temporary fix to prevent latestPrice from being set to 0, but ill create funtion for getting it and handle it later
   if (this.isModified("quantity") || this.isModified("price")) {
     console.log("quantity modified", this.quantity);
     this.latestPrice =

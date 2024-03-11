@@ -98,6 +98,20 @@ const updatedCollectionCron = async () => {
             priceChanges: collectionPriceChanges,
           });
           await collection.save();
+        } else {
+          // Check if over an hour has passed since the last price history update
+          const lastUpdate =
+            collection.priceChangeHistory.slice(-1)[0]?.timestamp;
+          const now = new Date();
+          if (lastUpdate && now - new Date(lastUpdate) > 3600000) {
+            console
+            collection.priceChangeHistory.push({
+              timestamp: now,
+              priceChanges: [],
+            });
+            await collection.save();
+            collectionUpdated = true;
+          }
         }
       }
     }

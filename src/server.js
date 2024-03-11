@@ -8,19 +8,17 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const http = require("http");
 const path = require("path");
-const morgan = require("morgan");
+// const morgan = require("morgan");
 const compression = require("compression");
 const fs = require("fs");
 
-// Custom Modules
-// const { initSocket } = require("./socket");
-// const { setupSocketEvents } = require("./socketEvents");
 const routes = require("./routes");
 // const errorHandler = require("./middleware/errorHandler");
 // const apiLimiter = require("./middleware/rateLimit");
-const logPerformance = require("./middleware/logPerformance");
+// const logPerformance = require("./middleware/logPerformance");
 const handleStripePayment = require("./middleware/handleStripePayment");
-const { unifiedErrorHandler } = require("./middleware/unifiedErrorHandler");
+const { morganMiddleware } = require("./middleware/morganMiddleware");
+const { unifiedErrorHandler } = require("./middleware/logErrors");
 
 // Load Environment Variables
 require("dotenv").config({
@@ -39,18 +37,19 @@ app.use(compression());
 app.use(express.json({ limit: "10mb" })); // Optimized limit
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
-app.use(
-  morgan("common", {
-    stream: fs.createWriteStream(
-      path.join(__dirname, "./logs/info/access.log"),
-      {
-        flags: "a",
-      }
-    ),
-  })
-);
+app.use(morganMiddleware);  // Corrected usage
+// app.use(
+//   morgan("common", {
+//     stream: fs.createWriteStream(
+//       path.join(__dirname, "./logs/info/access.log"),
+//       {
+//         flags: "a",
+//       }
+//     ),
+//   })
+// );
 // app.use("/api/", apiLimiter);
-app.use(logPerformance);
+// app.use(logPerformance);
 app.use(express.static(path.join(__dirname, "../public"))); // Corrected path for static files
 
 // Stripe Payment Route

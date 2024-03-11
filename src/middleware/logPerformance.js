@@ -1,14 +1,15 @@
-const { loggers } = require("./infoLogger");
-
-// src/middleware/logPerformance.js
 require("colors");
+const logger = require("../configs/winston");
+
 const logRequestDetails = (req, eventType, message, duration = null) => {
   const logInfo = {
     requestId: req.id,
     method: req.method,
     url: req.originalUrl,
-    section: eventType,
-    message: message,
+    eventType,
+    message,
+    status: req.res ? req.res.statusCode : undefined,
+    duration: duration !== null ? `${duration}ms` : undefined,
     data: {
       body: req.body,
       query: req.query,
@@ -17,35 +18,21 @@ const logRequestDetails = (req, eventType, message, duration = null) => {
     },
   };
 
-  if (duration !== null) {
-    logInfo.duration = `${duration}ms`;
-  }
+  // Determine the log level based on response status
+  const level =
+    logInfo.status >= 500 ? "error" : logInfo.status >= 400 ? "warn" : "info";
 
-  // if (req.body.cards) {
-  //   logData(req.body.cards[0]);
-  // }
-  // if (req.body.card) {
-  //   logData(req.body.card);
-  // }
-  // if (req.body.allXYValues) {
-  //   logData("allXYValues", req.body.allXYValues[0]);
-  // }
-  // if (req.body.updatedCollection) {
-  //   logData(req.body.updatedCollection);
-  // }
-
-  // logData('LOGGING REQUEST BODY', req.body);
+  // Log the request details using Winston
+  logger.log(level, `${eventType} ${message}`, logInfo);
 };
 
 const logPerformance = (req, res, next) => {
   const start = process.hrtime();
-  console.log(
-    "[START]".green + `Request ${req.id}: ${req.method} ${req.originalUrl}`
-  );
+  logger.info(`[START] Request ${req.id}: ${req.method} ${req.originalUrl}`);
 
   res.on("finish", () => {
     const duration = getDurationInMilliseconds(start);
-    console.log("[END]".red + `Request ${req.id}: ${duration}ms`);
+    logger.info(`[END] Request ${req.id}: ${duration}ms`);
     logRequestDetails(
       req,
       "completed",

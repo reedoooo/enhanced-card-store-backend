@@ -1,9 +1,10 @@
-const winston = require('winston');
-require('winston-daily-rotate-file');
+const winston = require("winston");
+require("winston-daily-rotate-file");
 const { createLogger, format, transports } = winston;
+const { logRequests } = require("../configs/winston");
 
-const logsDir = './logs';
-const defaultLogLevel = process.env.LOG_LEVEL || 'error';
+const logsDir = "./logs";
+const defaultLogLevel = process.env.LOG_LEVEL || "error";
 
 // Custom format for console logs
 const consoleFormat = format.combine(
@@ -14,17 +15,17 @@ const consoleFormat = format.combine(
       formattedMessage += ` | ${JSON.stringify(meta)}`;
     }
     return formattedMessage;
-  }),
+  })
 );
 
 // Transport for file logs
 const fileTransport = (label) =>
   new transports.DailyRotateFile({
     filename: `${logsDir}/${label}-%DATE%.log`,
-    datePattern: 'YYYY-MM-DD',
+    datePattern: "YYYY-MM-DD",
     zippedArchive: true,
-    maxSize: '20m',
-    maxFiles: '14d',
+    maxSize: "20m",
+    maxFiles: "14d",
     format: format.combine(format.timestamp(), format.json()),
   });
 
@@ -32,11 +33,23 @@ const fileTransport = (label) =>
 const createLoggerWithTransports = (label, level = defaultLogLevel) =>
   createLogger({
     level,
-    transports: [new transports.Console({ format: consoleFormat }), fileTransport(label)],
+    transports: [
+      new transports.Console({ format: consoleFormat }),
+      fileTransport(label),
+    ],
   });
 
 // Initialize specialized loggers
-const sections = ['collection', 'cardPrice', 'cronjob', 'error', 'warn', 'info', 'end', 'start'];
+const sections = [
+  "collection",
+  "cardPrice",
+  "cronjob",
+  "error",
+  "warn",
+  "info",
+  "end",
+  "start",
+];
 const specializedLoggers = sections.reduce((acc, section) => {
   acc[section] = createLoggerWithTransports(section);
   return acc;
@@ -44,7 +57,9 @@ const specializedLoggers = sections.reduce((acc, section) => {
 
 // Log to specialized loggers
 function logToSpecializedLogger(level, message, meta) {
-  const logger = specializedLoggers[meta?.section] || createLoggerWithTransports(meta?.section);
+  const logger =
+    specializedLoggers[meta?.section] ||
+    createLoggerWithTransports(meta?.section);
   logger.log({ level, message, ...meta });
 
   if (meta.error instanceof Error) {
