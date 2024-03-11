@@ -6,4 +6,6 @@ const logRequests = (req, res, next) => {
   next();
 };
 
-module.exports = logRequests;
+module.exports = {
+  logRequests,
+};

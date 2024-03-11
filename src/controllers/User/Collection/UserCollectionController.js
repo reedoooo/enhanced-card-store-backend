@@ -13,6 +13,8 @@ const {
   reFetchForSave,
   fetchUserIdsFromUserSecurityData,
 } = require("../helpers");
+const { loggers } = require("../../../middleware/infoLogger");
+const logger = require("../../../configs/winston");
 
 // ! COLLECTION ROUTES (GET, CREATE, UPDATE, DELETE) !
 /**
@@ -300,12 +302,14 @@ async function addNewCardToCollection(cardData, collectionId, quantity) {
  */
 exports.addCardsToCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
-  const { cards, type } = req.body;
+  let { cards } = req.body; // Assuming 'cards' can be an object or an array
+
+  // Check if 'cards' is an object, and convert it to an array with that object as its only item
   if (!Array.isArray(cards)) {
-    return res
-      .status(400)
-      .json({ message: "Invalid card data, expected an array." });
+    cards = [cards]; // Convert the object to an array containing that object
   }
+
+  logger.info("Processing cards:", cards);
   try {
     const populatedUser = await populateUserDataByContext(userId, [
       "collections",
@@ -329,18 +333,33 @@ exports.addCardsToCollection = async (req, res, next) => {
         "IDS OF ALL CARDS IN COLLECTION:".red,
         collection.cards.map((c) => c.id)
       );
-      let cardInCollection = collection?.cards?.find(
+      let foundCard = collection?.cards?.find(
         (c) => c.id.toString() === cardData.id
       );
-      console.log("Card in collection: ".red, cardInCollection);
-      if (cardInCollection) {
-        console.log("Updating existing card:", cardInCollection.name.blue);
-        cardInCollection.quantity += cardData.quantity;
-        await cardInCollection.save(); // pre-save will handle totalPrice and other calculations
+      // console.log("Card in collection: ".red, foundCard);
+      if (foundCard) {
+        let cardInCollection = await CardInCollection.findById(foundCard._id);
+        // console.log("Card in collection: ".red, foundCard);
 
-        // Update collection's total quantity and price
-        collection.totalQuantity += cardData.quantity;
-        collection.totalPrice += cardData.quantity * cardInCollection.price;
+        if (cardInCollection) {
+          console.log("Updating existing card:", cardInCollection.name.blue);
+          console.log("START QUANTITY: ".red, cardInCollection.quantity);
+          console.log('START TOTAL PRICE: '.red, cardInCollection.totalPrice);
+
+          // Correctly increment the quantity and update total price
+          cardInCollection.quantity += 1;
+          cardInCollection.totalPrice =
+            cardInCollection.quantity * cardInCollection.price;
+
+          // Save the updated card document
+          await cardInCollection.save();
+
+          // Update collection's total quantity and price accordingly
+          collection.totalQuantity += cardData.quantity;
+          collection.totalPrice += cardData.quantity * cardInCollection.price;
+        } else {
+          console.log("Card not found in CardInCollection:", foundCard._id);
+        }
       } else {
         const reSavedCard = await reFetchForSave(
           cardData,

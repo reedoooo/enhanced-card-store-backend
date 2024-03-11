@@ -7,7 +7,7 @@ const User = require("../../src/models/User");
 const { default: axios } = require("axios");
 const { validationResult } = require("express-validator");
 const { Collection } = require("../../src/models/Collection");
-const { unifiedErrorHandler } = require("../middleware/unifiedErrorHandler");
+const { unifiedErrorHandler } = require("../middleware/logErrors");
 const axiosInstance = axios.create({
   baseURL: "https://db.ygoprodeck.com/api/v7/",
 });

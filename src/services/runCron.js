@@ -3,7 +3,7 @@ const { updatedCollectionCron } = require('./updatedCollectionCron');
 
 updatedCollectionCron();
 // Run every 1 minutes
-cron.schedule('2 * * * *', async () => {
+cron.schedule('1 * * * *', async () => {
   console.log('------------------------'.green);
   console.log('⏲️ RUNNING THE CRON');
   console.log('------------------------'.green);
