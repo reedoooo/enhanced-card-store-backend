@@ -548,31 +548,65 @@ function sortDataIntoRanges(processedData) {
   };
 
   // Iterate through each processed data item and add it to the correct range
+  // processedData.forEach((item) => {
+  //   switch (item.label) {
+  //     case "24hr":
+  //       nivoChartData["24hr"].data.push({ x: item.x, y: item.y });
+  //       break;
+  //     case "30d":
+  //       nivoChartData["30d"].data.push({ x: item.x, y: item.y });
+  //       break;
+  //     case "90d":
+  //       nivoChartData["90d"].data.push({ x: item.x, y: item.y });
+  //       break;
+  //     case "180d":
+  //       nivoChartData["180d"].data.push({ x: item.x, y: item.y });
+  //       break;
+  //     case "270d":
+  //       nivoChartData["270d"].data.push({ x: item.x, y: item.y });
+  //       break;
+  //     case "365d":
+  //       nivoChartData["365d"].data.push({ x: item.x, y: item.y });
+  //       break;
+  //     default:
+  //       // Assuming all other data falls within 7 days
+  //       nivoChartData["7d"].data.push({ x: item.x, y: item.y });
+  //       break;
+  //   }
+  // });
   processedData.forEach((item) => {
+    // Use an array to keep track of which ranges the item should be added to
+    const applicableRanges = [];
+
+    // Determine the applicable ranges based on the item's label
     switch (item.label) {
       case "24hr":
-        nivoChartData["24hr"].data.push({ x: item.x, y: item.y });
+        applicableRanges.push("24hr", "7d", "30d", "90d", "180d", "270d", "365d");
+        break;
+      case "7d":
+        applicableRanges.push("7d", "30d", "90d", "180d", "270d", "365d");
         break;
       case "30d":
-        nivoChartData["30d"].data.push({ x: item.x, y: item.y });
+        applicableRanges.push("30d", "90d", "180d", "270d", "365d");
         break;
       case "90d":
-        nivoChartData["90d"].data.push({ x: item.x, y: item.y });
+        applicableRanges.push("90d", "180d", "270d", "365d");
         break;
       case "180d":
-        nivoChartData["180d"].data.push({ x: item.x, y: item.y });
+        applicableRanges.push("180d", "270d", "365d");
         break;
       case "270d":
-        nivoChartData["270d"].data.push({ x: item.x, y: item.y });
+        applicableRanges.push("270d", "365d");
         break;
       case "365d":
-        nivoChartData["365d"].data.push({ x: item.x, y: item.y });
-        break;
-      default:
-        // Assuming all other data falls within 7 days
-        nivoChartData["7d"].data.push({ x: item.x, y: item.y });
+        applicableRanges.push("365d");
         break;
     }
+
+    // For each applicable range, add the item to that range's data
+    applicableRanges.forEach((range) => {
+      nivoChartData[range].data.push({ x: item.x, y: item.y });
+    });
   });
 
   return nivoChartData;
