@@ -1,4 +1,4 @@
-const logger = require("../configs/winston");
+const logger = require("../../configs/winston");
 
 // Mapping of error types to corresponding log levels
 const errorTypes = {

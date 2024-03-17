@@ -13,352 +13,12 @@ const { CardInCollection, CardInDeck, CardInCart } = require("./Card");
 const { isValid, parseISO, format } = require("date-fns");
 const logger = require("../configs/winston");
 require("colors");
-// const groupAndAverageDataForRanges = (data, timeRanges) => {
-//   const processedData = {};
-//   const clusterCounts = {
-//     "24h": 24,
-//     "7d": 7,
-//     "30d": 30,
-//     "90d": 30,
-//     "180d": 30,
-//     "270d": 30,
-//     "365d": 30,
-//   };
-
-//   Object.keys(clusterCounts).forEach((rangeKey) => {
-//     const numClusters = clusterCounts[rangeKey];
-//     const timeRangeData = timeRanges[rangeKey];
-//     let averagedData = [];
-//     if (timeRangeData && timeRangeData.length >= numClusters) {
-//       // More data points than clusters, perform averaging within clusters
-//       console.log(
-//         "More data points than clusters, performing averaging...".red
-//       );
-//       averagedData = timeRangeData
-//         .sort((a, b) => new Date(a.x) - new Date(b.x)) // Ensure data is sorted by time
-//         .reduce((clusters, point, index, array) => {
-//           // console.log('Point:', point);
-//           const clusterIndex = Math.floor(index / (array.length / numClusters));
-//           // console.log('Cluster index:', clusterIndex);
-//           clusters[clusterIndex] = clusters[clusterIndex] || [];
-//           clusters[clusterIndex].push(point);
-//           return clusters;
-//         }, new Array(numClusters).fill(null))
-//         .map((cluster) => {
-//           const avgNum =
-//             cluster.reduce((sum, p) => sum + p.num, 0) / cluster.length;
-//           const midPoint = cluster[Math.floor(cluster.length / 2)];
-//           const formatDate = (date) => format(date, "yyyy-MM-dd HH:mm:ss");
-//           return {
-//             label: formatDate(new Date(midPoint.timestamp)),
-//             x: new Date(midPoint.timestamp).toISOString(),
-//             y: avgNum,
-//           };
-//         });
-//     } else if (timeRangeData && timeRangeData?.length > 0) {
-//       // Fewer data points than clusters, interpolate additional points
-//       console.log(
-//         "Fewer data points than clusters, interpolating additional points..."
-//           .red
-//       );
-//       for (let i = 0; i < numClusters; i++) {
-//         if (i < timeRangeData.length) {
-//           averagedData.push(timeRangeData[i]);
-//         } else {
-//           const lastPoint = averagedData[averagedData.length - 1];
-//           const nextIndex = i + 1 - averagedData.length;
-//           const nextPoint =
-//             timeRangeData[
-//               nextIndex < timeRangeData.length
-//                 ? nextIndex
-//                 : timeRangeData.length - 1
-//             ];
-//           const interpolatedY =
-//             lastPoint && nextPoint
-//               ? (lastPoint.y + nextPoint.y) / 2
-//               : lastPoint.y;
-//           averagedData.push({ x: lastPoint.x, y: interpolatedY });
-//         }
-//       }
-//     }
-
-//     processedData[rangeKey] = averagedData;
-//   });
-
-//   return processedData;
-// };
-const groupAndAverageDataForRanges = (nivoChartData) => {
-  const processedData = {};
-  const clusterCounts = {
-    "24hr": 24,
-    "7d": 7,
-    "30d": 30,
-    "90d": 90,
-    "180d": 180,
-    "270d": 270,
-    "365d": 365,
-  };
-
-  Object.keys(nivoChartData).forEach((rangeKey) => {
-    const numClusters = clusterCounts[rangeKey] || 30; // Fallback to a default value if necessary
-    let rangeData = nivoChartData[rangeKey].data;
-    let averagedData = [];
-
-    if (rangeData && rangeData.length >= numClusters) {
-      // More data points than clusters, perform averaging within clusters
-      averagedData = rangeData
-        .sort((a, b) => new Date(a.x) - new Date(b.x))
-        .reduce((clusters, point, index, array) => {
-          const clusterIndex = Math.floor(index / (array.length / numClusters));
-          clusters[clusterIndex] = clusters[clusterIndex] || [];
-          clusters[clusterIndex].push(point);
-          return clusters;
-        }, new Array(numClusters).fill(null))
-        .map((cluster) => {
-          const avgY =
-            cluster.reduce((sum, p) => sum + p.y, 0) / cluster.length;
-          const midPointIndex = Math.floor(cluster.length / 2);
-          return {
-            x: cluster[midPointIndex].x,
-            y: avgY,
-          };
-        });
-    } else if (rangeData && rangeData.length > 0) {
-      // Directly use available data if fewer data points than clusters
-      averagedData = [...rangeData];
-    }
-
-    processedData[rangeKey] = {
-      ...nivoChartData[rangeKey],
-      data: averagedData,
-    };
-  });
-
-  return processedData;
-};
-function generateRandomDataSets(
-  baseDate,
-  baseY,
-  incrementType,
-  totalPoints,
-  finalY
-) {
-  const incrementMap = {
-    "24h": 1 / 24, // Increment by hour
-    "7d": 1, // Increment by day
-    "30d": 1,
-    "90d": 3,
-    "180d": 6,
-    "270d": 9,
-    "365d": 12,
-  };
-
-  const dataSets = [];
-  let currentDate = new Date(baseDate);
-  let currentY = baseY;
-  const yIncrement = (finalY - baseY) / totalPoints;
-
-  for (let i = 0; i < totalPoints; i++) {
-    dataSets.push({
-      _id: generateRandomId(), // Implement this function to generate unique IDs
-      x: currentDate.toISOString(),
-      y: parseFloat((currentY += yIncrement * Math.random() * 2).toFixed(2)), // Randomize the increment a bit
-    });
-
-    currentDate = new Date(
-      currentDate.getTime() + incrementMap[incrementType] * 24 * 60 * 60 * 1000
-    );
-  }
-
-  return dataSets;
-}
-function generateRandomId() {
-  return Math.floor(Math.random() * Date.now()).toString(16);
-}
-// Base parameters
-const backupBaseDate = "2024-02-25T10:13:43.410Z";
-const baseDate = new Date(
-  new Date().getTime() - 7 * 24 * 60 * 60 * 1000
-).toISOString();
-const startValue = 3.99;
-const endValue1 = 107.93;
-const endValue2 = 257.56;
-const endValue3 = 399.99;
-const endValue4 = 500.0;
-const endValue5 = 875.59;
-const endValue6 = 1578.43;
-const endValue7 = 2745.32;
-
-// Generate datasets for each time range
-const data24h = generateRandomDataSets(
-  baseDate,
-  startValue,
-  "24h",
-  24,
-  endValue1
-);
-const data7d = generateRandomDataSets(baseDate, startValue, "7d", 7, endValue2);
-const data30d = generateRandomDataSets(
-  baseDate,
-  startValue,
-  "30d",
-  30,
-  endValue3
-);
-const data90d = generateRandomDataSets(
-  baseDate,
-  startValue,
-  "90d",
-  30,
-  endValue4
-);
-const data180d = generateRandomDataSets(
-  baseDate,
-  startValue,
-  "180d",
-  30,
-  endValue5
-);
-const data270d = generateRandomDataSets(
-  baseDate,
-  startValue,
-  "270d",
-  30,
-  endValue6
-);
-const data365d = generateRandomDataSets(
-  baseDate,
-  startValue,
-  "365d",
-  30,
-  endValue7
-);
-
-const convertToNivoFormat = (timeRange, data) => {
-  return data.map((dataPoint) => {
-    return {
-      id: timeRange,
-      color: "#2e7c67", // Example color, adjust as needed
-      data: [
-        {
-          x: dataPoint.x,
-          y: dataPoint.y,
-        },
-      ],
-    };
-  });
-};
-
-const convertAllToNivoFormat = () => {
-  return [
-    convertToNivoFormat("24h", data24h),
-    convertToNivoFormat("7d", data7d),
-    convertToNivoFormat("30d", data30d),
-    convertToNivoFormat("90d", data90d),
-    convertToNivoFormat("180d", data180d),
-    convertToNivoFormat("270d", data270d),
-    convertToNivoFormat("365d", data365d),
-  ];
-};
-function updateStatistics(cards, initialTotalPrice) {
-  let totalPrice = 0;
-  let totalQuantity = 0;
-  let highPoint = 0;
-  let lowPoint = Infinity;
-  let avgPrice = 0;
-  let percentageChange = 0;
-  let priceChange = 0;
-
-  cards.forEach((card) => {
-    const cardTotalPrice = card.price * card.quantity;
-    totalPrice += cardTotalPrice;
-    totalQuantity += card.quantity;
-    highPoint = Math.max(highPoint, cardTotalPrice);
-    lowPoint = Math.min(lowPoint, cardTotalPrice);
-    avgPrice += cardTotalPrice;
-    percentageChange += (cardTotalPrice / initialTotalPrice) * 100;
-    priceChange += cardTotalPrice - initialTotalPrice;
-  });
-
-  // const totalDifference = totalPrice - initialTotalPrice;
-  // const percentageChange = initialTotalPrice
-  //   ? (totalDifference / initialTotalPrice) * 100
-  //   : 0;
-
-  return {
-    totalPrice,
-    totalQuantity,
-    highPoint,
-    lowPoint,
-    avgPrice,
-    percentageChange,
-    priceChange,
-  };
-}
 const createCommonFields = () => ({
   userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
   totalPrice: { type: Number, default: 0 },
   totalQuantity: { type: Number, default: 0 },
   quantity: { type: Number, default: 0 },
 });
-const createNewPriceEntry = (price) => ({
-  num: price,
-  timestamp: new Date(),
-});
-const createNewPriceEntryWithOldDate = (price, time) => ({
-  num: price,
-  timestamp: time,
-});
-// Formats date strings safely
-const formatDate = (dateInput) => {
-  let date;
-  if (dateInput instanceof Date) {
-    date = dateInput; // Use the Date object directly
-  } else if (typeof dateInput === "string") {
-    date = parseISO(dateInput); // Parse string date input
-  }
-
-  if (date && isValid(date)) {
-    return format(date, "yyyy-MM-dd'T'HH:mm:ss'Z'");
-  } else {
-    return "Invalid Date"; // Fallback for undefined or invalid dates
-  }
-};
-
-// Adds days to a date and returns a new date
-const addDays = (date, days) =>
-  new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
-
-// Calculates the date 'daysAgo' days before the current date
-const calculateTimeAgo = (days) => addDays(new Date(), -days);
-
-// Filters the history array to include only entries within the specified 'daysAgo'
-function processTimeRanges(history, daysAgo) {
-  const thresholdDate = calculateTimeAgo(daysAgo);
-  return history.filter((entry) => new Date(entry.timestamp) >= thresholdDate);
-}
-// Maps over time ranges to format the data for charting
-function updateChartData(timeRanges) {
-  return Object.entries(timeRanges).map(([key, value]) => ({
-    id: key,
-    color: "#2e7c67", // Example color, adjust as needed
-    data: value.map((datapoint) => ({
-      x: formatDate(datapoint.timestamp), // Ensure dates are formatted correctly
-      y: datapoint.num, // Use 'num' as the y-value
-    })),
-  }));
-}
-
-// function prepareChartData(cards) {
-//   let lastXValue = new Date();
-//   return cards.flatMap((card) => {
-//     return Array.from({ length: card.quantity }).map((_, i) => {
-//       const newDate = new Date(lastXValue.getTime() + 6 * 60 * 60 * 1000); // 6 hours ahead
-//       lastXValue = newDate;
-//       return { x: newDate, y: card.price * (i + 1) };
-//     });
-//   });
-// }
 async function updateTotals(cardModel, cardsField) {
   this.totalPrice = 0;
   this.totalQuantity = 0;
@@ -408,6 +68,7 @@ const CollectionSchema = new Schema(
     lastSavedPrice: priceEntrySchema,
     dailyCollectionPriceHistory: [collectionPriceHistorySchema],
     collectionPriceHistory: [collectionPriceHistorySchema],
+    collectionValueHistory: [collectionPriceHistorySchema],
     nivoChartData: {
       type: Map,
       of: new Schema({
@@ -501,7 +162,6 @@ function processTimeData(dataArray) {
 }
 // ! CRUCIAL: SORTS DATA INTO RANGES
 function sortDataIntoRanges(processedData) {
-  // Initialize the nivoChartData structure
   let nivoChartData = {
     "24hr": {
       id: "24hr",
@@ -547,33 +207,6 @@ function sortDataIntoRanges(processedData) {
     },
   };
 
-  // Iterate through each processed data item and add it to the correct range
-  // processedData.forEach((item) => {
-  //   switch (item.label) {
-  //     case "24hr":
-  //       nivoChartData["24hr"].data.push({ x: item.x, y: item.y });
-  //       break;
-  //     case "30d":
-  //       nivoChartData["30d"].data.push({ x: item.x, y: item.y });
-  //       break;
-  //     case "90d":
-  //       nivoChartData["90d"].data.push({ x: item.x, y: item.y });
-  //       break;
-  //     case "180d":
-  //       nivoChartData["180d"].data.push({ x: item.x, y: item.y });
-  //       break;
-  //     case "270d":
-  //       nivoChartData["270d"].data.push({ x: item.x, y: item.y });
-  //       break;
-  //     case "365d":
-  //       nivoChartData["365d"].data.push({ x: item.x, y: item.y });
-  //       break;
-  //     default:
-  //       // Assuming all other data falls within 7 days
-  //       nivoChartData["7d"].data.push({ x: item.x, y: item.y });
-  //       break;
-  //   }
-  // });
   processedData.forEach((item) => {
     // Use an array to keep track of which ranges the item should be added to
     const applicableRanges = [];
@@ -581,7 +214,15 @@ function sortDataIntoRanges(processedData) {
     // Determine the applicable ranges based on the item's label
     switch (item.label) {
       case "24hr":
-        applicableRanges.push("24hr", "7d", "30d", "90d", "180d", "270d", "365d");
+        applicableRanges.push(
+          "24hr",
+          "7d",
+          "30d",
+          "90d",
+          "180d",
+          "270d",
+          "365d"
+        );
         break;
       case "7d":
         applicableRanges.push("7d", "30d", "90d", "180d", "270d", "365d");
@@ -614,17 +255,7 @@ function sortDataIntoRanges(processedData) {
 // ! CRUCIAL: AGGREGATES AND AVERAGES DATA WITHIN RANGES
 function aggregateAndAverageData(chart) {
   const clusterCounts = {
-    "24hr": 24, // 24 data points, one for each hour
-    "7d": 7, // 7 data points, one for each day
-    "30d": 30, // 30 data points, one for each day
-    "90d": 30, // 30 data points for 90 days
-    "180d": 30, // 30 data points for 180 days
-    "270d": 30, // 30 data points for 270 days
-    "365d": 30, // 30 data points for 365 days
-  };
-
-  const timeRangeDays = {
-    "24hr": 1,
+    "24hr": 24,
     "7d": 7,
     "30d": 30,
     "90d": 90,
@@ -635,107 +266,71 @@ function aggregateAndAverageData(chart) {
 
   const rangeKey = chart.id;
   const numClusters = clusterCounts[rangeKey];
-  const totalRangeDays = timeRangeDays[rangeKey];
   let processedData = [];
-  // const timeIncrements = {
-  //   "24hr": 3600 * 1000, // 1 hour in milliseconds
-  //   "7d": 24 * 3600 * 1000, // 1 day in milliseconds
-  //   "30d": (30 / numClusters) * 24 * 3600 * 1000, // Proportional days in milliseconds
-  //   "90d": (90 / numClusters) * 24 * 3600 * 1000,
-  //   "180d": (180 / numClusters) * 24 * 3600 * 1000,
-  //   "270d": (270 / numClusters) * 24 * 3600 * 1000,
-  //   "365d": (365 / numClusters) * 24 * 3600 * 1000,
-  // };
 
-  if (chart.data.length >= numClusters) {
-    // More data points than clusters: average data within each cluster
-    // processedData = chart.data
-    //   .sort((a, b) => new Date(a.x) - new Date(b.x))
-    //   .reduce((clusters, point, index, array) => {
-    //     const clusterIndex = Math.floor(index / (array.length / numClusters));
-    //     clusters[clusterIndex] = clusters[clusterIndex] || [];
-    //     clusters[clusterIndex].push(point);
-    //     return clusters;
-    //   }, new Array(numClusters).fill(null))
-    //   .map((cluster, index) => {
-    //     const avgY = cluster.reduce((sum, p) => sum + p.y, 0) / cluster.length;
-    //     const clusterDays = totalRangeDays / numClusters;
-    //     const firstDate = new Date(chart.data[0].x);
-    //     const clusterDate = new Date(firstDate);
-    //     clusterDate.setDate(firstDate.getDate() + clusterDays * index);
-    //     return { x: clusterDate.toISOString(), y: avgY };
-    //   });
-    processedData = chart.data
-      .sort((a, b) => new Date(a.x) - new Date(b.x))
-      .reduce((clusters, point, index, array) => {
-        const clusterIndex = Math.floor(
-          index / (array.length / clusterCounts[rangeKey])
-        );
-        clusters[clusterIndex] = clusters[clusterIndex] || [];
-        clusters[clusterIndex].push(point);
-        return clusters;
-      }, new Array(clusterCounts[rangeKey]).fill(null))
-      .map((cluster, index) => {
-        const avgY = cluster.reduce((sum, p) => sum + p.y, 0) / cluster.length;
-        const firstDate = new Date(chart.data[0].x);
-        const clusterDate = new Date(firstDate.getTime() + index * 3600 * 1000); // 3600 * 1000 milliseconds per hour
-        return { x: clusterDate.toISOString(), y: avgY };
-      });
-  } else {
-    // Fewer data points than clusters: maintain existing data and add zeroes where necessary
-    processedData = chart.data;
-    const increment = totalRangeDays / numClusters;
-    const firstDate = new Date(chart.data[0]?.x || new Date());
-
-    for (let i = processedData.length; i < numClusters; i++) {
-      const newDate = new Date(firstDate);
-      newDate.setDate(firstDate.getDate() + increment * i);
-      processedData.push({ x: newDate.toISOString(), y: 0 });
+  if (chart.data.length === 0) {
+    // Handle the case with no initial data
+    const now = new Date();
+    for (let i = 0; i < numClusters; i++) {
+      let newTimestamp = new Date();
+      if (rangeKey === "24hr") {
+        newTimestamp.setHours(now.getHours() - (24 - i), 0, 0, 0);
+      } else {
+        newTimestamp.setDate(now.getDate() - (numClusters - i));
+      }
+      processedData.push({ x: newTimestamp.toISOString(), y: 0 });
     }
-    let lastIndex = 0;
-    // for (let i = processedData.length; i < numClusters; i++) {
-    //   const previousDate = new Date(processedData[processedData.length - 1]?.x);
-    //   if (isNaN(previousDate.getTime())) {
-    //     console.error("Invalid date encountered:", previousDate);
-    //     break; // Or handle the error more gracefully
-    //   }
-
-    //   const newTimestamp = new Date(
-    //     previousDate.getTime() + increment * (i - processedData.length + 1)
-    //   );
-    //   if (!isNaN(newTimestamp.getTime())) {
-    //     processedData.push({ x: newTimestamp.toISOString(), y: 0 });
-    //   } else {
-    //     console.error(
-    //       "Failed to calculate new timestamp for interpolated data point."
-    //     );
-    //   }
-    // }
-  }
-  if (rangeKey === "24hr" && chart.data.length >= numClusters) {
-    const now = new Date();
-    processedData = Array.from({ length: numClusters }).map((_, index) => {
-      const hourOffset = (index - numClusters + 1) * 3600 * 1000; // Offset in milliseconds
-      const newTimestamp = new Date(now.getTime() + hourOffset);
-      const dataPoint = chart.data.find((point, i) => {
-        // Find the closest data point to each hour, or use a fallback strategy
-        return i === Math.floor((chart.data.length / numClusters) * index);
+  } else {
+    const sortedData = chart.data.sort((a, b) => new Date(a.x) - new Date(b.x));
+    if (rangeKey === "24hr") {
+      // Initialize an array to keep track of hourly values
+      processedData = new Array(24).fill(null).map((_, index) => {
+        let dataHour = new Date(sortedData[0].x);
+        dataHour.setHours(dataHour.getHours() + index, 0, 0, 0);
+        return { x: dataHour.toISOString(), y: null };
       });
-      return {
-        x: newTimestamp.toISOString(),
-        y: dataPoint ? dataPoint.y : 0, // Fallback to 0 if no data point is found
-      };
-    });
-  } else if (rangeKey === "24hr") {
-    // If there are fewer than 24 data points, interpolate or extend with 0s as necessary
-    const now = new Date();
-    processedData = chart.data.length ? chart.data : [];
-    for (let i = processedData.length; i < numClusters; i++) {
-      const hourOffset = (i - numClusters + 1) * 3600 * 1000;
-      const newTimestamp = new Date(now.getTime() + hourOffset);
-      processedData.push({
-        x: newTimestamp.toISOString(),
-        y: 0,
+
+      // Iterate over the sorted data to fill the processedData with the latest values
+      sortedData.forEach((dataPoint) => {
+        let dataPointHour = new Date(dataPoint.x).getHours();
+        processedData[dataPointHour].y = dataPoint.y;
+      });
+
+      // Forward fill the processedData to ensure all nulls are replaced with the last known value
+      let lastKnownValue = 0;
+      processedData.forEach((data, index) => {
+        if (data.y !== null) {
+          lastKnownValue = data.y;
+        } else {
+          processedData[index].y = lastKnownValue;
+        }
+      });
+    } else {
+      // Initialize processedData for daily granularity
+      processedData = new Array(numClusters).fill(null).map((_, index) => {
+        let dataDay = new Date(sortedData[0].x);
+        dataDay.setDate(dataDay.getDate() + index);
+        return { x: dataDay.toISOString(), y: null };
+      });
+
+      // Populate with known values and apply forward filling
+      sortedData.forEach((dataPoint) => {
+        let dataPointIndex = Math.floor(
+          (new Date(dataPoint.x) - new Date(sortedData[0].x)) /
+            (24 * 3600 * 1000)
+        );
+        if (dataPointIndex < numClusters) {
+          processedData[dataPointIndex].y = dataPoint.y;
+        }
+      });
+
+      let lastKnownDailyValue = 0;
+      processedData.forEach((data, index) => {
+        if (data.y !== null) {
+          lastKnownDailyValue = data.y;
+        } else {
+          processedData[index].y = lastKnownDailyValue;
+        }
       });
     }
   }
@@ -744,10 +339,9 @@ function aggregateAndAverageData(chart) {
     id: chart.id,
     name: chart.name,
     color: chart.color,
-    data: processedData,
+    data: processedData.filter((data) => data.y !== null),
   };
 }
-
 //! CRUCIAL: CONVERT NIVO CHART DATA TO ARRAY
 function convertChartDataToArray(averagedChartData) {
   return Object.values(averagedChartData);
@@ -761,8 +355,6 @@ function updateCollectionStatistics(currentStats, totalPrice, totalQuantity) {
     priceChange: totalPrice - (currentStats.highPoint || 0),
     percentageChange: 0,
   };
-
-  // Avoid division by zero if lowPoint is zero, also consider if lowPoint should be updated based on totalPrice
   updatedStats.percentageChange =
     updatedStats.lowPoint !== 0
       ? (updatedStats.priceChange / updatedStats.lowPoint) * 100
@@ -770,6 +362,140 @@ function updateCollectionStatistics(currentStats, totalPrice, totalQuantity) {
 
   return updatedStats;
 }
+function calculateAccumulatedPriceHistoryData(rawData) {
+  let totalValue = 0;
+  return rawData.map((point) => {
+    totalValue += point.num;
+    return { ...point, num: totalValue };
+  });
+}
+function formatPoint(timestamp, num) {
+  return { x: timestamp, y: num };
+}
+function generateCardDataPoints(cards) {
+  // Sort cards by addedAt timestamp
+  const sortedCards = cards.sort(
+    (a, b) => new Date(a.addedAt) - new Date(b.addedAt)
+  );
+
+  let dataPoints = [];
+
+  sortedCards.forEach((card) => {
+    // Extract necessary details from each card
+    const { price, quantity, addedAt } = card;
+    let timestamp = new Date(addedAt);
+
+    // Generate data points for each quantity of the card
+    for (let i = 0; i < quantity; i++) {
+      dataPoints.push({
+        num: price,
+        timestamp: timestamp.toISOString(),
+      });
+      // Increment timestamp by 1 hour for the next quantity of the same card
+      timestamp = new Date(timestamp.getTime() + 60 * 60 * 1000);
+    }
+  });
+
+  return dataPoints;
+}
+function recalculatePriceHistory(cardDataPoints) {
+  let priceHistory = [];
+  let totalValue = 0;
+
+  // Increment the total value for each data point
+  cardDataPoints?.forEach((dataPoint) => {
+    totalValue += dataPoint.num;
+    priceHistory.push({
+      num: totalValue,
+      timestamp: dataPoint.timestamp,
+    });
+  });
+
+  return priceHistory;
+}
+const formatDate = (dateInput) => {
+  let date;
+  if (dateInput instanceof Date) {
+    date = dateInput;
+  } else if (typeof dateInput === "string") {
+    date = new Date(dateInput);
+  }
+
+  if (date && !isNaN(date)) {
+    return date.toISOString();
+  } else {
+    return "Invalid Date";
+  }
+};
+
+const processTimeRanges = (history, hoursAgo) => {
+  const now = new Date();
+
+  // Filter history items based on their timestamps being within the last 'hoursAgo' hours
+  return history
+    .filter((item) => {
+      const itemDate = new Date(item.timestamp);
+      // Calculate the difference in hours between now and the item's timestamp
+      const diffHours = (now - itemDate) / (1000 * 3600);
+
+      // Include only those items where the difference is less than the specified 'hoursAgo'
+      return diffHours < hoursAgo;
+    })
+    .map((item) => {
+      // After filtering, map the item to the required structure
+      return {
+        x: item.timestamp, // Assuming ISO string conversion if needed elsewhere
+        y: item.num,
+        label: "24hr", // Since all filtered items are within the last 24 hours
+      };
+    });
+};
+
+function generate24hDataPoints(arrayOf24HourData) {
+  // Assuming arrayOf24HourData is already sorted and formatted correctly.
+
+  console.log("Input Data Points for Last 24 Hours:", arrayOf24HourData);
+  arrayOf24HourData.forEach((dataPoint, index) => {
+    console.log(
+      `${index + 1}: Timestamp: ${dataPoint.x}, Value: ${dataPoint.y}`
+    );
+  });
+
+  // Verify the data points cover the 24-hour range; otherwise, the logic needs adjustments.
+  const now = new Date();
+  const startTimestamp = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  let hourlyDataPoints = [];
+
+  for (let i = 0; i < 24; i++) {
+    // Calculate the expected timestamp for this hour
+    let expectedHourTimestamp = new Date(
+      startTimestamp.getTime() + i * 60 * 60 * 1000
+    );
+
+    // Find or default to the corresponding point in arrayOf24HourData
+    let correspondingDataPoint = arrayOf24HourData.find(
+      (point) =>
+        new Date(point.x).getHours() === expectedHourTimestamp.getHours()
+    );
+
+    if (correspondingDataPoint) {
+      hourlyDataPoints.push(correspondingDataPoint);
+    } else {
+      // If there is no direct match, default to the last known value or 0 if none is known
+      let lastKnownValue =
+        hourlyDataPoints.length > 0
+          ? hourlyDataPoints[hourlyDataPoints.length - 1].y
+          : 0;
+      hourlyDataPoints.push({
+        x: expectedHourTimestamp.toISOString(),
+        y: lastKnownValue,
+      });
+    }
+  }
+
+  return hourlyDataPoints;
+}
+
 CollectionSchema.pre("save", async function (next) {
   try {
     console.log("pre save hook for collection", this.name);
@@ -827,10 +553,7 @@ CollectionSchema.pre("save", async function (next) {
       },
     };
     this.averagedChartData = {};
-
-    // Assuming the initial state of the collectionPriceHistory should have the initial price at the beginning of the tracking period.
     this.collectionPriceHistory = [];
-
     if (this.cards && this.cards.length > 0) {
       let cumulativePrice = 0;
 
@@ -839,43 +562,43 @@ CollectionSchema.pre("save", async function (next) {
       });
 
       cardsInCollection.forEach((card) => {
-        const cardTotalPrice = card.price * card.quantity;
-        this.totalPrice += cardTotalPrice;
         this.totalQuantity += card.quantity;
-
         card.priceHistory.forEach((priceEntry) => {
-          logger.info("CUM PRICE", JSON.stringify(priceEntry));
-          console.log(JSON.stringify(priceEntry));
-          const converted = JSON.stringify(priceEntry);
-          cumulativePrice += converted.num;
-          // Ensure priceEntry.num is defined and cumulativePrice is correctly calculated
-          // if (typeof priceEntry.num === "number") {
-          //   cumulativePrice += priceEntry.num * card.quantity; // Adjust based on the logic needed
-          // }
-
+          cumulativePrice += priceEntry.num;
           this.collectionPriceHistory.push({
             timestamp: priceEntry.timestamp,
             num: priceEntry.num,
           });
         });
       });
-      // logger.info('CUM PRICE', cumulativePrice)
-
-      // Sort collectionPriceHistory by timestamp after all entries are added
-      this.collectionPriceHistory.sort(
-        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
-      );
+      this.markModified("totalQuantity");
+      const newPriceHistory = generateCardDataPoints(cardsInCollection);
+      console.log("UPDATED HISTORY OF ALL CARDS PRICES ", newPriceHistory);
+      this.collectionPriceHistory = newPriceHistory;
       this.markModified("collectionPriceHistory");
+      const newCumulativePriceHistory = recalculatePriceHistory(
+        this.collectionPriceHistory
+      );
+      console.log(
+        "UPDATED CUMULATIVE HISTORY OF ALL CARDS PRICES ",
+        newCumulativePriceHistory.slice(-25)
+      );
+      this.collectionValueHistory = newCumulativePriceHistory;
+      this.markModified("collectionValueHistory");
+      this.totalPrice =
+        this.collectionValueHistory[
+          this.collectionValueHistory.length - 1
+        ]?.num;
+      this.markModified("totalPrice");
 
-      // logger.info('CUM PRICE', this.collectionPriceHistory)
+      const dataPoints24h = generate24hDataPoints(this.collectionValueHistory);
+      console.log("CURRENT ATTEMPTVAT 24 HOUR CALC ", dataPoints24h);
     }
-    // this.markModified("collectionPriceHistory");
 
     const priceHistoryWithUpdatedLabels = processTimeData(
-      this.collectionPriceHistory
+      this.collectionValueHistory
     );
-    // this.collectionPriceHistory = priceHistoryWithUpdatedLabels;
-    // this.markModified("collectionPriceHistory");
+    // CREATE AN ARRAT OF VALUES FOR ONLY DATA FROM priceHistoryWithUpdatedLabels WHICH HAS A LABEL === '24h
     const rawPriceHistoryMap = sortDataIntoRanges(
       priceHistoryWithUpdatedLabels
     );
@@ -903,7 +626,13 @@ CollectionSchema.pre("save", async function (next) {
 
     const now = new Date();
     this.lastUpdated = now;
+    this.markModified("lastUpdated");
     next();
+    console.log("pre save hook for collection", this.name);
+    console.log(this.collectionStatistics);
+
+    //! STEP FIVE: SAVE COLLECTION
+    await this.save();
   } catch (err) {
     next(err);
   }
@@ -924,5 +653,4 @@ module.exports = {
       { timestamps: true }
     )
   ),
-  // Other models as needed
 };

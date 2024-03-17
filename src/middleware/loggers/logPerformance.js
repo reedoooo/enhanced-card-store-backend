@@ -1,5 +1,5 @@
 require("colors");
-const logger = require("../configs/winston");
+const logger = require("../../configs/winston");
 
 const logRequestDetails = (req, eventType, message, duration = null) => {
   const logInfo = {

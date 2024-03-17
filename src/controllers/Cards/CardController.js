@@ -59,7 +59,7 @@ const cardController = {
           image:
             card?.card_images.length > 0 ? card.card_images[0].image_url : "",
           quantity: 0,
-          price: tcgplayerPrice,
+          price: tcgplayerPrice || 0,
           totalPrice: 0,
           tag: "",
           collectionId: "",

@@ -14,8 +14,8 @@ const compression = require("compression");
 // Middleware and Routes
 const routes = require("./routes");
 const handleStripePayment = require("./middleware/handleStripePayment");
-const { morganMiddleware } = require("./middleware/morganMiddleware");
-const { unifiedErrorHandler } = require("./middleware/logErrors");
+const { morganMiddleware } = require("./middleware/loggers/morganMiddleware");
+const { unifiedErrorHandler } = require("./middleware/loggers/logErrors");
 
 // Load environment variables
 require("dotenv").config({
@@ -25,7 +25,7 @@ require("dotenv").config({
 // 2. App Initialization
 const app = express();
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/myapp";
-const environment = process.env.NODE_ENV || 'development';
+const environment = process.env.NODE_ENV || "development";
 
 const PORT = process.env.PORT || 3001;
 
@@ -70,25 +70,28 @@ app.use((error, req, res, next) => {
 const server = http.createServer(app);
 
 // Connect to MongoDB
-mongoose.connect(MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  // Different behavior based on environment
-  if (environment === 'production') {
-    // In production, just start the server
-    server.listen(PORT, () => console.log(`Server running on port ${PORT} in production mode`));
-  } else {
-    // In development or other environments, additional logs or actions can be implemented
-    server.listen(PORT, () => {
-      console.log(`Server running on port ${PORT} in ${environment} mode`);
-      // For example, in development, you might want to automatically open the browser
-      if (environment === 'development') {
-        console.log('Starting in development mode with additional logging.');
-      }
-    });
-  }
-})
-.catch((error) => console.error("MongoDB connection error:", error));
+mongoose
+  .connect(MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    // Different behavior based on environment
+    if (environment === "production") {
+      // In production, just start the server
+      server.listen(PORT, () =>
+        console.log(`Server running on port ${PORT} in production mode`)
+      );
+    } else {
+      // In development or other environments, additional logs or actions can be implemented
+      server.listen(PORT, () => {
+        console.log(`Server running on port ${PORT} in ${environment} mode`);
+        // For example, in development, you might want to automatically open the browser
+        if (environment === "development") {
+          console.log("Starting in development mode with additional logging.");
+        }
+      });
+    }
+  })
+  .catch((error) => console.error("MongoDB connection error:", error));
 module.exports = { app };

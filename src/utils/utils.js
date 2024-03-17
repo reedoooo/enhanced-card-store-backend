@@ -2,12 +2,12 @@
 const jwt = require("jsonwebtoken");
 const { default: mongoose } = require("mongoose");
 const { GENERAL, MESSAGES, STATUS } = require("../../src/configs/constants");
-const CustomError = require("../middleware/customError");
+const CustomError = require("../middleware/errorHandling/customError");
 const User = require("../../src/models/User");
 const { default: axios } = require("axios");
 const { validationResult } = require("express-validator");
 const { Collection } = require("../../src/models/Collection");
-const { unifiedErrorHandler } = require("../middleware/logErrors");
+const { unifiedErrorHandler } = require("../middleware/loggers/logErrors");
 const axiosInstance = axios.create({
   baseURL: "https://db.ygoprodeck.com/api/v7/",
 });

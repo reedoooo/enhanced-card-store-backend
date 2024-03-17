@@ -1,5 +1,5 @@
 // src/middleware/logRequests.js
-const logger = require("../configs/winston");
+const logger = require("../../configs/winston");
 
 const logWarnings = (err, req, res, next) => {
 	logger.warn(
