@@ -31,7 +31,6 @@ const UserSchema = new Schema(
         ref: 'Collection',
       },
     ],
-    // Ensure the user has a reference to a single cart
     cart: {
       type: Schema.Types.ObjectId,
       ref: 'Cart',

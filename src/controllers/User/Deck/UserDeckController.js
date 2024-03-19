@@ -1,4 +1,4 @@
-const CustomError = require("../../../middleware/customError");
+const CustomError = require("../../../middleware/errorHandling/customError");
 const { CardInDeck } = require("../../../../src/models/Card");
 const { Deck } = require("../../../../src/models/Collection");
 // const User = require("../../../src/models/User");
@@ -236,12 +236,10 @@ exports.addCardsToDeck = async (req, res, next) => {
     deck.cards.forEach((card) => uniqueCardsMap.set(card._id.toString(), card));
     deck.cards = Array.from(uniqueCardsMap.values());
 
-    res
-      .status(200)
-      .json({
-        message: "Cards added to deck successfully",
-        data: { deck, user: populatedUser },
-      });
+    res.status(200).json({
+      message: "Cards added to deck successfully",
+      data: { deck, user: populatedUser },
+    });
   } catch (error) {
     next(error);
   }

@@ -1,8 +1,7 @@
-const CustomError = require("../../../middleware/customError");
+const CustomError = require("../../../middleware/errorHandling/customError");
 const { logError } = require("../../../utils/loggingUtils");
 const { STATUS, MESSAGES } = require("../../../configs/constants");
 const { extractData } = require("../../../utils/utils");
-const { setupDefaultCollectionsAndCards } = require("../helpers");
 const jwt = require("jsonwebtoken");
 const {
   validateSignupInput,
@@ -11,7 +10,7 @@ const {
   findAndValidateUser,
   validateSigninInput,
   handleSigninError,
-} = require("../../../middleware/validation/validators");
+} = require("../../../middleware/errorHandling/validators");
 const { createUser, createUserValidationData } = require("./userHelpers");
 const { populateUserDataByContext } = require("../dataUtils");
 const {

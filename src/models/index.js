@@ -12,17 +12,13 @@ const SearchesHistory = require('./SearchHistory');
 const { SearchSession, SearchResult, SearchTerm } = SearchesHistory;
 const CommonSchemas = require('./CommonSchemas');
 const {
-  // cards
   priceEntrySchema,
   cardSetSchema,
   cardImageSchema,
   cardPriceSchema,
   chartDatasetsSchema,
-  // collections
   collectionPriceHistorySchema,
-  // variants
   cardVariantSchema,
-  // search
   searchTermSchema,
   searchResultSchema,
   searchSessionSchema,

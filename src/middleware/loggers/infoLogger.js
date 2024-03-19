@@ -1,7 +1,7 @@
 const winston = require("winston");
 require("winston-daily-rotate-file");
 const { createLogger, format, transports } = winston;
-const { logRequests } = require("../configs/winston");
+const { logRequests } = require("../../configs/winston");
 
 const logsDir = "./logs";
 const defaultLogLevel = process.env.LOG_LEVEL || "error";

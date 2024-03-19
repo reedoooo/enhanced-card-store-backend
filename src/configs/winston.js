@@ -16,6 +16,7 @@ const baseFileConfig = (level) => ({
   level: level,
   filename: path.join(__dirname, '..', 'logs', level, `${level}.log`),
   format: winston.format.combine(
+    winston.format.cli(),
     winston.format.colorize(),
     winston.format.timestamp({ format: 'MMM-DD-YYYY HH:mm:ss' }),
     winston.format.align(),

@@ -9,7 +9,6 @@ const requiredObjectId = (refPath) => ({
   refPath,
   required: true,
 });
-// Common schema fields as functions to apply DRY
 const createPriceFields = () => ({
   cardmarket_price: requiredDecimal128,
   tcgplayer_price: Types.Decimal128,
@@ -17,16 +16,12 @@ const createPriceFields = () => ({
   amazon_price: Types.Decimal128,
   coolstuffinc_price: Types.Decimal128,
 });
-
 const createReferenceFields = (enumOptions) => ({
   cardModel: { type: String, enum: enumOptions, required: true },
   cardId: { type: Schema.Types.ObjectId, refPath: "cardModel", required: true },
 });
-
-// Simplifying schema creation
 const createSchema = (fields, options = {}) =>
   new Schema(fields, { _id: false, ...options });
-
 const priceEntrySchema = createSchema({
   num: { type: Number, min: 0 },
   timestamp: { type: Date, default: Date.now },
@@ -39,19 +34,15 @@ const cardImageSchema = createSchema({
   image_url_cropped: String,
 });
 const cardPriceSchema = createSchema(createPriceFields());
-
 const chartDatasetsSchema = createSchema({
   label: String,
   x: Date,
   y: { type: Number, min: 0 },
 });
-
 const collectionPriceHistorySchema = createSchema({
   timestamp: { type: Date, default: Date.now },
   num: { type: Number, min: 0 },
 });
-
-// Define the inner data structure inside the 'data' array
 const nivoDataPointSchema = new Schema({
   label: {
     type: String,
@@ -67,8 +58,6 @@ const nivoDataPointSchema = new Schema({
     required: true,
   },
 });
-
-// Define the main structure of each object in the 'nivoChartData' array
 const chartDataSchema = new Schema({
   id: {
     type: String,
@@ -83,12 +72,9 @@ const chartDataSchema = new Schema({
   },
   data: [nivoDataPointSchema],
 });
-
-// Define the schema for the overall document, which includes 'nivoChartData' as an array
 const nivoChartSchema = new Schema({
   nivoChartData: [chartDataSchema],
 });
-
 const cardSetSchema = new Schema(
   {
     set_name: String,
@@ -105,9 +91,7 @@ const cardSetSchema = new Schema(
   },
   { timestamps: true }
 );
-
 cardSetSchema.index({ set_code: 1 }); // Index for performance
-
 const cardVariantSchema = new Schema(
   {
     set_name: String,
@@ -127,7 +111,6 @@ const cardVariantSchema = new Schema(
   },
   { timestamps: true }
 );
-
 const searchTermSchema = createSchema({
   name: String,
   race: String,
@@ -136,11 +119,9 @@ const searchTermSchema = createSchema({
   level: { type: Number, min: 0 },
   id: requiredString,
 });
-
 const searchResultSchema = createSchema({
   cardId: requiredObjectId("CardInSearch"),
 });
-
 const searchSessionSchema = new Schema(
   {
     label: requiredString,
@@ -156,8 +137,7 @@ const dataPointSchema = new Schema(
     label: String,
   },
   { _id: false }
-); // Define this if you have a consistent structure for data points
-
+);
 const collectionPriceChangeHistorySchema = new Schema({
   timestamp: Date,
   priceChanges: [
@@ -172,7 +152,6 @@ const collectionPriceChangeHistorySchema = new Schema({
   ],
   difference: Number,
 });
-
 const collectionStatisticsSchema = new Schema({
   highPoint: { type: Number, min: 0 },
   lowPoint: { type: Number, min: 0 },

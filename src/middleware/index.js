@@ -1,11 +1,11 @@
-const express = require('express');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
-const { logToSpecializedLogger } = require('./infoLogger');
-const { logData, logError } = require('../utils/loggingUtils');
-const { unifiedErrorHandler } = require('./unifiedErrorHandler');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_TEST_KEY);
-require('colors');
+const express = require("express");
+const path = require("path");
+const { v4: uuidv4 } = require("uuid");
+const { logToSpecializedLogger } = require("./loggers/infoLogger");
+const { logData, logError } = require("../utils/loggingUtils");
+const { unifiedErrorHandler } = require("./unifiedErrorHandler");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_TEST_KEY);
+require("colors");
 const logRequestDetails = (req, eventType, message, duration = null) => {
   const logInfo = {
     requestId: req.id,
@@ -25,10 +25,14 @@ const logRequestDetails = (req, eventType, message, duration = null) => {
     logInfo.duration = `${duration}ms`;
   }
 
-  logToSpecializedLogger('info', `Request ${eventType}: ${req.method} ${req.originalUrl}`, {
-    data: logInfo,
-    section: 'request',
-  });
+  logToSpecializedLogger(
+    "info",
+    `Request ${eventType}: ${req.method} ${req.originalUrl}`,
+    {
+      data: logInfo,
+      section: "request",
+    }
+  );
   // console.log('req.body', req.body.cards);
   if (req.body.cards) {
     logData(req.body.cards[0]);
@@ -37,7 +41,7 @@ const logRequestDetails = (req, eventType, message, duration = null) => {
     logData(req.body.card);
   }
   if (req.body.allXYValues) {
-    logData('allXYValues', req.body.allXYValues[0]);
+    logData("allXYValues", req.body.allXYValues[0]);
   }
   if (req.body.updatedCollection) {
     logData(req.body.updatedCollection);
@@ -56,12 +60,15 @@ const handleStripePayment = async (req, res, next) => {
       amount, // Amount to be charged
       currency, // Currency
       source, // Payment source, usually a token from Stripe Elements
-      description: 'Example charge', // Description for the charge
+      description: "Example charge", // Description for the charge
     });
 
     res.status(200).json(charge);
   } catch (error) {
-    logError('Error processing Stripe payment', error.message, null, { error, reqId: req.id });
+    logError("Error processing Stripe payment", error.message, null, {
+      error,
+      reqId: req.id,
+    });
     next(error); // Forward to error handling middleware
   }
 };
@@ -72,23 +79,25 @@ function applyCustomMiddleware(app) {
     next();
   });
 
-  app.post('/api/stripe/checkout', handleStripePayment);
+  app.post("/api/stripe/checkout", handleStripePayment);
 
-  app.use(express.static(path.join(__dirname, 'public')));
+  app.use(express.static(path.join(__dirname, "public")));
 
   app.use((req, res, next) => {
     const start = process.hrtime();
-    console.log('[START]'.green + `Request ${req.id}: ${req.method} ${req.originalUrl}`);
+    console.log(
+      "[START]".green + `Request ${req.id}: ${req.method} ${req.originalUrl}`
+    );
 
-    res.on('finish', () => {
+    res.on("finish", () => {
       const duration = getDurationInMilliseconds(start);
-      console.log('[END]'.red + `Request ${req.id}: ${duration}ms`);
+      console.log("[END]".red + `Request ${req.id}: ${duration}ms`);
       // console.log(`[END] Request ${req.id}: ${res.statusCode} ${res.statusMessage}`);
       logRequestDetails(
         req,
-        'completed',
+        "completed",
         `Request completed with status ${res.statusCode}`,
-        duration,
+        duration
       );
     });
 

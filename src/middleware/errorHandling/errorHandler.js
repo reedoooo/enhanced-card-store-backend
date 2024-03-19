@@ -1,5 +1,5 @@
 // src/middleware/errorHandler.js
-const logger = require("../configs/winston");
+const logger = require("../../configs/winston");
 
 const errorHandler = (err, req, res, next) => {
   logger.error(

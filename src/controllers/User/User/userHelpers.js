@@ -40,7 +40,6 @@ async function createUser(
   ]);
   return { newUser };
 }
-
 async function createUserValidationData(user) {
   const accessToken = await generateToken(user._id);
   const refreshToken = await generateRefreshToken(user._id);
@@ -61,15 +60,7 @@ async function createUserValidationData(user) {
 
   return verifiedUser;
 }
-
 module.exports = {
   createUser,
   createUserValidationData,
 };
-// const accessToken = await generateToken(populatedUser._id); // Access token
-// const refreshToken = await generateRefreshToken(populatedUser._id); // New refresh token
-// const { savedAccessToken, savedRefreshToken } = await saveTokens(
-//   populatedUser._id,
-//   accessToken,
-//   refreshToken,
-// );
