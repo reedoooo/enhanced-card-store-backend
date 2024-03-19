@@ -21,25 +21,6 @@ const createNivoXYValue = (x, y) => {
     y,
   };
 };
-// const collectionReferenceSchema = new Schema({
-//   model: String, // The model name, e.g., 'Deck', 'Cart'
-//   references: [
-//     {
-//       refId: { type: Schema.Types.ObjectId, refPath: "model" },
-//       quantity: Number,
-//     },
-//   ],
-// });
-
-// const createGenericCollectionRefs = (model, refId, refQuantity) => {
-//   return {
-//     [model]: {
-//       // The model name, e.g., 'Deck' or 'Cart'
-//       [refId]: refQuantity, // The specific model's ID as key, and its quantity as value
-//     },
-//   };
-// };
-
 function calculateContextualQuantity(card, context) {
   // Logic to calculate the quantity of card in a specific context (SearchHistory, Deck, etc.)
   // Return the calculated quantity for the given context
@@ -130,38 +111,6 @@ const uniqueVariantFields = {
   }, // AUTOSET: true
 };
 
-// const collectionReferenceSchema = new Schema({
-//   refId: { type: Schema.Types.ObjectId, required: true },
-//   model: {
-//     type: String,
-//     required: true,
-//     enum: ["Deck", "Collection", "Cart", "SearchHistory"],
-//   },
-//   quantity: { type: Number, required: true },
-// });
-// const createGenericCollectionRefs = (model, refId, refQuantity) => {
-//   return {
-//     [model]: {
-//       // The model name, e.g., 'Deck' or 'Cart'
-//       [refId]: refQuantity, // The specific model's ID as key, and its quantity as value
-//     },
-//   };
-// };
-
-// const referenceSchema = new Schema({
-//   refId: { type: Schema.Types.ObjectId, required: true, refPath: "refs.model" },
-//   model: {
-//     type: String,
-//     required: true,
-//     enum: ["Deck", "Collection", "Cart", "SearchHistory"],
-//   },
-//   quantity: { type: Number, required: true },
-// });
-
-// const allRefsSchema = new Schema({
-//   [modelType]: [referenceSchema],
-//   // [collectionReferenceSchema],
-// });
 const referenceSchema = new Schema({
   refId: { type: Schema.Types.ObjectId, required: true },
   quantity: { type: Number, required: true },

@@ -12,6 +12,7 @@ const {
   createCardVariants,
 } = require("./cardModelHelpers.jsx");
 const { getCardInfo } = require("../../utils/utils");
+const { default: axios } = require("axios");
 
 const ERROR_MESSAGES = {
   defaultCardDataFetchFailed: (cardName) =>
@@ -95,7 +96,7 @@ async function createAndSaveDefaultCollection(
       userId,
       name: collectionData.name || collectionName,
     });
-    await collection.save();
+    // await collection.save();
     return collection;
   } catch (error) {
     throw new Error("Failed to create default collection", error);
@@ -232,6 +233,48 @@ async function reFetchForSave(card, collectionId, collectionModel, cardModel) {
     );
   } catch (error) {
     console.error(`Failed to re-fetch card Name ${card.name}:`, error);
+    return null;
+  }
+}
+/**
+ * [SECTION 0] Helper functions for different methods
+ * @param {*} cardName
+ * @returns {Object} A random card from the YGOPRODeck API
+ */
+async function fetchAndSaveRandomCard(
+  collectionId,
+  collectionModel,
+  cardModel
+) {
+  try {
+    const axiosInstance = axios.create({
+      baseURL: "https://db.ygoprodeck.com/api/v7/",
+    });
+
+    const endpoint = "randomcard.php";
+    const response = await axiosInstance.get(endpoint);
+    const cardData = response.data;
+
+    const additionalData = {
+      collectionId,
+      collectionModel,
+      cardModel,
+      tag: "random",
+      contextualFields: {
+        // Add any random card-specific fields here
+        // Example:
+        // type: cardData.type,
+      },
+    };
+    return await createAndSaveCard(
+      cardData,
+      collectionId,
+      collectionModel,
+      cardModel,
+      "random"
+    );
+  } catch (error) {
+    console.error("Failed to fetch random card:", error);
     return null;
   }
 }

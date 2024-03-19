@@ -4,13 +4,17 @@ const {
   priceEntrySchema,
   collectionPriceHistorySchema,
   searchSessionSchema,
-  dataPointSchema,
-  collectionPriceChangeHistorySchema,
   collectionStatisticsSchema,
-  nivoChartSchema,
 } = require("./CommonSchemas");
 const { CardInCollection, CardInDeck, CardInCart } = require("./Card");
-const { isValid, parseISO, format } = require("date-fns");
+const {
+  addHours,
+  compareAsc,
+  subDays,
+  isWithinInterval,
+  startOfHour,
+  formatISO,
+} = require("date-fns");
 const logger = require("../configs/winston");
 require("colors");
 const createCommonFields = () => ({
@@ -90,6 +94,7 @@ const CollectionSchema = new Schema(
         id: String,
         name: String,
         color: String,
+        growth: Number,
         data: [
           {
             label: String,
@@ -267,6 +272,7 @@ function aggregateAndAverageData(chart) {
   const rangeKey = chart.id;
   const numClusters = clusterCounts[rangeKey];
   let processedData = [];
+  let growth = 0; // Initialize growth
 
   if (chart.data.length === 0) {
     // Handle the case with no initial data
@@ -305,6 +311,16 @@ function aggregateAndAverageData(chart) {
           processedData[index].y = lastKnownValue;
         }
       });
+
+      const firstValue = processedData.find((data) => data.y !== null)?.y || 0;
+      const lastValue =
+        [...processedData].reverse().find((data) => data.y !== null)?.y || 0;
+
+      if (firstValue !== 0) {
+        growth = ((lastValue - firstValue) / firstValue) * 100;
+      } else {
+        growth = lastValue !== 0 ? 100 : 0; // If first value is 0 and last value is not, growth is 100%
+      }
     } else {
       // Initialize processedData for daily granularity
       processedData = new Array(numClusters).fill(null).map((_, index) => {
@@ -339,6 +355,7 @@ function aggregateAndAverageData(chart) {
     id: chart.id,
     name: chart.name,
     color: chart.color,
+    growth: growth,
     data: processedData.filter((data) => data.y !== null),
   };
 }
@@ -362,16 +379,6 @@ function updateCollectionStatistics(currentStats, totalPrice, totalQuantity) {
 
   return updatedStats;
 }
-function calculateAccumulatedPriceHistoryData(rawData) {
-  let totalValue = 0;
-  return rawData.map((point) => {
-    totalValue += point.num;
-    return { ...point, num: totalValue };
-  });
-}
-function formatPoint(timestamp, num) {
-  return { x: timestamp, y: num };
-}
 function generateCardDataPoints(cards) {
   // Sort cards by addedAt timestamp
   const sortedCards = cards.sort(
@@ -383,7 +390,8 @@ function generateCardDataPoints(cards) {
   sortedCards.forEach((card) => {
     // Extract necessary details from each card
     const { price, quantity, addedAt } = card;
-    let timestamp = new Date(addedAt);
+    let timestamp = new Date(addedAt - 3600000); // Subtract 1 hour to ensure the first data point is within the last
+    // 24hours
 
     // Generate data points for each quantity of the card
     for (let i = 0; i < quantity; i++) {
@@ -392,7 +400,7 @@ function generateCardDataPoints(cards) {
         timestamp: timestamp.toISOString(),
       });
       // Increment timestamp by 1 hour for the next quantity of the same card
-      timestamp = new Date(timestamp.getTime() + 60 * 60 * 1000);
+      timestamp = new Date(timestamp.getTime());
     }
   });
 
@@ -407,93 +415,37 @@ function recalculatePriceHistory(cardDataPoints) {
     totalValue += dataPoint.num;
     priceHistory.push({
       num: totalValue,
-      timestamp: dataPoint.timestamp,
+      timestamp: dataPoint.timestamp.toISOString(),
     });
   });
 
   return priceHistory;
 }
-const formatDate = (dateInput) => {
-  let date;
-  if (dateInput instanceof Date) {
-    date = dateInput;
-  } else if (typeof dateInput === "string") {
-    date = new Date(dateInput);
-  }
-
-  if (date && !isNaN(date)) {
-    return date.toISOString();
-  } else {
-    return "Invalid Date";
-  }
-};
-
-const processTimeRanges = (history, hoursAgo) => {
+function processTimeSeriesData(data) {
   const now = new Date();
-
-  // Filter history items based on their timestamps being within the last 'hoursAgo' hours
-  return history
-    .filter((item) => {
-      const itemDate = new Date(item.timestamp);
-      // Calculate the difference in hours between now and the item's timestamp
-      const diffHours = (now - itemDate) / (1000 * 3600);
-
-      // Include only those items where the difference is less than the specified 'hoursAgo'
-      return diffHours < hoursAgo;
-    })
-    .map((item) => {
-      // After filtering, map the item to the required structure
-      return {
-        x: item.timestamp, // Assuming ISO string conversion if needed elsewhere
-        y: item.num,
-        label: "24hr", // Since all filtered items are within the last 24 hours
-      };
-    });
-};
-
-function generate24hDataPoints(arrayOf24HourData) {
-  // Assuming arrayOf24HourData is already sorted and formatted correctly.
-
-  console.log("Input Data Points for Last 24 Hours:", arrayOf24HourData);
-  arrayOf24HourData.forEach((dataPoint, index) => {
-    console.log(
-      `${index + 1}: Timestamp: ${dataPoint.x}, Value: ${dataPoint.y}`
-    );
-  });
-
-  // Verify the data points cover the 24-hour range; otherwise, the logic needs adjustments.
-  const now = new Date();
-  const startTimestamp = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  let hourlyDataPoints = [];
-
+  const oneDayAgo = subDays(now, 1);
+  const filteredData = data.filter((point) =>
+    isWithinInterval(new Date(point.timestamp), { start: oneDayAgo, end: now })
+  );
+  const sortedData = filteredData?.sort((a, b) =>
+    compareAsc(new Date(a.timestamp), new Date(b.timestamp))
+  );
+  let xyDataPoints = [];
+  let lastKnownValue = sortedData.length > 0 ? sortedData[0].num : null;
   for (let i = 0; i < 24; i++) {
-    // Calculate the expected timestamp for this hour
-    let expectedHourTimestamp = new Date(
-      startTimestamp.getTime() + i * 60 * 60 * 1000
-    );
-
-    // Find or default to the corresponding point in arrayOf24HourData
-    let correspondingDataPoint = arrayOf24HourData.find(
-      (point) =>
-        new Date(point.x).getHours() === expectedHourTimestamp.getHours()
-    );
-
-    if (correspondingDataPoint) {
-      hourlyDataPoints.push(correspondingDataPoint);
-    } else {
-      // If there is no direct match, default to the last known value or 0 if none is known
-      let lastKnownValue =
-        hourlyDataPoints.length > 0
-          ? hourlyDataPoints[hourlyDataPoints.length - 1].y
-          : 0;
-      hourlyDataPoints.push({
-        x: expectedHourTimestamp.toISOString(),
-        y: lastKnownValue,
-      });
+    const currentHourStart = addHours(startOfHour(oneDayAgo), i);
+    const nextHourStart = addHours(currentHourStart, 1);
+    const mostRecentUpdate = sortedData.find((point) => {
+      const pointDate = new Date(point.timestamp);
+      return pointDate >= currentHourStart && pointDate < nextHourStart;
+    });
+    if (mostRecentUpdate) {
+      lastKnownValue = mostRecentUpdate.num;
     }
+    xyDataPoints.push({ x: formatISO(currentHourStart), y: lastKnownValue });
   }
 
-  return hourlyDataPoints;
+  return xyDataPoints;
 }
 
 CollectionSchema.pre("save", async function (next) {
@@ -554,6 +506,7 @@ CollectionSchema.pre("save", async function (next) {
     };
     this.averagedChartData = {};
     this.collectionPriceHistory = [];
+    this.collectionValueHistory = [];
     if (this.cards && this.cards.length > 0) {
       let cumulativePrice = 0;
 
@@ -591,8 +544,8 @@ CollectionSchema.pre("save", async function (next) {
         ]?.num;
       this.markModified("totalPrice");
 
-      const dataPoints24h = generate24hDataPoints(this.collectionValueHistory);
-      console.log("CURRENT ATTEMPTVAT 24 HOUR CALC ", dataPoints24h);
+      const testFunc2 = processTimeSeriesData(newCumulativePriceHistory);
+      console.log("CURRENT ATTEMPT #2 24 HOUR CALC ", testFunc2);
     }
 
     const priceHistoryWithUpdatedLabels = processTimeData(
@@ -632,8 +585,9 @@ CollectionSchema.pre("save", async function (next) {
     console.log(this.collectionStatistics);
 
     //! STEP FIVE: SAVE COLLECTION
-    await this.save();
+    // await this.save();
   } catch (err) {
+    logger.error(`[ERROR] Collection pre-save hook: ${err}`);
     next(err);
   }
 });

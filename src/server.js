@@ -28,6 +28,7 @@ const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/myapp";
 const environment = process.env.NODE_ENV || "development";
 
 const PORT = process.env.PORT || 3001;
+process.env.TZ = "America/Seattle";
 
 // 3. Middleware Configuration
 // CORS options
