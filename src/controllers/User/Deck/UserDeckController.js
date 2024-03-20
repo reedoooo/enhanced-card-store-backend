@@ -1,9 +1,9 @@
 const CustomError = require("../../../middleware/errorHandling/customError");
 const { CardInDeck } = require("../../../../src/models/Card");
 const { Deck } = require("../../../../src/models/Collection");
-// const User = require("../../../src/models/User");
 const { populateUserDataByContext } = require("../dataUtils");
 const { reFetchForSave } = require("../helpers");
+const logger = require("../../../configs/winston");
 
 /**
  * Gets a default card for a deck.
@@ -32,7 +32,25 @@ async function getDefaultCardForDeck() {
     throw error; // Rethrow the error to be handled by the caller
   }
 }
-
+async function fetchPopulatedUserDecks(userId) {
+  const populatedUser = await populateUserDataByContext(userId, ["decks"]);
+  if (!populatedUser) {
+    throw new Error(`User not found: ${userId}`);
+  }
+  return populatedUser;
+}
+// Helper to find and validate a user's collection.
+function findUserDeck(populatedUser, deckId) {
+  const deck = populatedUser.allDecks.find((d) => d._id.toString() === deckId);
+  if (!deck) {
+    throw new Error("Deck not found");
+  }
+  return deck;
+}
+// Helper to respond with JSON data.
+function sendJsonResponse(res, status, message, data) {
+  res.status(status).json({ message, data });
+}
 // !--------------------------! DECKS !--------------------------!
 exports.getAllDecksForUser = async (req, res, next) => {
   const { userId } = req.params;
@@ -52,52 +70,6 @@ exports.getAllDecksForUser = async (req, res, next) => {
   }
 };
 
-// exports.updateAndSyncDeck = async (req, res, next) => {
-//   const { userId, deckId } = req.params;
-//   const updatedDeckData = req.body;
-
-//   try {
-//     let user = await User.findById(userId)
-//       .populate('userSecurityData', 'username email role_data')
-//       .populate('userBasicData', 'firstName lastName')
-//       .populate({
-//         path: 'allDecks',
-//         populate: {
-//           path: 'cards',
-//           model: 'CardInDeck',
-//           populate: [
-//             { path: 'card_sets', model: 'CardSet' },
-//             { path: 'cardVariants', model: 'CardVariant' },
-//           ],
-//         },
-//       });
-
-//     if (!user) {
-//       return res.status(404).json({ message: 'User not found.' });
-//     }
-
-//     const deck = user.allDecks.find((deck) => deck._id.toString() === deckId);
-//     if (!deck) {
-//       return res.status(404).json({ message: 'Deck not found.' });
-//     }
-
-//     // Update deck with new data
-//     Object.assign(deck, updatedDeckData);
-
-//     await deck.save(); // Save the updated deck
-
-//     user = await user.populate({
-//       path: 'allDecks',
-//       populate: {
-//         path: 'cards',
-//         model: 'CardInDeck',
-//       },
-//     });
-//     res.status(200).json({ message: 'Deck updated successfully.', allDecks: user.allDecks });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
 exports.updateAndSyncDeck = async (req, res, next) => {
   const { userId, deckId } = req.params;
   const updatedDeckData = req.body;
@@ -200,7 +172,7 @@ exports.addCardsToDeck = async (req, res, next) => {
       // const existingCard = await CardInDeck.findOne({ _id: card._id, deckId });
       let cardInDeck = deck.cards.find((c) => c.cardId?.toString() === card.id);
       if (cardInDeck) {
-        console.log("Updating existing card:", cardInDeck.name.blue);
+        logger.info("Updating existing card:", cardInDeck.name.blue);
 
         cardInDeck.quantity += card.quantity;
         await cardInDeck.save();
@@ -218,7 +190,7 @@ exports.addCardsToDeck = async (req, res, next) => {
           "Deck",
           "CardInDeck"
         );
-        console.log("Re-saved card:", reSavedCard);
+        logger.info("Re-saved card:", reSavedCard);
         // await newCard.save();
         deck.cards.push(reSavedCard?._id);
       }
@@ -241,9 +213,78 @@ exports.addCardsToDeck = async (req, res, next) => {
       data: { deck, user: populatedUser },
     });
   } catch (error) {
+    logger.error(error);
     next(error);
   }
 };
+exports.addCardsToDeck = async (req, res, next) => {
+  const { userId, deckId } = req.params;
+  let { cards } = req.body; // Assuming 'cards' can be an object or an array
+  if (!Array.isArray(cards)) {
+    cards = [cards]; // Convert the object to an array containing that object
+  }
+
+  logger.info("Processing cards:", cards);
+  try {
+    const populatedUser = await fetchPopulatedUserDecks(userId);
+    const deck = findUserDeck(populatedUser, deckId);
+    for (const cardData of cards) {
+      console.log("Processing card:".red, cardData.id);
+      console.log(
+        "IDS OF ALL CARDS IN DECK:".red,
+        deck?.cards?.map((c) => c.id)
+      );
+      let foundCard = deck?.cards?.find((c) => c.id.toString() === cardData.id);
+      if (foundCard) {
+        let cardInDeck = await CardInDeck.findById(foundCard._id);
+
+        if (cardInDeck) {
+          console.log("Updating existing card:", cardInDeck.name.blue);
+          console.log("START QUANTITY: ".red, cardInDeck.quantity);
+          console.log("START TOTAL PRICE: ".red, cardInDeck.totalPrice);
+
+          // Correctly increment the quantity and update total price
+          cardInDeck.quantity += 1;
+          cardInDeck.totalPrice = cardInDeck.quantity * cardInDeck.price;
+
+          // Save the updated card document
+          await cardInDeck.save();
+
+          // Update deck's total quantity and price accordingly
+          deck.totalQuantity += cardData.quantity;
+          deck.totalPrice += cardData.quantity * cardInDeck.price;
+        } else {
+          console.log("Card not found in CardInDeck:", foundCard._id);
+        }
+      } else {
+        if (!cardData.price)
+          cardData.price = cardData?.card_prices[0]?.tcgplayer_price;
+
+        const reSavedCard = await reFetchForSave(
+          cardData,
+          deckId,
+          "Deck",
+          "CardInDeck"
+        );
+        console.log("Re-saved card:", reSavedCard);
+        deck.cards.push(reSavedCard?._id);
+      }
+    }
+    await deck.save();
+    await populatedUser.save();
+    await deck.populate({
+      path: "cards",
+      model: "CardInDeck",
+    });
+    sendJsonResponse(res, 200, "Cards added to deck successfully.", {
+      data: deck,
+    });
+  } catch (error) {
+    console.error("Error adding cards to deck:", error);
+    next(error);
+  }
+};
+
 exports.removeCardsFromDeck = async (req, res, next) => {
   const { userId, deckId } = req.params;
   const { cards } = req.body;
@@ -255,7 +296,7 @@ exports.removeCardsFromDeck = async (req, res, next) => {
 
     // Remove cards from the deck and also delete them from the CardInDeck model
     for (const card of cards) {
-      console.log("Removing card:", card.name.blue);
+      logger.info("Removing card:", card.name.blue);
       const cardIds = cards.map((c) => c._id);
       await CardInDeck.deleteMany({ deckId, cardId: { $in: cardIds } });
       deck.cards = deck.cards.filter(
@@ -270,52 +311,6 @@ exports.removeCardsFromDeck = async (req, res, next) => {
     next(error);
   }
 };
-// exports.removeCardsFromDeck = async (req, res, next) => {
-//   const { userId, deckId } = req.params;
-//   const { cards } = req.body;
-
-//   if (!Array.isArray(cards)) {
-//     return res.status(400).json({ message: 'Invalid card data, expected an array.' });
-//   }
-
-//   try {
-//     let populatedUser = await populateUserDataByContext(userId, ['decks']);
-
-//     const deck = populatedUser.allDecks.find(
-//       (d) => d._id.toString() === deckId
-//     );
-
-//     if (!deck) {
-//       return res.status(404).json({ message: 'Deck not found.' });
-//     }
-
-//     // Remove specified cards
-//     const cardIdsToRemove = cards.map((c) => c._id);
-//     deck.cards = deck.cards.filter((card) => !cardIdsToRemove.includes(card.id));
-
-//     // Now, you'll have to remove these cards from the CardInDeck model as well
-//     await CardInDeck.deleteMany({ _id: { $in: cardIdsToRemove }, deckId });
-
-//     await deck.save();
-
-//     await populatedUser.save();
-
-//     populatedUser = await populateUserDataByContext(userId, ['decks']);
-
-//     // return the updated deck from the populated user
-//     const updatedDeck = populatedUser.allDecks.find(
-//       (d) => d._id.toString() === deckId
-//     );
-
-//     res
-//       .status(200)
-//       .json({ message: 'Cards updated in deck successfully.', data: updatedDeck });
-//   } catch (error) {
-//     console.error('Error updating deck:', error);
-//     next(error);
-//   }
-// };
-
 /**
  * Updates the cards in a deck and returns the updated deck data.
  * @param {Request} req - The request object
@@ -333,10 +328,12 @@ exports.updateCardsInDeck = async (req, res, next) => {
   }
 
   try {
-    const populatedUser = await populateUserDataByContext(userId, ["decks"]);
-    const deck = populatedUser?.allDecks.find(
-      (d) => d._id.toString() === deckId
-    );
+    // const populatedUser = await populateUserDataByContext(userId, ["decks"]);
+    // const deck = populatedUser?.allDecks.find(
+    //   (d) => d._id.toString() === deckId
+    // );
+    const populatedUser = await fetchPopulatedUserDecks(userId);
+    const deck = findUserDeck(populatedUser, deckId);
 
     if (!deck) {
       return res.status(404).json({ message: "Deck not found." });
@@ -346,21 +343,21 @@ exports.updateCardsInDeck = async (req, res, next) => {
       const cardInDeck = await CardInDeck.findById(cardData?._id); // Assuming CardInDeck is a model
 
       if (cardInDeck) {
-        console.log("Updating existing card:", cardInDeck.name.blue);
+        logger.info("Updating existing card:", cardInDeck.name.blue);
         // set the card's quantity to the updated quantity
         if (cardInDeck.quantity !== cardData.quantity) {
-          console.log("Updating card quantity");
+          logger.info("Updating card quantity");
           cardInDeck.quantity = cardData.quantity;
         }
         if (type === "increment") {
-          console.log("Incrementing card quantity");
+          logger.info("Incrementing card quantity");
           cardInDeck.quantity += 1;
         }
         if (type === "decrement") {
-          console.log("Decrementing card quantity");
+          logger.info("Decrementing card quantity");
           cardInDeck.quantity -= 1;
         }
-        console.log("Card quantity:", cardInDeck.quantity);
+        logger.info("Card quantity:", cardInDeck.quantity);
 
         // Save the card with pre-save hooks
         await cardInDeck.save();
@@ -368,10 +365,8 @@ exports.updateCardsInDeck = async (req, res, next) => {
         // Update collection's total quantity and price
         deck.totalQuantity += cardInDeck.quantity;
         deck.totalPrice += cardInDeck.quantity * cardInDeck.price;
-
-        // Update the card's contextual quantities and prices
       } else {
-        console.log(`Card not found in deck: ${cardInDeck._id}`.red);
+        logger.info(`Card not found in deck: ${cardInDeck._id}`.red);
       }
     }
 
@@ -379,104 +374,16 @@ exports.updateCardsInDeck = async (req, res, next) => {
 
     await populatedUser.save();
 
-    // Repopulate the deck
     await deck.populate({
       path: "cards",
       model: "CardInDeck", // Assuming this is the model for cards in a deck
-      // populate: deepPopulateCardFields(), // If needed
     });
 
-    res
-      .status(200)
-      .json({ message: "Cards updated in deck successfully.", data: deck });
+    sendJsonResponse(res, 200, "Cards updated in deck successfully.", {
+      data: deck,
+    });
   } catch (error) {
     console.error("Error updating cards in deck:", error);
     next(error);
   }
 };
-
-// exports.updateCardsInDeck = async (req, res, next) => {
-//   const { userId, deckId } = req.params;
-//   const { cards } = req.body;
-
-//   try {
-//     let user = await populateUserDataByContext(userId, ['decks']);
-//     const deck = user.allDecks.find((d) => d._id?.toString() === deckId);
-//     if (!deck) return res.status(404).json({ message: 'Deck not found' });
-
-//     for (const update of cards) {
-//       const card = await CardInDeck.findOne({ cardId: update.cardId, deckId });
-//       if (card) {
-//         Object.assign(card, update); // Merge updates into the card
-//         await card.save();
-//       }
-//     }
-
-//     await deck.save();
-//     res.status(200).json({ message: 'Cards updated in deck successfully', deck });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
-// exports.addCardsToDeck = async (req, res, next) => {
-//   const { userId, deckId } = req.params;
-//   const { cards } = req.body;
-
-//   try {
-//     let user = await populateUserDataByContext(userId, ['decks']);
-//     const deck = user.allDecks.find((d) => d._id.toString() === deckId);
-//     if (!deck) return res.status(404).json({ message: 'Deck not found' });
-
-//     for (const cardId of cards) {
-//       const deckCard = new CardInDeck({ cardId });
-//       await deckCard.save();
-//       deck.cards.push(deckCard._id);
-//     }
-
-//     await deck.save();
-//     res.status(200).json({ message: 'Cards added to deck successfully', deck });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-// exports.removeCardsFromDeck = async (req, res, next) => {
-//   const { userId, deckId } = req.params;
-//   const { cardIds } = req.body; // Assuming cardIds is an array of card IDs to remove
-
-//   try {
-//     let user = await populateUserDataByContext(userId, ['decks']);
-//     const deck = user.allDecks.find((d) => d._id.toString() === deckId);
-//     if (!deck) return res.status(404).json({ message: 'Deck not found' });
-
-//     deck.cards = deck.cards.filter((card) => !cardIds.includes(card.toString()));
-//     await deck.save();
-
-//     res.status(200).json({ message: 'Cards removed from deck successfully', deck });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-// exports.updateCardsInDeck = async (req, res, next) => {
-//   const { userId, deckId } = req.params;
-//   const { cardUpdates } = req.body; // cardUpdates is an array of objects with cardId and updates
-
-//   try {
-//     let user = await populateUserDataByContext(userId, ['decks']);
-//     const deck = user.allDecks.find((d) => d._id.toString() === deckId);
-//     if (!deck) return res.status(404).json({ message: 'Deck not found' });
-
-//     for (const update of cardUpdates) {
-//       const cardIndex = deck.cards.findIndex((card) => card.cardId === update.cardId);
-//       if (cardIndex !== -1) {
-//         deck.cards[cardIndex] = { ...deck.cards[cardIndex], ...update };
-//       }
-//     }
-
-//     await deck.save();
-//     res.status(200).json({ message: 'Cards updated in deck successfully', deck });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-// !--------------------------! DECKS !--------------------------!

@@ -14,6 +14,7 @@ const {
   isWithinInterval,
   startOfHour,
   formatISO,
+  differenceInHours,
 } = require("date-fns");
 const logger = require("../configs/winston");
 require("colors");
@@ -23,42 +24,52 @@ const createCommonFields = () => ({
   totalQuantity: { type: Number, default: 0 },
   quantity: { type: Number, default: 0 },
 });
+const createSchemaWithCommonFields = (cardsRef, schemaName) => {
+  const schema = new Schema(
+    {
+      userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+      totalPrice: { type: Number, default: 0 },
+      totalQuantity: { type: Number, default: 0 },
+      quantity: { type: Number, default: 0 },
+      name: String,
+      description: String,
+      [cardsRef]: [{ type: Schema.Types.ObjectId, ref: schemaName }],
+      tags: {
+        type: Array,
+        default: [],
+      },
+      color: {
+        type: String,
+        enum: ["red", "orange", "yellow", "green", "teal", "blue", "purple", "pink"],
+        default: "teal",
+      }
+    },
+    { timestamps: true }
+  );
+
+  schema.pre("save", async function (next) {
+    await updateTotals.call(this, mongoose.model(schemaName), cardsRef);
+    next();
+  });
+
+  return schema;
+};
 async function updateTotals(cardModel, cardsField) {
   this.totalPrice = 0;
   this.totalQuantity = 0;
-  if (this[cardsField] && this[cardsField].length > 0) {
+
+  if (this[cardsField]?.length > 0) {
     const items = await cardModel.find({ _id: { $in: this[cardsField] } });
-    for (const item of items) {
+    items.forEach((item) => {
       this.totalPrice += item.price * item.quantity;
       this.totalQuantity += item.quantity;
-    }
+    });
   }
 }
+
 const commonSchemaOptions = { timestamps: true };
-const DeckSchema = new Schema(
-  {
-    ...createCommonFields(),
-    name: String,
-    description: String,
-    tags: [String],
-    color: String,
-    cards: [{ type: Schema.Types.ObjectId, ref: "CardInDeck" }],
-  },
-  commonSchemaOptions
-);
-DeckSchema.pre("save", function (next) {
-  updateTotals.call(this, mongoose.model("CardInDeck"), "cards").then(next);
-});
-const CartSchema = new Schema(
-  {
-    ...createCommonFields(),
-    cart: [{ type: Schema.Types.ObjectId, ref: "CardInCart" }],
-  },
-  commonSchemaOptions
-);
-CartSchema.pre("save", function (next) {
-  updateTotals.call(this, mongoose.model("CardInCart"), "cart").then(next);
-});
+const DeckSchema = createSchemaWithCommonFields("cards", "CardInDeck");
+const CartSchema = createSchemaWithCommonFields("cart", "CardInCart");
 const CollectionSchema = new Schema(
   {
     ...createCommonFields(),
@@ -135,6 +146,7 @@ const CollectionSchema = new Schema(
   },
   commonSchemaOptions
 );
+
 function processTimeData(dataArray) {
   const now = new Date();
   return dataArray.map((item) => {
@@ -424,28 +436,24 @@ function recalculatePriceHistory(cardDataPoints) {
 function processTimeSeriesData(data) {
   const now = new Date();
   const oneDayAgo = subDays(now, 1);
-  const filteredData = data.filter((point) =>
-    isWithinInterval(new Date(point.timestamp), { start: oneDayAgo, end: now })
-  );
-  const sortedData = filteredData?.sort((a, b) =>
-    compareAsc(new Date(a.timestamp), new Date(b.timestamp))
-  );
-  let xyDataPoints = [];
-  let lastKnownValue = sortedData.length > 0 ? sortedData[0].num : null;
-  for (let i = 0; i < 24; i++) {
-    const currentHourStart = addHours(startOfHour(oneDayAgo), i);
-    const nextHourStart = addHours(currentHourStart, 1);
-    const mostRecentUpdate = sortedData.find((point) => {
-      const pointDate = new Date(point.timestamp);
-      return pointDate >= currentHourStart && pointDate < nextHourStart;
-    });
-    if (mostRecentUpdate) {
-      lastKnownValue = mostRecentUpdate.num;
-    }
-    xyDataPoints.push({ x: formatISO(currentHourStart), y: lastKnownValue });
-  }
+  const hourlyDataPoints = Array.from({ length: 24 }, (_, i) => ({
+    x: formatISO(addHours(startOfHour(oneDayAgo), i)),
+    y: null,
+  }));
 
-  return xyDataPoints;
+  const sortedData = data.filter(d => isWithinInterval(new Date(d.timestamp), { start: oneDayAgo, end: now }))
+                         .sort((a, b) => compareAsc(new Date(a.timestamp), new Date(b.timestamp)));
+
+  sortedData.forEach(point => {
+    const hourIndex = differenceInHours(new Date(point.timestamp), oneDayAgo);
+    hourlyDataPoints[hourIndex].y = point.num;
+  });
+
+  // Fill any gaps in the data by propagating the last known value forward
+  let lastKnownValue = hourlyDataPoints.find(point => point.y !== null)?.y || 0;
+  hourlyDataPoints.forEach(point => point.y = point.y ?? lastKnownValue);
+
+  return hourlyDataPoints;
 }
 
 CollectionSchema.pre("save", async function (next) {
@@ -608,3 +616,27 @@ module.exports = {
     )
   ),
 };
+// const DeckSchema = new Schema(
+//   {
+//     ...createCommonFields(),
+//     name: String,
+//     description: String,
+//     tags: [String],
+//     color: String,
+//     cards: [{ type: Schema.Types.ObjectId, ref: "CardInDeck" }],
+//   },
+//   commonSchemaOptions
+// );
+// DeckSchema.pre("save", function (next) {
+//   updateTotals.call(this, mongoose.model("CardInDeck"), "cards").then(next);
+// });
+// const CartSchema = new Schema(
+//   {
+//     ...createCommonFields(),
+//     cart: [{ type: Schema.Types.ObjectId, ref: "CardInCart" }],
+//   },
+//   commonSchemaOptions
+// );
+// CartSchema.pre("save", function (next) {
+//   updateTotals.call(this, mongoose.model("CardInCart"), "cart").then(next);
+// });

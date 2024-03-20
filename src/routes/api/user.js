@@ -20,16 +20,17 @@ router.put('/:userId/userData/update', asyncHandler(UserController.updateUserDat
 
 // DECK ROUTES
 router.get('/:userId/decks/allDecks', asyncHandler(UserDeckController.getAllDecksForUser));
-router.put('/:userId/decks/:deckId/updateDeck', asyncHandler(UserDeckController.updateAndSyncDeck));
-router.post('/:userId/decks/createDeck', asyncHandler(UserDeckController.createNewDeck));
-router.delete('/:userId/decks/:deckId/deleteDeck', asyncHandler(UserDeckController.deleteDeck));
-router.post('/:userId/decks/:deckId/add', asyncHandler(UserDeckController.addCardsToDeck));
+router.post('/:userId/decks/create', asyncHandler(UserDeckController.createNewDeck));
+router.put('/:userId/decks/:deckId/update', asyncHandler(UserDeckController.updateAndSyncDeck));
+
+router.delete('/:userId/decks/:deckId/delete', asyncHandler(UserDeckController.deleteDeck));
+router.post('/:userId/decks/:deckId/cards/add', asyncHandler(UserDeckController.addCardsToDeck));
 // router.post('/:userId/decks/:deckId/remove', asyncHandler(UserDeckController.removeCardsFromDeck));
-router.delete(
-  '/:userId/decks/:deckId/remove',
+router.put(
+  '/:userId/decks/:deckId/cards/remove',
   asyncHandler(UserDeckController.removeCardsFromDeck),
 );
-router.put('/:userId/decks/:deckId/update', asyncHandler(UserDeckController.updateCardsInDeck));
+// router.put('/:userId/decks/:deckId/update', asyncHandler(UserDeckController.updateCardsInDeck));
 router.put(
   '/:userId/decks/:deckId/deckDetails',
   asyncHandler(UserDeckController.updateDeckDetails),
@@ -78,10 +79,10 @@ router.put(
 //   '/:userId/collections/:collectionId/remove',
 //   asyncHandler(UserCollectionController.removeCardsFromCollection),
 // );
-router.put(
-  '/:userId/collections/:collectionId/updateChartData',
-  asyncHandler(UserCollectionController.updateChartDataInCollection),
-);
+// router.put(
+//   '/:userId/collections/:collectionId/updateChartData',
+//   asyncHandler(UserCollectionController.updateChartDataInCollection),
+// );
 
 // CART ROUTES
 router.get('/:userId/cart', asyncHandler(UserCartController.getUserCart));
