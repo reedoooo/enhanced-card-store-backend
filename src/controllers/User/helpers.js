@@ -22,17 +22,6 @@ const ERROR_MESSAGES = {
   collectionModelRequired: "Collection model is required in reFetchForSave",
   cardModelRequired: "Card model is required in reFetchForSave",
 };
-function setCollectionRefs(instance, collectionId, collectionModel) {
-  const modelRefMapping = {
-    Cart: "cartRefs",
-    Deck: "deckRefs",
-    Collection: "collectionRefs",
-  };
-  const refField = modelRefMapping[collectionModel];
-  if (refField) {
-    instance[refField].push(collectionId);
-  }
-}
 // !--------------------------! USERS !--------------------------!
 /**
  * [] Helper functions for different methods

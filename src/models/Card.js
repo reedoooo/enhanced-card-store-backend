@@ -21,9 +21,12 @@ const createNivoXYValue = (x, y) => {
     y,
   };
 };
+const updateTotalPrice = (card) => {
+  if (!card.quantity) card.quantity = 1;
+  if (!card.price) card.price = card.card_prices[0]?.tcgplayer_price || 0;
+  card.totalPrice = card.quantity * card.price;
+};
 function calculateContextualQuantity(card, context) {
-  // Logic to calculate the quantity of card in a specific context (SearchHistory, Deck, etc.)
-  // Return the calculated quantity for the given context
   console.log(
     "calculating contextual quantity for: ",
     card.name,
@@ -136,6 +139,7 @@ const genericCardSchema = new Schema(
 
 // Middleware for genericCardSchema
 genericCardSchema.pre("save", async function (next) {
+  // if (!this.isModified('price') && !this.isModified('quantity')) return next();
   if (!this.refId) {
     this.refId = this._id;
   }
@@ -145,8 +149,6 @@ genericCardSchema.pre("save", async function (next) {
   if (!this.image) {
     this.image = this.card_images[0]?.image_url || "";
   }
-
-  // Ensure variant is set to a valid ID from cardVariants
   if (this.cardVariants && this.cardVariants.length > 0) {
     const variantIsInCardVariants = this.cardVariants.includes(this.variant);
     if (!this.variant || !variantIsInCardVariants) {
@@ -154,17 +156,14 @@ genericCardSchema.pre("save", async function (next) {
     }
   } else {
     // If no variants available, log and skip setting rarity
-    console.log(`[WARNING] No variants available for card: ${this.name}`);
+    logger.info(`[WARNING] No variants available for card: ${this.name}`);
     return next();
   }
   if (this.isModified("quantity") || this.isModified("price")) {
     console.log("quantity modified", this.quantity);
-    this.latestPrice =
-      createNewPriceEntry(this?.price || this?.latestPrice?.num) ||
-      createNewPriceEntry(0);
-    this.lastSavedPrice =
-      createNewPriceEntry(this?.price || this?.latestPrice?.num) ||
-      createNewPriceEntry(0);
+    this.latestPrice = createNewPriceEntry(this.price);
+    // this.lastSavedPrice = createNewPriceEntry(this.price);
+    this.priceHistory.push(createNewPriceEntry(this.totalPrice));
     this.totalPrice = this.quantity * this.price;
     this.priceHistory.push(createNewPriceEntry(this.totalPrice));
     this.tag = "" || "default";
@@ -265,6 +264,16 @@ genericCardSchema.pre("save", async function (next) {
     console.log(`[GENERIC CARD: ${this.name}] PRE SAVE ERROR: `, error);
     return next(error);
   }
+
+  const modifiedFields = [
+    "image",
+    "latestPrice",
+    "lastSavedPrice",
+    "totalPrice",
+    "priceHistory",
+    "rarity",
+  ];
+  modifiedFields.forEach(field => this.markModified(field));
 
   next();
 });

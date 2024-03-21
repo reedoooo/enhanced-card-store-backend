@@ -2,7 +2,6 @@ const express = require("express");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 const { logToSpecializedLogger } = require("./loggers/infoLogger");
-const { logData, logError } = require("../utils/loggingUtils");
 const { unifiedErrorHandler } = require("./unifiedErrorHandler");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_TEST_KEY);
 require("colors");

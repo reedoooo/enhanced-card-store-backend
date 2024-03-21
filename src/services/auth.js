@@ -1,9 +1,6 @@
-// services.js
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { User } = require("../../src/models");
-// const SECRET_KEY = process.env.SECRET_KEY;
-// const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET; // Ensure this is set in your environment
 let invalidRefreshTokens = new Set();
 
 const validatePassword = async (password, hashedPassword) => {
@@ -14,14 +11,9 @@ async function fetchUserById(userId) {
   if (!user) throw new Error("User not found");
   return user;
 }
-
 function generateJWT(payload, secret, options) {
   return jwt.sign(payload, secret, options);
 }
-// const createToken = (payload) => {
-//   return jwt.sign(payload, process.env.SECRET_KEY);
-// };
-
 /**
  * Generates a JWT token for the user.
  * @param {object} userData - The user data to be used to generate the token.
@@ -60,7 +52,6 @@ async function saveToken(userId, token, isRefreshToken = false) {
   }
   await user.save();
 }
-
 async function saveTokens(userId, accessToken, refreshToken) {
   await saveToken(userId, accessToken, false); // false for access token
   await saveToken(userId, refreshToken, true); // true for refresh token
@@ -69,7 +60,6 @@ async function saveTokens(userId, accessToken, refreshToken) {
 function invalidateToken(refreshToken) {
   invalidRefreshTokens.add(refreshToken);
 }
-
 function isRefreshTokenValid(refreshToken) {
   return !invalidRefreshTokens.has(refreshToken);
 }
@@ -85,103 +75,3 @@ module.exports = {
   invalidateToken,
   isRefreshTokenValid,
 };
-
-// async function generateRefreshToken(userId) {
-//   try {
-//     const user = await User.findById(userId).populate('userSecurityData');
-//     if (!user) throw new Error('User not found');
-
-//     const payload = {
-//       userId: user._id,
-//       username: user.username, // Assuming username is directly under user
-//     }; // Simplified payload for refresh token
-
-//     const options = { expiresIn: '7d' };
-//     return jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, options);
-//   } catch (error) {
-//     console.error('Error generating refresh token:', error);
-//     throw error;
-//   }
-// }
-
-// async function saveRefreshToken(userId, refreshToken) {
-//   try {
-//     // Find the user first
-//     const user = await User.findById(userId).populate('userSecurityData');
-//     if (!user) throw new Error('User not found');
-
-//     // Update the refreshToken in the userSecurityData subdocument
-//     user.userSecurityData.refreshToken = refreshToken;
-//     await user.save();
-//   } catch (error) {
-//     console.error('Error saving refresh token:', error);
-//     throw error;
-//   }
-// }
-
-// async function saveAccessToken(userId, accessToken) {
-//   try {
-//     // Find the user first
-//     const user = await User.findById(userId).populate('userSecurityData');
-//     if (!user) throw new Error('User not found');
-
-//     // Update the refreshToken in the userSecurityData subdocument
-//     user.userSecurityData.accessToken = accessToken;
-//     await user.save();
-//   } catch (error) {
-//     console.error('Error saving access token:', error);
-//     throw error;
-//   }
-// }
-
-// async function saveTokens(userId, accessToken, refreshToken) {
-//   try {
-//     const user = await User.findById(userId).populate('userSecurityData');
-//     if (!user) throw new Error('User not found');
-
-//     // Assuming accessToken and refreshToken are to be stored in userSecurityData
-//     user.userSecurityData.accessToken = accessToken;
-//     user.userSecurityData.refreshToken = refreshToken;
-//     await user.save();
-
-//     return { savedAccessToken: accessToken, savedRefreshToken: refreshToken };
-//   } catch (error) {
-//     console.error('Error saving tokens:', error);
-//     throw error;
-//   }
-// }
-
-// async function updateRefreshToken(userId, newRefreshToken) {
-//   try {
-//     // Find the user first
-//     const user = await User.findById(userId).populate('userSecurityData');
-//     if (!user) throw new Error('User not found');
-
-//     // Update the refreshToken in the userSecurityData subdocument
-//     user.userSecurityData.refreshToken = newRefreshToken;
-//     await user.save();
-//   } catch (error) {
-//     console.error('Error updating refresh token:', error);
-//     throw error;
-//   }
-// }
-
-// function invalidateToken(refreshToken) {
-//   invalidRefreshTokens.add(refreshToken);
-// }
-
-// function isRefreshTokenValid(refreshToken) {
-//   return !invalidRefreshTokens.has(refreshToken);
-// }
-
-// module.exports = {
-//   validatePassword,
-//   generateToken,
-//   generateRefreshToken,
-//   saveRefreshToken,
-//   saveAccessToken,
-//   updateRefreshToken,
-//   invalidateToken,
-//   isRefreshTokenValid,
-//   saveTokens,
-// };

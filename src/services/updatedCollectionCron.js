@@ -9,7 +9,6 @@ require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
 
-// Helper to log price changes to a file
 const logPriceChangesToFile = (priceChanges) => {
   const filePath = path.join(__dirname, "priceChangesLog.txt");
   const logMessages = priceChanges
@@ -23,8 +22,6 @@ const logPriceChangesToFile = (priceChanges) => {
     }
   });
 };
-
-// Processes price changes for a single card
 const processCardPriceChange = async (card, collectionName) => {
   const apiPricesArray = await fetchCardPrices(card.name);
   if (!apiPricesArray) {
@@ -57,7 +54,10 @@ const processCardPriceChange = async (card, collectionName) => {
 
   return null;
 };
-
+function formatPriceChangeMessage(change) {
+  // Format the price change message here based on the change object
+  return `[Time: ${formatDate(new Date())}], [Collection: ${change.collectionName}] | [Card: ${change.cardName}, Old Price: ${change.oldPrice}, New Price: ${change.newPrice}] Difference: ${change.priceDifference.toFixed(2)}`;
+}
 const updatedCollectionCron = async () => {
   try {
     console.log("STARTING COLLECTION UPDATE CRON JOB...");
@@ -104,7 +104,7 @@ const updatedCollectionCron = async () => {
             collection.priceChangeHistory.slice(-1)[0]?.timestamp;
           const now = new Date();
           if (lastUpdate && now - new Date(lastUpdate) > 3600000) {
-            console
+            console;
             collection.priceChangeHistory.push({
               timestamp: now,
               priceChanges: [],
@@ -127,8 +127,3 @@ const updatedCollectionCron = async () => {
 };
 
 exports.updatedCollectionCron = updatedCollectionCron;
-
-function formatPriceChangeMessage(change) {
-  // Format the price change message here based on the change object
-  return `[Time: ${formatDate(new Date())}], [Collection: ${change.collectionName}] | [Card: ${change.cardName}, Old Price: ${change.oldPrice}, New Price: ${change.newPrice}] Difference: ${change.priceDifference.toFixed(2)}`;
-}

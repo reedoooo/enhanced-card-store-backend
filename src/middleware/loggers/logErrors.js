@@ -1,5 +1,5 @@
 const logger = require("../../configs/winston");
-
+require("colors");
 // Mapping of error types to corresponding log levels
 const errorTypes = {
   ValidationError: "warn",
@@ -27,38 +27,30 @@ function serializeError(error) {
 const logErrors = (err, req, res, next) => {
   const errorType = err.constructor.name;
   const logLevel = errorTypes[errorType] || "info"; // Default to 'info' if not specified
-
-  // Serialize error to log detailed information in non-production environments
   const errorDetails =
     process.env.NODE_ENV === "production" ? err.message : serializeError(err);
-
   logger[logLevel](
     `[${errorType}] ${err.status || 500} - ${errorDetails} - ${req.originalUrl} - ${req.method} - ${req.ip}`
   );
-
   next(err); // Pass the error to the next middleware
 };
 
-// Unified error handler to respond to the client
 const unifiedErrorHandler = (error, req, res, next) => {
   if (res.headersSent) {
     return next(error);
   }
-
   const status = error.status || 500;
   const message = error.message;
   const errorType = error.constructor.name;
-  const logLevel = errorTypes[errorType] || "info";
-
-  // Log the error using the determined level and serialized error details
+  const logLevel = "error";
   logger[logLevel](
-    `[${errorType}] ${status} - ${serializeError(error)} - ${req.originalUrl} - ${req.method} - ${req.ip}`
+    `[${errorType}]`.red +
+      `${status}`.white +
+      `${serializeError(error)} - ${req.originalUrl} - ${req.method} - ${req.ip}`
   );
-
   res.status(status).json({
     message:
       process.env.NODE_ENV === "production" ? message : serializeError(error),
   });
 };
-
 module.exports = { logErrors, unifiedErrorHandler };

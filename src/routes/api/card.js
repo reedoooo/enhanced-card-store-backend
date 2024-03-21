@@ -72,35 +72,6 @@ router.post(
     res.status(201).json(newCard);
   }),
 );
-
-// router.get('/ygopro/:imageUrl', async (req, res) => {
-//   const { imageUrl } = req.params;
-//   console.log('IMAGE URL FROM GET: -------------------------->', imageUrl);
-//   try {
-//     // response.data is an arraybuffer
-//     const response = await axios({
-//       method: 'GET',
-//       url: imageUrl,
-//       responseType: 'arraybuffer',
-//     });
-
-//     // Convert to base64 string and send to client
-//     const buffer = Buffer.from(response.data, 'binary');
-//     console.log('buffer', buffer);
-//     // Set the response headers to match the image type and length so the client can render it
-//     res.set({
-//       'Content-Type': response.headers['content-type'],
-//       'Content-Length': response.headers['content-length'],
-//     });
-
-//     // Send the image data to the client
-//     res.send(buffer);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).send('Error fetching image');
-//   }
-// });
-// Server-side route to fetch an image
 router.get(
   '/image',
   asyncHandler(async (req, res) => {
@@ -112,42 +83,6 @@ router.get(
     res.status(200).json({ message: 'Success', data: bufferedImage });
   }),
 );
-// function convertRequestBodyToConcatenatedString(requestBody) {
-//   // Extract the body from the request
-//   const { body } = requestBody;
-
-//   // Initialize an empty string to hold the concatenated result
-//   let concatenatedString = '';
-
-//   // Loop through the keys of the body object
-//   for (const key in body) {
-//     // Check if the current key is numeric, which indicates a character
-//     if (!isNaN(key)) {
-//       concatenatedString += body[key];
-//     }
-//   }
-
-//   return concatenatedString;
-// }
-// router.get('/image', async (req, res) => {
-//   const imageUrl = req.query.imageURL; // Ensure you're using query parameters
-
-//   try {
-//     const response = await axios.get(imageUrl, {
-//       responseType: 'arraybuffer',
-//     });
-
-//     const buffer = Buffer.from(response.data, 'binary');
-//     res.set({
-//       'Content-Type': response.headers['content-type'],
-//       'Content-Length': response.headers['content-length'],
-//     });
-//     res.send(buffer);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).send('Error fetching image', error);
-//   }
-// });
 router.post(
   '/ygopro',
   asyncHandler(async (req, res) => {
@@ -190,6 +125,71 @@ router.delete(
 );
 
 module.exports = router;
+// router.get('/ygopro/:imageUrl', async (req, res) => {
+//   const { imageUrl } = req.params;
+//   console.log('IMAGE URL FROM GET: -------------------------->', imageUrl);
+//   try {
+//     // response.data is an arraybuffer
+//     const response = await axios({
+//       method: 'GET',
+//       url: imageUrl,
+//       responseType: 'arraybuffer',
+//     });
+
+//     // Convert to base64 string and send to client
+//     const buffer = Buffer.from(response.data, 'binary');
+//     console.log('buffer', buffer);
+//     // Set the response headers to match the image type and length so the client can render it
+//     res.set({
+//       'Content-Type': response.headers['content-type'],
+//       'Content-Length': response.headers['content-length'],
+//     });
+
+//     // Send the image data to the client
+//     res.send(buffer);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).send('Error fetching image');
+//   }
+// });
+// Server-side route to fetch an image
+
+// function convertRequestBodyToConcatenatedString(requestBody) {
+//   // Extract the body from the request
+//   const { body } = requestBody;
+
+//   // Initialize an empty string to hold the concatenated result
+//   let concatenatedString = '';
+
+//   // Loop through the keys of the body object
+//   for (const key in body) {
+//     // Check if the current key is numeric, which indicates a character
+//     if (!isNaN(key)) {
+//       concatenatedString += body[key];
+//     }
+//   }
+
+//   return concatenatedString;
+// }
+// router.get('/image', async (req, res) => {
+//   const imageUrl = req.query.imageURL; // Ensure you're using query parameters
+
+//   try {
+//     const response = await axios.get(imageUrl, {
+//       responseType: 'arraybuffer',
+//     });
+
+//     const buffer = Buffer.from(response.data, 'binary');
+//     res.set({
+//       'Content-Type': response.headers['content-type'],
+//       'Content-Length': response.headers['content-length'],
+//     });
+//     res.send(buffer);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).send('Error fetching image', error);
+//   }
+// });
 
 // const express = require('express');
 // const cardController = require('../../controllers/CardController');

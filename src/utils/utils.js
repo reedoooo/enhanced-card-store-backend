@@ -11,15 +11,83 @@ const { unifiedErrorHandler } = require("../middleware/loggers/logErrors");
 const axiosInstance = axios.create({
   baseURL: "https://db.ygoprodeck.com/api/v7/",
 });
-const calculatePriceDifference = (initialPrice, updatedPrice) =>
-  initialPrice - updatedPrice;
-const calculateNewTotalPrice = (totalPrice, priceDifference) =>
-  totalPrice + priceDifference;
-const splitDateTime = (date) => {
-  return {
-    date: date.toISOString().split("T")[0], // e.g., "2023-05-01"
-    time: date.toTimeString().split(" ")[0], // e.g., "12:01:35"
-  };
+/**
+ * Handles errors in async functions.
+ * @param {function} fn - The async function to be wrapped.
+ * @returns {function} - The wrapped function.
+ * */
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch((error) => {
+    unifiedErrorHandler(error, req, res, next);
+  });
+};
+/**
+ * Handles errors in async functions.
+ * @param {function} fn - The async function to be wrapped.
+ * @returns {function} - The wrapped function.
+ */
+const asyncErrorHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch((error) => {
+    unifiedErrorHandler(error, req, res, next);
+  });
+};
+/**
+ * Handles errors in async functions.
+ * @param {function} fn - The async function to be wrapped.
+ * @returns {function} - The wrapped function.
+ */
+function sendJsonResponse(res, status, message, data) {
+  res.status(status).json({ message, data });
+}
+/**
+ * validateContextEntityExists that a deck exists.
+ * @param {object} entity - The entity to be validated.
+ * @param {string} errorMessage - The error message to be sent to the client.
+ * @param {number} errorCode - The error code to be sent to the client.
+ * @param {object} response - The response object to be sent to the client.
+ * @returns {object} - The response object.
+ * */
+function validateContextEntityExists(
+  entity,
+  errorMessage,
+  errorCode,
+  response
+) {
+  if (!entity) {
+    sendJsonResponse(response, errorCode, errorMessage);
+    throw new Error(errorMessage);
+  }
+}
+
+/**
+ * Formats a date object to the format "DD/MM/YYYY, HH:MM".
+ * @param {Date} date - The date object to be formatted.
+ * @returns {string} - The formatted date string.
+ * */
+const formatDateTime = (date) => {
+  const day = date.getDate().toString().padStart(2, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const year = date.getFullYear();
+  const hours = date.getHours().toString().padStart(2, "0");
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "pm" : "am";
+
+  return `${day}/${month}/${year}, ${hours}:${minutes}`;
+};
+/**
+ * Formats a date object to the format "DD/MM, HH:MMam/pm".
+ * @param {Date} date - The date object to be formatted.
+ * @returns {string} - The formatted date string.
+ * */
+const formatDate = (date) => {
+  const day = date.getDate().toString().padStart(2, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "pm" : "am";
+  hours = hours % 12;
+  hours = hours ? hours.toString().padStart(2, "0") : "12"; // the hour '0' should be '12'
+  return `${day}/${month}, ${hours}:${minutes}${ampm}`;
 };
 const ensureNumber = (value) => Number(value);
 const ensureString = (value) => String(value);
@@ -43,65 +111,6 @@ const validateVarType = (value, type) => {
   }
 };
 const validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
-const convertUserIdToObjectId = (userId) => {
-  try {
-    return mongoose.Types.ObjectId(userId);
-  } catch (error) {
-    throw new CustomError("Failed to convert user ID to ObjectId", 400, true, {
-      function: "convertUserIdToObjectId",
-      userId,
-      error: error.message,
-      stack: error.stack,
-    });
-  }
-};
-const roundMoney = (value) => {
-  return parseFloat(value.toFixed(2));
-};
-const convertPrice = (price) => {
-  if (typeof price === "string") {
-    const convertedPrice = parseFloat(price);
-    if (isNaN(convertedPrice)) throw new Error(`Invalid price value: ${price}`);
-    return convertedPrice;
-  }
-  return price;
-};
-const filterUniqueCards = (cards) => {
-  const uniqueCardIds = new Set();
-  return cards.filter((card) => {
-    const cardId = typeof card.id === "number" ? String(card.id) : card.id;
-    if (!uniqueCardIds.has(cardId)) {
-      uniqueCardIds.add(cardId);
-      return true;
-    }
-    return false;
-  });
-};
-const handleDuplicateYValuesInDatasets = (card) => {
-  if (card.chart_datasets && Array.isArray(card.chart_datasets)) {
-    const yValuesSet = new Set(
-      card.chart_datasets.map(
-        (dataset) => dataset.data && dataset.data[0]?.xy?.y
-      )
-    );
-    return card.chart_datasets.filter((dataset) => {
-      const yValue = dataset.data && dataset.data[0]?.xy?.y;
-      if (yValuesSet.has(yValue)) {
-        yValuesSet.delete(yValue);
-        return true;
-      }
-      return false;
-    });
-  }
-  return card.chart_datasets;
-};
-const findUserById = async (userId) => {
-  const users = await User.find();
-  return users.find((user) => user._id.toString() === userId);
-};
-const findUser = async (username) => {
-  return await User.findOne({ "userSecurityData.username": username });
-};
 /**
  * Creates a new price entry object.
  * @param {number} price - The price to be added to the price entry.
@@ -113,44 +122,6 @@ const createNewPriceEntry = (price) => {
     timestamp: new Date(),
   };
 };
-/**
- * Updates a document with a retry mechanism to handle VersionErrors.
- * @param {mongoose.Model} model - The model to be updated.
- * @param {object} update - The update object.
- * @param {object} options - The options object.
- * @param {number} retryCount - The number of times the update has been retried.
- * @returns {object} - The updated document.
- * */
-async function updateDocumentWithRetry(
-  model,
-  update,
-  options = {},
-  retryCount = 0
-) {
-  try {
-    const updated = await model.findOneAndUpdate({ _id: update._id }, update, {
-      new: true,
-      runValidators: true,
-      ...options,
-    });
-    return updated;
-  } catch (error) {
-    if (error.name === "VersionError" && retryCount < GENERAL.MAX_RETRIES) {
-      // Fetch the latest document and apply your update again
-      const doc = await model.findById(update._id);
-      if (doc) {
-        // Reapply the updates to the document...
-        return updateDocumentWithRetry(
-          model,
-          { ...doc.toObject(), ...update },
-          options,
-          retryCount + 1
-        );
-      }
-    }
-    throw error;
-  }
-}
 /**
  * Removes duplicate price history entries from a collection of cards.
  * @param {object[]} cards - The collection of cards to be deduplicated.
@@ -205,146 +176,6 @@ const getCardInfo = async (cardName) => {
     throw error;
   }
 };
-
-/**
- * Creates a new chart data entry with the current date and time.
- * @param {number} yValue - The y value to be added to the chart data entry.
- * @returns {object} - The new chart data entry.
- */
-async function filterUniqueYValues(collectionId) {
-  try {
-    // Retrieve the collection
-    let collection = await Collection.findById(collectionId);
-    if (!collection) {
-      throw new Error("Collection not found");
-    }
-
-    // Get the allXYValues array from the collection's chartData
-    const allXYValues = collection.chartData.allXYValues;
-
-    // Create a new array to hold the filtered values
-    const uniqueYValues = [];
-
-    // Create a Set to track seen y values
-    const seenYValues = new Set();
-
-    // Filter out duplicate y values
-    allXYValues.forEach((item) => {
-      if (!seenYValues.has(item.y)) {
-        seenYValues.add(item.y); // Mark the y value as seen
-        uniqueYValues.push(item); // Add the item to the filtered list
-      }
-    });
-
-    // Logging the filtered data
-    console.log(
-      "Filtered and updated collection XY values with unique Y values",
-      uniqueYValues[0]
-    );
-    // Return the filtered array with unique y values
-    return uniqueYValues;
-  } catch (error) {
-    console.error("Failed to filter unique Y values:", error);
-  }
-}
-/**
- * Filters the dailyCollectionPriceHistory to ensure that only the first data point
- * in each 24-hour period is kept.
- * @param {mongoose.Types.ObjectId} collectionId - The ID of the collection to filter.
- */
-async function filterDailyCollectionPriceHistory(collectionId) {
-  try {
-    // Retrieve the collection
-    let collection = await Collection.findById(collectionId);
-    if (!collection) {
-      throw new Error("Collection not found");
-    }
-
-    // Ensure the data is sorted by timestamp
-    collection.dailyCollectionPriceHistory.sort(
-      (a, b) => a.timestamp - b.timestamp
-    );
-
-    // Filter out entries that are less than 24 hours apart from the next timestamp
-    const filteredHistory = collection.dailyCollectionPriceHistory.reduce(
-      (acc, current, index, array) => {
-        // Always keep the first element
-        if (index === 0) {
-          acc.push(current);
-        } else {
-          const previousTimestamp = array[index - 1].timestamp;
-          const currentTimestamp = current.timestamp;
-          const timeDiff = currentTimestamp - previousTimestamp;
-
-          // If the difference is 24 hours or more, keep the current item
-          if (timeDiff >= 86400000) {
-            // 86,400,000 milliseconds in 24 hours
-            acc.push(current);
-          }
-        }
-        return acc;
-      },
-      []
-    );
-
-    // Update the collection with the filtered history
-    // collection.dailyCollectionPriceHistory = filteredHistory;
-    // await collection.save();
-    console.log(
-      "Filtered and updated collection price history",
-      filteredHistory
-    );
-    return filteredHistory;
-  } catch (error) {
-    console.error("Failed to filter daily collection price history:", error);
-  }
-}
-/**
- * handles validation errors from express-validator.
- * @param {object} req - The request object.
- * @param {object} res - The response object.
- * @param {function} next - The next middleware function.
- * */
-const handleValidationErrors = (req, res, next) => {
-  // Handle validation errors which means that the request failed validation
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    const error = new CustomError(
-      MESSAGES.VALIDATION_ERROR,
-      STATUS.BAD_REQUEST,
-      true,
-      {
-        validationErrors: errors.array(),
-      }
-    );
-    return next(error); // Pass the error to the next error-handling middleware
-  }
-  // If no validation errors, continue to the next middleware
-  if (next) {
-    next();
-  }
-};
-/**
- * Handles errors in async functions.
- * @param {function} fn - The async function to be wrapped.
- * @returns {function} - The wrapped function.
- * */
-const asyncHandler = (fn) => (req, res, next) => {
-  Promise.resolve(fn(req, res, next)).catch((error) => {
-    unifiedErrorHandler(error, req, res, next);
-  });
-};
-/**
- * Handles errors in async functions.
- * @param {function} fn - The async function to be wrapped.
- * @returns {function} - The wrapped function.
- */
-const asyncErrorHandler = (fn) => (req, res, next) => {
-  Promise.resolve(fn(req, res, next)).catch((error) => {
-    unifiedErrorHandler(error, req, res, next);
-  });
-};
-
 /**
  * Extracts the data from the request body.
  * @param {object} req - The request object.
@@ -363,83 +194,6 @@ const extractData = ({ body }) => {
     firstName,
     lastName,
   };
-};
-
-/**
- * Creates a new collection object.
- * @param {object} body - The request body.
- * @param {string} userId - The ID of the user creating the collection.
- * @returns {object} - The new collection object.
- * */
-const createCollectionObject = (body, userId) => {
-  return {
-    userId: body.userId || userId, // Use userId from body if available, else use the passed userId
-    name: body.name || "",
-    description: body.description || "",
-    totalPrice: body.totalPrice || 0,
-    quantity: body.quantity || 0,
-    totalQuantity: body.totalQuantity || 0,
-    dailyPriceChange: body.dailyPriceChange || "",
-    priceDifference: body.priceDifference || 0,
-    priceChange: body.priceChange || 0,
-    previousDayTotalPrice: body.previousDayTotalPrice || 0,
-    latestPrice: {
-      num: body.latestPrice?.num || 0,
-      timestamp: body.latestPrice?.timestamp || new Date(),
-    },
-    lastSavedPrice: {
-      num: body.lastSavedPrice?.num || 0,
-      timestamp: body.lastSavedPrice?.timestamp || new Date(),
-    },
-    cards: Array.isArray(body.cards) ? body.cards : [],
-    currentChartDataSets2: Array.isArray(body.currentChartDataSets2)
-      ? body.currentChartDataSets2
-      : [],
-    collectionPriceHistory: Array.isArray(body.collectionPriceHistory)
-      ? body.collectionPriceHistory
-      : [],
-    dailyCollectionPriceHistory: Array.isArray(body.dailyCollectionPriceHistory)
-      ? body.dailyCollectionPriceHistory
-      : [],
-    chartData: {
-      name: body.chartData?.name || `Chart for ${body.name || "Collection"}`,
-      userId: body.chartData?.userId || body.userId || userId,
-      // datasets: Array.isArray(body.chartData?.datasets) ? body.chartData.datasets : [],
-      allXYValues: Array.isArray(body.chartData?.allXYValues)
-        ? body.chartData.allXYValues
-        : [],
-      // xys: Array.isArray(body.chartData?.xys) ? body.chartData.xys : [],
-    },
-  };
-};
-/**
- * Formats a date object to the format "DD/MM/YYYY, HH:MM".
- * @param {Date} date - The date object to be formatted.
- * @returns {string} - The formatted date string.
- * */
-const formatDateTime = (date) => {
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  const year = date.getFullYear();
-  const hours = date.getHours().toString().padStart(2, "0");
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-
-  return `${day}/${month}/${year}, ${hours}:${minutes}`;
-};
-/**
- * Formats a date object to the format "DD/MM, HH:MMam/pm".
- * @param {Date} date - The date object to be formatted.
- * @returns {string} - The formatted date string.
- * */
-const formatDate = (date) => {
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  let hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const ampm = hours >= 12 ? "pm" : "am";
-  hours = hours % 12;
-  hours = hours ? hours.toString().padStart(2, "0") : "12"; // the hour '0' should be '12'
-  return `${day}/${month}, ${hours}:${minutes}${ampm}`;
 };
 /**
  * Calculates the total value of the collection.
@@ -481,7 +235,6 @@ const calculateCollectionValue = (cards) => {
     return totalValue + cardPrice * cardQuantity;
   }, 0);
 };
-
 function constructCardDataObject(cardData, additionalData) {
   const tcgplayerPrice = cardData?.card_prices[0]?.tcgplayer_price || 0;
   const cardSet =
@@ -525,109 +278,21 @@ function constructCardDataObject(cardData, additionalData) {
   };
 }
 
-function calculatePriceAndPercentChange(priceChangeHistory, initialTotalPrice) {
-  // Aggregate total price difference
-  const totalDifference = priceChangeHistory.reduce((acc, changeEntry) => {
-    // Sum up all price differences in this entry's priceChanges array
-    const entryTotalDifference = changeEntry.priceChanges.reduce(
-      (entryAcc, priceChange) => {
-        return entryAcc + priceChange.priceDifference;
-      },
-      0
-    );
-
-    return acc + entryTotalDifference;
-  }, 0);
-
-  // Assuming initialTotalPrice is the price of the collection before these changes
-  const finalTotalPrice = initialTotalPrice + totalDifference;
-
-  // Calculate percent change based on the initial and final total price
-  // Note: This calculation assumes the initialTotalPrice is non-zero
-  const percentChange =
-    ((finalTotalPrice - initialTotalPrice) / initialTotalPrice) * 100;
-
-  return {
-    priceChange: totalDifference,
-    percentChange: parseFloat(percentChange.toFixed(2)), // Round to 2 decimal places for readability
-  };
-}
-const filterDataByTimeRange = (data, timeRange) => {
-  const now = new Date();
-  const timeRanges = {
-    "24h": new Date(now - 24 * 60 * 60 * 1000),
-    "7d": new Date(now - 7 * 24 * 60 * 60 * 1000),
-    "30d": new Date(now - 30 * 24 * 60 * 60 * 1000),
-    "90d": new Date(now - 90 * 24 * 60 * 60 * 1000),
-    "180d": new Date(now - 180 * 24 * 60 * 60 * 1000),
-    "270d": new Date(now - 270 * 24 * 60 * 60 * 1000),
-    "365d": new Date(now - 365 * 24 * 60 * 60 * 1000),
-  };
-  const thresholdDate = timeRanges[timeRange];
-  return data.filter((entry) => new Date(entry.x) >= thresholdDate);
-};
-const groupAndAverageData = (data, threshold = 600000, timeRange) => {
-  if (!data || data.length === 0) return [];
-  // console.log('GROUPING and averaging data...'.red, data);
-  data = filterDataByTimeRange(data, timeRange);
-  console.log("FILTERED DATA: ".red, data);
-
-  const clusters = [];
-  let currentCluster = [data[0]];
-
-  for (let i = 1; i < data.length; i++) {
-    const prevTime = new Date(data[i - 1].x).getTime();
-    const currentTime = new Date(data[i].x).getTime();
-    if (currentTime - prevTime <= threshold) {
-      currentCluster.push(data[i]);
-    } else {
-      clusters.push(currentCluster);
-      currentCluster = [data[i]];
-    }
-  }
-  clusters.push(currentCluster); // Include the last cluster
-
-  // Average data within each cluster
-  return clusters.map((cluster) => {
-    const avgY = cluster.reduce((acc, { y }) => acc + y, 0) / cluster.length;
-    const middleIndex = Math.floor(cluster.length / 2);
-    const middleDatum = cluster[middleIndex];
-    return {
-      x: middleDatum.x,
-      y: avgY,
-      label: `Average from ${cluster.length} points`,
-    };
-  });
-};
 module.exports = {
-  findUser,
   asyncHandler,
-  splitDateTime,
-  roundMoney,
   ensureNumber,
-  findUserById,
-  calculatePriceDifference,
-  calculateNewTotalPrice,
-  updateDocumentWithRetry,
-  convertUserIdToObjectId,
   getCardInfo,
-  convertPrice,
-  filterUniqueCards,
-  handleDuplicateYValuesInDatasets,
   validateObjectId,
-  handleValidationErrors,
   extractData,
   validateVarType,
-  createCollectionObject,
   formatDateTime,
   calculateCollectionValue,
-  filterDailyCollectionPriceHistory,
-  filterUniqueYValues,
   asyncErrorHandler,
   createNewPriceEntry,
   formatDate,
   removeDuplicatePriceHistoryFromCollection,
   constructCardDataObject,
-  calculatePriceAndPercentChange,
-  groupAndAverageData,
+
+  sendJsonResponse,
+  validateContextEntityExists,
 };
