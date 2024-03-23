@@ -1,33 +1,21 @@
 const morgan = require("morgan");
 const logger = require("../../configs/winston");
-morgan.token("json", (req, res) => {
-  return JSON.stringify({
-    method: req.method,
-    url: req.originalUrl,
-    status: res.statusCode,
-    contentLength: res.get("content-length"),
-    responseTime: res.get("response-time"),
-  });
-});
+require("colors");
 
-const morganMiddleware = morgan(":json", {
-  stream: {
-    write: (message) => {
-      // Parse the JSON string and pass the object to Winston
-      const data = JSON.parse(message);
-      // Use an appropriate log level based on HTTP status code
-      if (data.status >= 500) {
-        logger.error("HTTP Error", data);
-      } else if (data.status >= 400) {
-        logger.warn("HTTP Warning", data);
-      } else {
-        logger.info("HTTP Info", data);
-      }
-    },
-  },
+// morgan.token("coloredMethod", (req) => req.method.yellow);
+morgan.token("coloredMethod", (req) => `[${req.method.yellow}]`);
+morgan.token("coloredStatus", (req, res) => {
+  const status = res.statusCode;
+  const returnedStatus = status >= 400? status.toString().red : status.toString().green;
+  return `[${returnedStatus}]`
 });
+const morganMiddleware = morgan(
+  (tokens, req, res) => {
+    // Use the custom token 'methodWithUrl' to format the log message
+    return `${tokens.coloredMethod(req)} ${tokens.url(req, res)} ${tokens.coloredStatus(req, res)} ${tokens.res(req, res, "content-length")}`;
+  }
+);
 
-// Correcting typo from modules.exports to module.exports
 module.exports = {
   morganMiddleware,
 };

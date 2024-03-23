@@ -120,10 +120,6 @@ const updateCollectionsWithNewCardValues = async (userId, priceUpdates, io) => {
       };
       let collectionPriceHistory = [
         ...collection.collectionPriceHistory,
-        // {
-        //   num: newTotalPrice,
-        //   timestamp: new Date().toISOString(),
-        // },
       ];
       for (const card of collection.cards) {
         const update = priceUpdates.find(

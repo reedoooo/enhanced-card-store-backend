@@ -1,7 +1,6 @@
 // !--------------------------! COLLECTIONS !--------------------------!
 const { CardInCollection } = require("../../../../src/models/Card");
 const { Collection } = require("../../../../src/models/Collection");
-const { fetchCardPrices } = require("../../Cards/helpers");
 const {
   populateUserDataByContext,
   deepPopulateCardFields,
@@ -149,69 +148,89 @@ exports.deleteExistingCollection = async (req, res, next) => {
  * @todo Update this to use the new CardInCollection schema
  */
 exports.addCardsToCollection = async (req, res, next) => {
-  let { cards } = req.body; // Assuming 'cards' can be an object or an array
-  if (!Array.isArray(cards)) {
-    cards = [cards]; // Convert the object to an array containing that object
-  }
+  const { userId, collectionId } = req.params;
+  const { cards } = req.body;
 
-  logger.info("Processing cards:", cards);
   try {
-    const populatedUser = await fetchPopulatedUserContext(req.params.userId, [
-      "collections",
-    ]);
-    const collection = findUserContextItem(populatedUser, 'allCollections', req.params.collectionId);
-    for (const cardData of cards) {
-      console.log("Processing card:".red, cardData.id);
-      console.log(
-        "IDS OF ALL CARDS IN COLLECTION:".red,
-        collection.cards.map((c) => c.id)
-      );
-      let foundCard = collection?.cards?.find(
-        (c) => c.id.toString() === cardData.id
-      );
-      if (foundCard) {
-        let cardInCollection = await CardInCollection.findById(foundCard._id);
-        if (cardInCollection) {
-          console.log("Updating existing card:", cardInCollection.name.blue);
-          console.log("START QUANTITY: ".red, cardInCollection.quantity);
-          console.log("START TOTAL PRICE: ".red, cardInCollection.totalPrice);
-          cardInCollection.quantity += 1;
-          cardInCollection.totalPrice =
-            cardInCollection.quantity * cardInCollection.price;
-          await cardInCollection.save();
-          collection.totalQuantity += cardData.quantity;
-          collection.totalPrice += cardData.quantity * cardInCollection.price;
-        } else {
-          console.log("Card not found in CardInCollection:", foundCard._id);
-        }
-      } else {
-        if (!cardData.price)
-          cardData.price = cardData?.card_prices[0]?.tcgplayer_price;
+    const populatedUser = await fetchPopulatedUserContext(userId, ["collections"]);
+    const collection = findUserContextItem(populatedUser, 'allCollections', collectionId);
 
-        const reSavedCard = await reFetchForSave(
-          cardData,
-          req.params.collectionId,
-          "Collection",
-          "CardInCollection"
-        );
-        console.log("Re-saved card:", reSavedCard);
-        collection.cards.push(reSavedCard?._id);
-      }
-    }
-    await collection.save();
+    // Utilize addOrUpdateCards utility
+    await addOrUpdateCards(collection, cards, collectionId, "Collection", CardInCollection);
+
     await populatedUser.save();
-    await collection.populate({
-      path: "cards",
-      model: "CardInCollection",
-    });
-    sendJsonResponse(res, 200, "Cards added to collection successfully.", {
-      data: collection,
-    });
+    await collection.populate({ path: "cards", model: "CardInCollection" });
+
+    sendJsonResponse(res, 200, "Cards added to collection successfully.", { data: collection });
   } catch (error) {
     console.error("Error adding cards to collection:", error);
     next(error);
   }
 };
+// exports.addCardsToCollection = async (req, res, next) => {
+//   let { cards } = req.body; // Assuming 'cards' can be an object or an array
+//   if (!Array.isArray(cards)) {
+//     cards = [cards]; // Convert the object to an array containing that object
+//   }
+
+//   logger.info("Processing cards:", cards);
+//   try {
+//     const populatedUser = await fetchPopulatedUserContext(req.params.userId, [
+//       "collections",
+//     ]);
+//     const collection = findUserContextItem(populatedUser, 'allCollections', req.params.collectionId);
+//     for (const cardData of cards) {
+//       console.log("Processing card:".red, cardData.id);
+//       console.log(
+//         "IDS OF ALL CARDS IN COLLECTION:".red,
+//         collection.cards.map((c) => c.id)
+//       );
+//       let foundCard = collection?.cards?.find(
+//         (c) => c.id.toString() === cardData.id
+//       );
+//       if (foundCard) {
+//         let cardInCollection = await CardInCollection.findById(foundCard._id);
+//         if (cardInCollection) {
+//           console.log("Updating existing card:", cardInCollection.name.blue);
+//           console.log("START QUANTITY: ".red, cardInCollection.quantity);
+//           console.log("START TOTAL PRICE: ".red, cardInCollection.totalPrice);
+//           cardInCollection.quantity += 1;
+//           cardInCollection.totalPrice =
+//             cardInCollection.quantity * cardInCollection.price;
+//           await cardInCollection.save();
+//           collection.totalQuantity += cardData.quantity;
+//           collection.totalPrice += cardData.quantity * cardInCollection.price;
+//         } else {
+//           console.log("Card not found in CardInCollection:", foundCard._id);
+//         }
+//       } else {
+//         if (!cardData.price)
+//           cardData.price = cardData?.card_prices[0]?.tcgplayer_price;
+
+//         const reSavedCard = await reFetchForSave(
+//           cardData,
+//           req.params.collectionId,
+//           "Collection",
+//           "CardInCollection"
+//         );
+//         logger.info("Re-saved card:", reSavedCard?.name);
+//         collection.cards.push(reSavedCard?._id);
+//       }
+//     }
+//     await collection.save();
+//     await populatedUser.save();
+//     await collection.populate({
+//       path: "cards",
+//       model: "CardInCollection",
+//     });
+//     sendJsonResponse(res, 200, "Cards added to collection successfully.", {
+//       data: collection,
+//     });
+//   } catch (error) {
+//     console.error("Error adding cards to collection:", error);
+//     next(error);
+//   }
+// };
 /**
  * STATUS:
  *![X] NOT OPERATIONAL

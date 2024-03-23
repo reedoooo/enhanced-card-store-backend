@@ -4,6 +4,7 @@ const { Deck } = require("../../../../src/models/Collection");
 const {
   populateUserDataByContext,
   fetchPopulatedUserContext,
+  findUserContextItem,
 } = require("../dataUtils");
 const { reFetchForSave } = require("../helpers");
 const logger = require("../../../configs/winston");
@@ -13,20 +14,6 @@ const {
   validateContextEntityExists,
 } = require("../../../utils/utils");
 
-// async function fetchPopulatedUserDecks(userId) {
-//   const populatedUser = await populateUserDataByContext(userId, ["decks"]);
-//   if (!populatedUser) {
-//     throw new Error(`User not found: ${userId}`);
-//   }
-//   return populatedUser;
-// }
-// function findUserDeck(populatedUser, deckId) {
-//   const deck = populatedUser.allDecks.find((d) => d._id.toString() === deckId);
-//   if (!deck) {
-//     throw new Error("Deck not found");
-//   }
-//   return deck;
-// }
 // !--------------------------! DECKS !--------------------------!
 exports.getAllDecksForUser = async (req, res, next) => {
   try {
@@ -117,7 +104,7 @@ exports.addCardsToDeck = async (req, res, next) => {
     const populatedUser = await fetchPopulatedUserContext(req.params.userId, [
       "decks",
     ]);
-    const deck = findUserDeck(populatedUser, deckId);
+    const deck = findUserContextItem(populatedUser, "allDecks", deckId);
     await addOrUpdateCards(deck, cardsArray, deckId, "Deck", CardInDeck);
 
     sendJsonResponse(res, 200, "Cards added to deck successfully.", {

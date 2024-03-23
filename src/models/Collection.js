@@ -5,26 +5,17 @@ const {
   collectionPriceHistorySchema,
   searchSessionSchema,
   collectionStatisticsSchema,
+  chartDataSchema,
 } = require("./CommonSchemas");
+
 const { CardInCollection, CardInDeck, CardInCart } = require("./Card");
-const {
-  addHours,
-  compareAsc,
-  subDays,
-  isWithinInterval,
-  startOfHour,
-  formatISO,
-  differenceInHours,
-} = require("date-fns");
 const logger = require("../configs/winston");
 const {
   updateCollectionStatistics,
   generateCardDataPoints,
+  aggregateAndValidateTimeRangeMap,
+  processAndSortTimeData,
   recalculatePriceHistory,
-  processTimeSeriesData,
-  processTimeData,
-  sortDataIntoRanges,
-  aggregateAndAverageData,
   convertChartDataToArray,
 } = require("./dataProcessing");
 require("colors");
@@ -105,34 +96,11 @@ const CollectionSchema = new Schema(
     collectionValueHistory: [collectionPriceHistorySchema],
     nivoChartData: {
       type: Map,
-      of: new Schema({
-        id: String,
-        name: String,
-        color: String,
-        data: [
-          {
-            label: String,
-            x: Date,
-            y: Number,
-          },
-        ],
-      }),
+      of: chartDataSchema,
     },
     averagedChartData: {
       type: Map,
-      of: new Schema({
-        id: String,
-        name: String,
-        color: String,
-        growth: Number,
-        data: [
-          {
-            label: String,
-            x: Date,
-            y: Number,
-          },
-        ],
-      }),
+      of: chartDataSchema,
     },
     newNivoChartData: [
       {
@@ -145,94 +113,10 @@ const CollectionSchema = new Schema(
   },
   commonSchemaOptions
 );
-// CollectionSchema.pre("save", async function (next) {
-//   console.log("Pre-save hook for collection:", this.name);
-//   this.totalPrice = 0;
-//   this.totalQuantity = 0;
-//   this.collectionStatistics = updateCollectionStatistics(
-//     this.collectionStatistics,
-//     this.totalPrice,
-//     this.totalQuantity
-//   );
-
-//   if (Array.isArray(this.cards) && this.cards.length > 0) {
-//     const cardsInCollection = await CardInCollection.find({
-//       _id: { $in: this.cards },
-//     });
-
-//     if (Array.isArray(cardsInCollection)) {
-//       // Calculate total price and quantity from card data
-//       cardsInCollection?.forEach((card) => {
-//         this.totalQuantity += card.quantity;
-//         this.totalPrice += card.price * card.quantity;
-//       });
-
-//       const cardDataPoints = generateCardDataPoints(cardsInCollection);
-//       this.collectionPriceHistory = recalculatePriceHistory(cardDataPoints);
-//       this.collectionValueHistory = processTimeSeriesData(
-//         this?.collectionPriceHistory
-//       );
-
-//       const priceHistoryWithUpdatedLabels = processTimeData(
-//         this.collectionValueHistory
-//       );
-//       const rawPriceHistoryMap = sortDataIntoRanges(
-//         priceHistoryWithUpdatedLabels
-//       );
-//       this.nivoChartData = rawPriceHistoryMap;
-//       Object.keys(this.nivoChartData || {})?.forEach((rangeKey) => {
-//         if (rangeKey && this.nivoChartData[rangeKey]) {
-//           logger.info(
-//             "[INFO] RANGE KEY:",
-//             rangeKey
-//           );
-//           this.averagedChartData[rangeKey] = aggregateAndAverageData(
-//             this.nivoChartData[rangeKey]
-//           );
-//         }
-//       });
-//       logger.info(
-//         "[INFO] Calculated price history for collection:",
-//         priceHistoryWithUpdatedLabels
-//       );
-
-//       this.newNivoChartData = convertChartDataToArray(this?.averagedChartData);
-//     }
-//   }
-//   this.collectionStatistics = updateCollectionStatistics(
-//     this.collectionStatistics,
-//     this.totalPrice,
-//     this.totalQuantity
-//   );
-
-//   // Update and mark modified fields
-//   [
-//     "totalPrice",
-//     "totalQuantity",
-//     "collectionPriceHistory",
-//     "collectionValueHistory",
-//     "nivoChartData",
-//     "averagedChartData",
-//     "newNivoChartData",
-//     "collectionStatistics",
-//     "lastUpdated",
-//   ].forEach((field) => this.markModified(field));
-
-//   this.lastUpdated = new Date();
-//   console.log("Updated collection statistics:", this.collectionStatistics);
-
-//   next();
-// });
 CollectionSchema.pre("save", async function (next) {
   console.log("Pre-save hook for collection:", this.name);
-
-  // Initialize new values without direct mutation
   let newTotalPrice = 0;
   let newTotalQuantity = 0;
-  let newCollectionPriceHistory = [];
-  let newCollectionValueHistory = []; // Assuming you meant to use this as well.
-  let priceHistoryWithUpdatedLabels = [];
-  let newNivoChartData = {};
   if (Array.isArray(this.cards) && this.cards.length > 0) {
     const cardsInCollection = await CardInCollection.find({
       _id: { $in: this.cards.map((id) => id) },
@@ -246,42 +130,36 @@ CollectionSchema.pre("save", async function (next) {
       });
 
       const cardDataPoints = generateCardDataPoints([...cardsInCollection]);
-      logger.info("[INFO][ 1 ] ".blue, cardDataPoints);
-      // const newCollectionPriceHistory = recalculatePriceHistory([
-      //   ...cardDataPoints,
-      // ]);
-      newCollectionPriceHistory = recalculatePriceHistory([...cardDataPoints]);
-      logger.info("[INFO][ 2 ] ".blue, newCollectionPriceHistory);
-      const priceHistoryWithUpdatedLabels = processTimeData([
-        ...newCollectionPriceHistory,
-      ]);
-      logger.info("[INFO][ 3 ] ".blue, priceHistoryWithUpdatedLabels);
-      let nivoChartData = sortDataIntoRanges({
-        ...priceHistoryWithUpdatedLabels,
-      });
-      logger.info("[INFO][ 4 ] ".blue, nivoChartData);
-
-      Object.keys(nivoChartData)?.forEach((rangeKey) => {
-        if (rangeKey && nivoChartData[rangeKey]) {
-          logger.info("[INFO] RANGE KEY:", rangeKey);
-          nivoChartData[rangeKey] = aggregateAndAverageData(
-            nivoChartData[rangeKey]
-          );
-        }
-      });
+      logger.info("[INFO][ 1 ][ collectionPriceHistory ]".blue, cardDataPoints);
+      this.collectionPriceHistory = cardDataPoints;
+      const cumulativeDataPoints = recalculatePriceHistory(cardDataPoints);
       logger.info(
-        "[INFO] Calculated price history for collection:",
-        priceHistoryWithUpdatedLabels
+        "[INFO][ 2 ][ collectionValueHistory ]".blue,
+        cumulativeDataPoints
       );
-      this.averagedChartData = { ...nivoChartData };
+      this.collectionValueHistory = cumulativeDataPoints;
+      const sortedData = processAndSortTimeData(cumulativeDataPoints);
+      logger.info("[INFO][ 3 ][ nivoChartData ]".blue, sortedData);
+      this.nivoChartData = sortedData;
+      // Object.keys(sortedData).forEach((rangeKey, index) => {
+      //   if (rangeKey && sortedData[rangeKey]) {
+      //     // logger.info("[INFO] RANGE KEY: ", rangeKey);
+      //     // logger.info(`[INFO][${index + 1}]: `.red, sortedData[rangeKey]);
+      //     sortedData[rangeKey] = aggregateAndAverageData(sortedData[rangeKey]);
+      //   }
+      // });
+      const safeAggregatedMap = aggregateAndValidateTimeRangeMap(sortedData);
+      Object.entries(safeAggregatedMap).forEach(([key, value]) => {
+        this.averagedChartData.set(key, value);
+      });
 
-      // Assign the processed data back to 'this'
-      newNivoChartData = convertChartDataToArray(this?.averagedChartData);
-      // this.newNivoChartData = convertChartDataToArray({ ...nivoChartData });
+      logger.info("[INFO][ 4 ][ averagedChartData ]".blue, safeAggregatedMap);
+      this.averagedChartData = safeAggregatedMap;
+      const nivoChartArray = convertChartDataToArray(this.averagedChartData);
+      logger.info("[INFO][ 5 ][ newNivoChartData ]".blue, nivoChartArray);
+      newNivoChartData = nivoChartArray
     }
   }
-
-  // Updating 'this' with new values after all calculations
   this.totalPrice = newTotalPrice;
   this.totalQuantity = newTotalQuantity;
   this.collectionStatistics = updateCollectionStatistics(
@@ -289,15 +167,15 @@ CollectionSchema.pre("save", async function (next) {
     newTotalPrice,
     newTotalQuantity
   );
-  this.collectionPriceHistory = [
-    ...(this.collectionPriceHistory || []),
-    ...newCollectionPriceHistory,
-  ];
-  this.collectionValueHistory = [
-    ...(this.collectionValueHistory || []),
-    ...newCollectionValueHistory,
-  ];
-  this.nivoChartData = { ...newNivoChartData };
+  // this.collectionPriceHistory = this.collectionPriceHistory
+  //   ? [...this.collectionPriceHistory, ...newCollectionPriceHistory]
+  //   : [...newCollectionPriceHistory];
+
+  // this.collectionValueHistory = [
+  //   ...(this.collectionValueHistory || []),
+  //   ...newCollectionValueHistory,
+  // ];
+  // this.nivoChartData = { ...newNivoChartData };
   this.lastUpdated = new Date();
   logger.info("[INFO][ 5 ] ".green, "all vals updated");
 
@@ -308,7 +186,7 @@ CollectionSchema.pre("save", async function (next) {
   this.markModified("collectionValueHistory");
   this.markModified("nivoChartData");
   this.markModified("averagedChartData");
-  this.markModified("newNivoChartData");
+  // this.markModified("newNivoChartData");
   this.markModified("collectionStatistics");
   this.markModified("lastUpdated");
 
@@ -333,168 +211,3 @@ module.exports = {
     )
   ),
 };
-// CollectionSchema.pre("save", async function (next) {
-//   try {
-//     console.log("pre save hook for collection", this.name);
-//     this.totalPrice = 0;
-//     this.totalQuantity = 0;
-//     this.collectionStatistics = updateCollectionStatistics(
-//       this.collectionStatistics,
-//       this.totalPrice,
-//       this.totalQuantity
-//     );
-//     this.nivoChartData = {
-//       "24hr": {
-//         id: "24hr",
-//         name: "Last 24 Hours",
-//         color: "#2e7c67",
-//         data: [],
-//       },
-//       "7d": {
-//         id: "7d",
-//         name: "Last 7 Days",
-//         color: "#2e7c67",
-//         data: [],
-//       },
-//       "30d": {
-//         id: "30d",
-//         name: "Last 30 Days",
-//         color: "#2e7c67",
-//         data: [],
-//       },
-//       "90d": {
-//         id: "90d",
-//         name: "Last 90 Days",
-//         color: "#2e7c67",
-//         data: [],
-//       },
-//       "180d": {
-//         id: "180d",
-//         name: "Last 180 Days",
-//         color: "#2e7c67",
-//         data: [],
-//       },
-//       "270d": {
-//         id: "270d",
-//         name: "Last 270 Days",
-//         color: "#2e7c67",
-//         data: [],
-//       },
-//       "365d": {
-//         id: "365d",
-//         name: "Last 365 Days",
-//         color: "#2e7c67",
-//         data: [],
-//       },
-//     };
-//     this.averagedChartData = {};
-//     this.collectionPriceHistory = [];
-//     this.collectionValueHistory = [];
-//     if (this.cards && this.cards.length > 0) {
-//       let cumulativePrice = 0;
-
-//       const cardsInCollection = await CardInCollection.find({
-//         _id: { $in: this.cards },
-//       });
-
-//       cardsInCollection.forEach((card) => {
-//         this.totalQuantity += card.quantity;
-//         card.priceHistory.forEach((priceEntry) => {
-//           cumulativePrice += priceEntry.num;
-//           this.collectionPriceHistory.push({
-//             timestamp: priceEntry.timestamp,
-//             num: priceEntry.num,
-//           });
-//         });
-//       });
-//       this.markModified("totalQuantity");
-//       const newPriceHistory = generateCardDataPoints(cardsInCollection);
-//       console.log("UPDATED HISTORY OF ALL CARDS PRICES ", newPriceHistory);
-//       this.collectionPriceHistory = newPriceHistory;
-//       this.markModified("collectionPriceHistory");
-//       const newCumulativePriceHistory = recalculatePriceHistory(
-//         this.collectionPriceHistory
-//       );
-//       console.log(
-//         "UPDATED CUMULATIVE HISTORY OF ALL CARDS PRICES ",
-//         newCumulativePriceHistory.slice(-25)
-//       );
-//       this.collectionValueHistory = newCumulativePriceHistory;
-//       this.markModified("collectionValueHistory");
-//       this.totalPrice =
-//         this.collectionValueHistory[
-//           this.collectionValueHistory.length - 1
-//         ]?.num;
-//       this.markModified("totalPrice");
-
-//       const testFunc2 = processTimeSeriesData(newCumulativePriceHistory);
-//       console.log("CURRENT ATTEMPT #2 24 HOUR CALC ", testFunc2);
-//     }
-
-//     const priceHistoryWithUpdatedLabels = processTimeData(
-//       this.collectionValueHistory
-//     );
-//     // CREATE AN ARRAT OF VALUES FOR ONLY DATA FROM priceHistoryWithUpdatedLabels WHICH HAS A LABEL === '24h
-//     const rawPriceHistoryMap = sortDataIntoRanges(
-//       priceHistoryWithUpdatedLabels
-//     );
-//     this.nivoChartData = rawPriceHistoryMap;
-//     this.markModified("nivoChartData");
-//     Object.keys(rawPriceHistoryMap).forEach((rangeKey) => {
-//       rawPriceHistoryMap[rangeKey] = aggregateAndAverageData(
-//         rawPriceHistoryMap[rangeKey]
-//       );
-//     });
-//     this.averagedChartData = rawPriceHistoryMap;
-//     this.markModified("averagedChartData");
-//     const updated = convertChartDataToArray(rawPriceHistoryMap);
-//     this.newNivoChartData = updated;
-//     this.markModified("newNivoChartData");
-
-//     //! STEP FOUR: CALCULATE COLLECTION STATS
-//     const updatedStats = updateCollectionStatistics(
-//       this.collectionStatistics,
-//       this.totalPrice,
-//       this.totalQuantity
-//     );
-//     this.collectionStatistics = updatedStats;
-//     this.markModified("collectionStatistics");
-
-//     const now = new Date();
-//     this.lastUpdated = now;
-//     this.markModified("lastUpdated");
-//     next();
-//     console.log("pre save hook for collection", this.name);
-//     console.log(this.collectionStatistics);
-
-//     //! STEP FIVE: SAVE COLLECTION
-//     // await this.save();
-//   } catch (err) {
-//     logger.error(`[ERROR] Collection pre-save hook: ${err}`);
-//     next(err);
-//   }
-// });
-// const DeckSchema = new Schema(
-//   {
-//     ...createCommonFields(),
-//     name: String,
-//     description: String,
-//     tags: [String],
-//     color: String,
-//     cards: [{ type: Schema.Types.ObjectId, ref: "CardInDeck" }],
-//   },
-//   commonSchemaOptions
-// );
-// DeckSchema.pre("save", function (next) {
-//   updateTotals.call(this, mongoose.model("CardInDeck"), "cards").then(next);
-// });
-// const CartSchema = new Schema(
-//   {
-//     ...createCommonFields(),
-//     cart: [{ type: Schema.Types.ObjectId, ref: "CardInCart" }],
-//   },
-//   commonSchemaOptions
-// );
-// CartSchema.pre("save", function (next) {
-//   updateTotals.call(this, mongoose.model("CardInCart"), "cart").then(next);
-// });
