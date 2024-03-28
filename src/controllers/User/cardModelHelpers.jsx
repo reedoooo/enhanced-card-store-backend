@@ -400,6 +400,8 @@ async function createCardVariants(sets, cardModel, cardId) {
         cardId,
         variant: index + 1,
         price: set.set_price,
+        rarity: set.set_rarity,
+        rarity_code: set?.set_rarity_code,
       });
 
       await cardVariant.save();
@@ -407,7 +409,6 @@ async function createCardVariants(sets, cardModel, cardId) {
     })
   );
 }
-
 async function createSetsAndVariantsForCard(cardInstance, cardData, cardModel) {
   if (!cardData || !cardInstance || !cardModel) {
     throw new Error("Invalid input for creating sets and variants.");
@@ -427,11 +428,9 @@ async function createSetsAndVariantsForCard(cardInstance, cardData, cardModel) {
   );
   cardInstance.cardVariants = cardVariantIds;
 }
-
 function selectFirstVariant(cardVariants) {
   return cardVariants.length > 0 ? cardVariants[0] : null;
 }
-
 function setAltArtDetails(card) {
   if (!card || !card.card_images || !card.id) {
     throw new Error("Invalid card data for setting alt art details.");
@@ -446,7 +445,6 @@ function setAltArtDetails(card) {
     .filter((img) => img.id !== card.id)
     .map((img) => img.id);
 }
-
 function mapCardDataToModelFields(
   cardData,
   collectionId,
@@ -465,7 +463,6 @@ function mapCardDataToModelFields(
     contextualFields,
   });
 }
-
 async function createAndSaveCardInContext(
   cardData,
   collectionId,
@@ -492,7 +489,6 @@ async function createAndSaveCardInContext(
   await cardInstance.save();
   return cardInstance;
 }
-
 const pushDefaultCardsToCollections = (collection, card) => {
   if (!collection || !card) {
     throw new Error("Both collection and card are required.");
@@ -510,14 +506,14 @@ async function createAndSaveCard(
   cardModel,
   tag
 ) {
-  console.log(
-    "CREATE ABD SAVE CARD",
-    cardData,
-    collectionId,
-    collectionModel,
-    cardModel,
-    tag
-  );
+  // console.log(
+  //   "CREATE ABD SAVE CARD",
+  //   cardData,
+  //   collectionId,
+  //   collectionModel,
+  //   cardModel,
+  //   tag
+  // );
   const additionalData = {
     collectionId,
     collectionModel,

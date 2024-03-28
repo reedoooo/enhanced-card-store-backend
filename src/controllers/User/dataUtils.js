@@ -14,7 +14,6 @@ function deepPopulateCardFields() {
     { path: "variant", model: "CardVariant" },
   ];
 }
-
 function getPopulatePathForContext(context) {
   switch (context) {
     case "decks":
@@ -79,8 +78,44 @@ async function populateUserDataByContext(userId, contexts) {
     throw error;
   }
 }
+/**
+ * Fetches a populated user document based on the given userId and context.
+ * @param {string} userId - The ID of the user.
+ * @param {string[]} contextFields - An array of context fields to populate.
+ * @returns The populated user document.
+ */
+async function fetchPopulatedUserContext(userId, contextFields) {
+  const populatedUser = await populateUserDataByContext(userId, contextFields);
+  if (!populatedUser) {
+    throw new Error(`User not found: ${userId}`);
+  }
+  return populatedUser;
+}
+/**
+ * Finds a specific item within a user's populated context based on its ID.
+ * @param {Object} populatedUser - The populated user document.
+ * @param {string} contextField - The context field to search within.
+ * @param {string} itemId - The ID of the item to find.
+ * @returns The found item.
+ */
+function findUserContextItem(populatedUser, contextField, itemId) {
+  if (!populatedUser[contextField]) {
+    throw new Error(`Context field ${contextField} not found.`);
+  }
+
+  const item = populatedUser[contextField].find(
+    (d) => d._id.toString() === itemId
+  );
+  if (!item) {
+    throw new Error(`${contextField.slice(0, -1)} not found`);
+  }
+  return item;
+}
 
 module.exports = {
   populateUserDataByContext,
   deepPopulateCardFields,
+  getPopulatePathForContext,
+  fetchPopulatedUserContext,
+  findUserContextItem,
 };

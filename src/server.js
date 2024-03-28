@@ -16,6 +16,7 @@ const routes = require("./routes");
 const handleStripePayment = require("./middleware/handleStripePayment");
 const { morganMiddleware } = require("./middleware/loggers/morganMiddleware");
 const { unifiedErrorHandler } = require("./middleware/loggers/logErrors");
+const logUnhandledErrors = require("./middleware/loggers/logUnhandlerErrors");
 
 // Load environment variables
 require("dotenv").config({
@@ -39,6 +40,8 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 200,
 };
+
+logUnhandledErrors();
 
 app.use(cors(corsOptions));
 app.use(helmet());

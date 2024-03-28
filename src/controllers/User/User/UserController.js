@@ -1,5 +1,4 @@
 const CustomError = require("../../../middleware/errorHandling/customError");
-const { logError } = require("../../../utils/loggingUtils");
 const { STATUS, MESSAGES } = require("../../../configs/constants");
 const { extractData } = require("../../../utils/utils");
 const jwt = require("jsonwebtoken");
@@ -22,6 +21,7 @@ const {
   generateToken,
   saveTokens,
 } = require("../../../services/auth");
+const logger = require("../../../configs/winston");
 // !--------------------------! USERS !--------------------------!
 
 // USER ROUTES: SIGNUP / SIGNIN
@@ -165,8 +165,7 @@ exports.getUserData = async (req, res, next) => {
       data: populatedUser,
     });
   } catch (error) {
-    console.error("Get User Data Error: ", error);
-    logError("Get User Data Error: ", error, null, { error });
+    logger.error("Get User Data Error: ", error);
     next(error);
   }
 };

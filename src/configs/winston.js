@@ -1,26 +1,40 @@
 const winston = require('winston');
 const path = require('path');
+require('colors');
+const { format: dateFormat } = require('date-fns');
 
-// Define custom colors
 winston.addColors({
   error: 'red',
   warn: 'yellow',
-  info: 'green',
+  info: 'blue',
   verbose: 'cyan',
   debug: 'blue',
   silly: 'magenta',
 });
 
-// Base log file configuration to avoid repetition
+const consoleFormat = winston.format.combine(
+  winston.format.timestamp({
+    format: () => dateFormat(new Date(), 'HH:mm'),
+  }),
+  winston.format.colorize({ all: true }),
+  winston.format.printf(
+    (info) => `[${info.level.toUpperCase()}][${info.timestamp}]|->| ${info.message} |<-|`,
+  ),
+);
 const baseFileConfig = (level) => ({
   level: level,
   filename: path.join(__dirname, '..', 'logs', level, `${level}.log`),
   format: winston.format.combine(
-    winston.format.cli(),
-    winston.format.colorize(),
-    winston.format.timestamp({ format: 'MMM-DD-YYYY HH:mm:ss' }),
+    winston.format.colorize({ all: true }),
     winston.format.align(),
-    winston.format.printf((info) => `${info.level}: ${[info.timestamp]}: ${info.message}`),
+    winston.format.cli(),
+    winston.format.timestamp({
+      format: () => dateFormat(new Date(), 'HH:mm'),
+    }),
+    // consoleFormat,
+    // winston.format.printf(
+    //   (info) => `[${info.level.toUpperCase()}]: ${info.timestamp}: ${info.message}`,
+    // ),
   ),
 });
 
@@ -33,8 +47,11 @@ const criticalErrorTransport = new winston.transports.File({
     winston.format.colorize(),
     winston.format.timestamp({ format: 'MMM-DD-YYYY HH:mm:ss' }),
     winston.format.align(),
-    winston.format.printf((info) => `${info.level}: ${info.timestamp}: ${info.message}`),
+    // winston.format.printf(
+    //   (info) => `${colorizeLevel(info.level)}: ${[info.timestamp]}: ${info.message}`,
+    // ),
   ),
+  handleExceptions: true,
 });
 
 // Logger configuration
@@ -49,22 +66,25 @@ const logConfiguration = {
     new winston.transports.File(baseFileConfig('debug')),
     new winston.transports.File(baseFileConfig('silly')),
     new winston.transports.Console({
-      level: 'debug', // Adjust as needed for console output
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.timestamp({ format: 'MMM-DD-YYYY HH:mm:ss' }),
-        winston.format.align(),
-        winston.format.printf((info) => `${info.level}: ${[info.timestamp]}: ${info.message}`),
-      ),
+      level: 'debug',
+      format: consoleFormat,
       handleExceptions: true,
     }),
   ],
   exceptionHandlers: [
     new winston.transports.File({
       filename: path.join(__dirname, '..', 'logs', 'exceptions', 'exceptions.log'),
+      // format: consoleFormat,
     }),
+    new winston.transports.Console({
+      format: consoleFormat,
+      handleExceptions: true,
+    }),
+  ],
+  rejectionHandlers: [
     new winston.transports.File({
       filename: path.join(__dirname, '..', 'logs', 'rejections', 'rejections.log'),
+      format: consoleFormat,
     }),
   ],
   exitOnError: false,
@@ -72,7 +92,7 @@ const logConfiguration = {
 
 // Create and export the logger
 const logger = winston.createLogger(logConfiguration);
-logger.setMaxListeners(20);
+logger.setMaxListeners(500);
 
 if (process.env.NODE_ENV !== 'production') {
   logger.add(
