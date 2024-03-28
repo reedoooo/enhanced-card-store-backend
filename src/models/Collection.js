@@ -121,7 +121,6 @@ CollectionSchema.pre("save", async function (next) {
     const cardsInCollection = await CardInCollection.find({
       _id: { $in: this.cards.map((id) => id) },
     });
-
     if (Array.isArray(cardsInCollection) && cardsInCollection.length > 0) {
       // Accumulate total price and quantity without mutating 'this'
       cardsInCollection.forEach((card) => {
@@ -139,7 +138,7 @@ CollectionSchema.pre("save", async function (next) {
       );
       this.collectionValueHistory = cumulativeDataPoints;
       const sortedData = processAndSortTimeData(cumulativeDataPoints);
-      logger.info("[INFO][ 3 ][ nivoChartData ]".blue, sortedData);
+      // logger.info("[INFO][ 3 ][ nivoChartData ]".blue, sortedData);
       this.nivoChartData = sortedData;
       // Object.keys(sortedData).forEach((rangeKey, index) => {
       //   if (rangeKey && sortedData[rangeKey]) {
@@ -150,14 +149,14 @@ CollectionSchema.pre("save", async function (next) {
       // });
       const safeAggregatedMap = aggregateAndValidateTimeRangeMap(sortedData);
       Object.entries(safeAggregatedMap).forEach(([key, value]) => {
-        this.averagedChartData.set(key, value);
+        this.averagedChartData?.set(key, value);
       });
 
-      logger.info("[INFO][ 4 ][ averagedChartData ]".blue, safeAggregatedMap);
+      // logger.info("[INFO][ 4 ][ averagedChartData ]".blue, safeAggregatedMap);
       this.averagedChartData = safeAggregatedMap;
       const nivoChartArray = convertChartDataToArray(this.averagedChartData);
       logger.info("[INFO][ 5 ][ newNivoChartData ]".blue, nivoChartArray);
-      newNivoChartData = nivoChartArray
+      this.newNivoChartData = nivoChartArray;
     }
   }
   this.totalPrice = newTotalPrice;
@@ -177,7 +176,7 @@ CollectionSchema.pre("save", async function (next) {
   // ];
   // this.nivoChartData = { ...newNivoChartData };
   this.lastUpdated = new Date();
-  logger.info("[INFO][ 5 ] ".green, "all vals updated");
+  logger.info("[INFO][ 6 ]".green, "all values updated");
 
   // Ensure all relevant fields are marked as modified
   this.markModified("totalPrice");
@@ -186,7 +185,7 @@ CollectionSchema.pre("save", async function (next) {
   this.markModified("collectionValueHistory");
   this.markModified("nivoChartData");
   this.markModified("averagedChartData");
-  // this.markModified("newNivoChartData");
+  this.markModified("newNivoChartData");
   this.markModified("collectionStatistics");
   this.markModified("lastUpdated");
 

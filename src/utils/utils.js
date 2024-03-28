@@ -242,26 +242,58 @@ function constructCardDataObject(cardData, additionalData) {
       ? cardData.card_sets[0]
       : null;
   const defaultPriceObj = createNewPriceEntry(tcgplayerPrice);
+  const formatDateNY = (dateInput) => {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+    .format(new Date(dateInput))
+    .split('/')
+    .reverse()
+    .join('-'); // Ensures the format is 'YYYY-MM-DD'
+  };
+
+  const addedAtFormatted = formatDateNY(cardData.addedAt || new Date());
 
   return {
     image:
       cardData?.card_images.length > 0 ? cardData.card_images[0].image_url : "",
     quantity: additionalData.quantity || 1,
     price: tcgplayerPrice,
+    rarity: cardSet?.set_rarity,
+    // create map for rarities
+    rarities: cardData?.card_sets?.reduce((acc, set) => {
+      acc[set.set_name] = set.set_rarity;
+      return acc;
+    }, {}),
+    sets: cardData?.card_sets.reduce((acc, set) => {
+      acc[set.set_name] = set;
+      return acc;
+    }, {}),
     totalPrice: tcgplayerPrice,
     tag: additionalData.tag || "",
     collectionId: additionalData.collectionId,
     collectionModel: additionalData.collectionModel,
     cardModel: additionalData.cardModel,
     watchList: false,
-    rarity: cardSet?.set_rarity || "",
     card_set: cardSet ? cardSet : {},
     card_sets: cardData?.card_sets,
     card_images: cardData?.card_images,
     card_prices: cardData?.card_prices,
     id: cardData?.id?.toString() || "",
     name: cardData?.name,
-    chart_datasets: [defaultPriceObj],
+    // create map for chart_datasets organized by date
+    // chart_datasets: cardData?.card_prices?.reduce((acc, price) => {
+    //   if (!acc[addedAtFormatted]) acc[addedAtFormatted] = [];
+    //   acc[addedAtFormatted].push({
+    //     x: new Date(price.timestamp).getTime(),
+    //     y: tcgplayerPrice,
+    //   });
+    //   return acc;
+    // }, {}),
+
     lastSavedPrice: defaultPriceObj,
     latestPrice: defaultPriceObj,
     priceHistory: [],

@@ -400,6 +400,8 @@ async function createCardVariants(sets, cardModel, cardId) {
         cardId,
         variant: index + 1,
         price: set.set_price,
+        rarity: set.set_rarity,
+        rarity_code: set?.set_rarity_code,
       });
 
       await cardVariant.save();

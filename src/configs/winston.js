@@ -12,41 +12,6 @@ winston.addColors({
   silly: 'magenta',
 });
 
-// const colorizeLevel = (level) => {
-//   switch (level) {
-//     case 'info':
-//       return `[${level.toUpperCase()}]`.blue;
-//     case 'error':
-//       return `[${level.toUpperCase()}]`.red;
-//     case 'warn':
-//       return `[${level.toUpperCase()}]`.yellow;
-//     default:
-//       return `[${level.toUpperCase()}]`;
-//   }
-// };
-// const customFormat = winston.format.combine(
-//   winston.format.timestamp({
-//     format: () => dateFormat(new Date(), 'HH:mm'),
-//   }),
-//   winston.format.printf(
-//     (info) => `[${info.level.toUpperCase()}][${info.timestamp}]: ${info.message}`,
-//   ),
-// );
-
-// const consoleFormat = winston.format.combine(
-//   winston.format.timestamp({
-//     format: () => dateFormat(new Date(), 'HH:mm'),
-//   }),
-//   winston.format.colorize({ all: true }),
-//   winston.format.printf(
-//     (info) =>
-//       ` [${colorizeLevel(info.level.toUpperCase())}]` +
-//       `[${info.timestamp}]` +
-//       '|->|'.red +
-//       `${info.message}` +
-//       '|<-|'.red,
-//   ),
-// );
 const consoleFormat = winston.format.combine(
   winston.format.timestamp({
     format: () => dateFormat(new Date(), 'HH:mm'),
@@ -60,6 +25,7 @@ const baseFileConfig = (level) => ({
   level: level,
   filename: path.join(__dirname, '..', 'logs', level, `${level}.log`),
   format: winston.format.combine(
+    winston.format.colorize({ all: true }),
     winston.format.align(),
     winston.format.cli(),
     winston.format.timestamp({
@@ -101,7 +67,7 @@ const logConfiguration = {
     new winston.transports.File(baseFileConfig('silly')),
     new winston.transports.Console({
       level: 'debug',
-      // format: consoleFormat,
+      format: consoleFormat,
       handleExceptions: true,
     }),
   ],
@@ -126,7 +92,7 @@ const logConfiguration = {
 
 // Create and export the logger
 const logger = winston.createLogger(logConfiguration);
-logger.setMaxListeners(50);
+logger.setMaxListeners(500);
 
 if (process.env.NODE_ENV !== 'production') {
   logger.add(

@@ -4,8 +4,9 @@ const {
   CardInDeck,
   CardInSearch,
 } = require("../../../src/models");
-const { queryBuilder, fetchCardPrices } = require("./helpers");
+const { queryBuilder, fetchCardPrices, fetchAndGenerateRandomCardData } = require("./helpers");
 const User = require("../../models/User");
+const logger = require("../../configs/winston");
 const axiosInstance = axios.create({
   baseURL: "https://db.ygoprodeck.com/api/v7/",
 });
@@ -13,11 +14,25 @@ const cardController = {
   fetchPriceData: async (cardName) => {
     try {
       const card_prices = await fetchCardPrices(cardName);
-      console.log("CARD PRICES:", card_prices);
+      logger.info("CARD PRICES:", card_prices);
       return card_prices;
     } catch (error) {
-      console.error("Error fetching card prices:", error);
+      logger.error("Error fetching card prices:", error);
       throw error;
+    }
+  },
+  fetchDataForRandomCards: async () => {
+    try {
+      const cardPromises = [];
+      for (let i = 0; i < 40; i++) {
+        cardPromises.push(fetchAndGenerateRandomCardData());
+      }
+  
+      const cardsData = await Promise.all(cardPromises);
+      return cardsData; // This will be an array of the data for each card fetched and saved
+    } catch (error) {
+      logger.error("Error fetching data for random cards:", error);
+      return [];
     }
   },
   /**
@@ -119,34 +134,6 @@ const cardController = {
       throw error; // Propagate the error
     }
   },
-  // fetchAndTransformCardData: async (name, race, type, level, attribute, id) => {
-  //   try {
-  //     const query = queryBuilder(name, race, type, level, attribute, id);
-  //     const response = await axiosInstance.get(`/cardinfo.php?${query}`);
-
-  //     if (!response?.data?.data) {
-  //       throw new Error('Failed to fetch card information');
-  //     }
-
-  //     const fetchedCards = response.data.data.slice(0, 90); // Limiting to 90 cards
-  //     let cards = [];
-
-  //     for (const card of fetchedCards) {
-  //       const newCard = await createAndSaveCardInContext(
-  //         card,
-  //         null, // CollectionId may not be relevant for a search result context
-  //         'CardInSearch',
-  //         'SearchHistory',
-  //       );
-  //       cards.push(newCard);
-  //     }
-
-  //     return cards; // Return the array of CardInSearch instances
-  //   } catch (error) {
-  //     console.error('Error in fetchAndTransformCardData:', error);
-  //     throw error;
-  //   }
-  // },
   getAllCards: async () => {
     let cards = await CardInSearch.find({}).limit(30);
 

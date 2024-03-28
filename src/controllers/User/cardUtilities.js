@@ -44,7 +44,7 @@ async function addOrUpdateCards(
         entityType,
         cardModel.modelName
       );
-      entity.cards.push(reSavedCard._id);
+      entity.cards.push(reSavedCard?._id);
     }
   }
 

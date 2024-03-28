@@ -131,14 +131,18 @@ const searchSessionSchema = new Schema(
   },
   { timestamps: true }
 );
-const dataPointSchema = new Schema(
-  {
-    x: String,
-    y: Number,
-    label: String,
-  },
-  { _id: false }
-);
+// const dataPointSchema = new Schema(
+//   {
+//     x: String,
+//     y: Number,
+//     label: String,
+//   },
+//   { _id: false }
+// );
+const chartDataPointSchema = new Schema({
+  x: Date,
+  y: Number
+}, { _id: false }); // Optional: Disable _id for subdocument
 const collectionPriceChangeHistorySchema = new Schema({
   timestamp: Date,
   priceChanges: [
@@ -173,7 +177,7 @@ const collectionStatisticsSchema = new Schema({
   },
 });
 // Define a schema for the individual data points in each chart
-const chartDataPointSchema = new Schema({
+const dataPointSchema = new Schema({
   label: String,
   x: Date,
   y: Number,
@@ -186,10 +190,19 @@ const chartDataSchema = new Schema({
   color: String,
   growth: Number,
   data: {
-    type: [chartDataPointSchema],
+    type: [dataPointSchema],
     validate: [arrayLimit, `{PATH} exceeds the limit of {VALUE}`],
   },
 });
+
+const averagedDataSchema = new Schema({
+  id: String,
+  color: String,
+  data: [{
+    x: Date,
+    y: Number
+  }]
+}, { _id: false });
 
 // Function to enforce array length limits based on the id
 function arrayLimit(val) {
@@ -224,4 +237,6 @@ module.exports = {
   collectionStatisticsSchema,
   chartDataSchema,
   nivoDataPointSchema,
+  chartDataPointSchema,
+  averagedDataSchema,
 };

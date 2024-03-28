@@ -17,6 +17,7 @@ const {
   sendJsonResponse,
   validateContextEntityExists,
 } = require("../../../utils/utils");
+const { addOrUpdateCards, removeCards } = require("../cardUtilities");
 
 // ! COLLECTION ROUTES (GET, CREATE, UPDATE, DELETE) !
 /**
@@ -150,87 +151,37 @@ exports.deleteExistingCollection = async (req, res, next) => {
 exports.addCardsToCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
   const { cards } = req.body;
-
+  const cardsArray = Array.isArray(cards) ? cards : [cards];
   try {
-    const populatedUser = await fetchPopulatedUserContext(userId, ["collections"]);
-    const collection = findUserContextItem(populatedUser, 'allCollections', collectionId);
+    const populatedUser = await fetchPopulatedUserContext(userId, [
+      "collections",
+    ]);
+    const collection = findUserContextItem(
+      populatedUser,
+      "allCollections",
+      collectionId
+    );
 
     // Utilize addOrUpdateCards utility
-    await addOrUpdateCards(collection, cards, collectionId, "Collection", CardInCollection);
+    await addOrUpdateCards(
+      collection,
+      cardsArray,
+      collectionId,
+      "Collection",
+      CardInCollection
+    );
 
     await populatedUser.save();
     await collection.populate({ path: "cards", model: "CardInCollection" });
 
-    sendJsonResponse(res, 200, "Cards added to collection successfully.", { data: collection });
+    sendJsonResponse(res, 200, "Cards added to collection successfully.", {
+      data: collection,
+    });
   } catch (error) {
-    console.error("Error adding cards to collection:", error);
+    logger.error("Error adding cards to collection:", error);
     next(error);
   }
 };
-// exports.addCardsToCollection = async (req, res, next) => {
-//   let { cards } = req.body; // Assuming 'cards' can be an object or an array
-//   if (!Array.isArray(cards)) {
-//     cards = [cards]; // Convert the object to an array containing that object
-//   }
-
-//   logger.info("Processing cards:", cards);
-//   try {
-//     const populatedUser = await fetchPopulatedUserContext(req.params.userId, [
-//       "collections",
-//     ]);
-//     const collection = findUserContextItem(populatedUser, 'allCollections', req.params.collectionId);
-//     for (const cardData of cards) {
-//       console.log("Processing card:".red, cardData.id);
-//       console.log(
-//         "IDS OF ALL CARDS IN COLLECTION:".red,
-//         collection.cards.map((c) => c.id)
-//       );
-//       let foundCard = collection?.cards?.find(
-//         (c) => c.id.toString() === cardData.id
-//       );
-//       if (foundCard) {
-//         let cardInCollection = await CardInCollection.findById(foundCard._id);
-//         if (cardInCollection) {
-//           console.log("Updating existing card:", cardInCollection.name.blue);
-//           console.log("START QUANTITY: ".red, cardInCollection.quantity);
-//           console.log("START TOTAL PRICE: ".red, cardInCollection.totalPrice);
-//           cardInCollection.quantity += 1;
-//           cardInCollection.totalPrice =
-//             cardInCollection.quantity * cardInCollection.price;
-//           await cardInCollection.save();
-//           collection.totalQuantity += cardData.quantity;
-//           collection.totalPrice += cardData.quantity * cardInCollection.price;
-//         } else {
-//           console.log("Card not found in CardInCollection:", foundCard._id);
-//         }
-//       } else {
-//         if (!cardData.price)
-//           cardData.price = cardData?.card_prices[0]?.tcgplayer_price;
-
-//         const reSavedCard = await reFetchForSave(
-//           cardData,
-//           req.params.collectionId,
-//           "Collection",
-//           "CardInCollection"
-//         );
-//         logger.info("Re-saved card:", reSavedCard?.name);
-//         collection.cards.push(reSavedCard?._id);
-//       }
-//     }
-//     await collection.save();
-//     await populatedUser.save();
-//     await collection.populate({
-//       path: "cards",
-//       model: "CardInCollection",
-//     });
-//     sendJsonResponse(res, 200, "Cards added to collection successfully.", {
-//       data: collection,
-//     });
-//   } catch (error) {
-//     console.error("Error adding cards to collection:", error);
-//     next(error);
-//   }
-// };
 /**
  * STATUS:
  *![X] NOT OPERATIONAL
@@ -243,19 +194,12 @@ exports.addCardsToCollection = async (req, res, next) => {
  */
 exports.removeCardsFromCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
-  const { cards } = req.body;
-
-  if (!Array.isArray(cards)) {
-    return res
-      .status(400)
-      .json({ message: "Invalid card data, expected an array." });
-  }
-
+  const { cards, type } = req.body; // Include type in the request body
+  const cardsArray = Array.isArray(cards) ? cards : [cards];
   try {
     let populatedUser = await populateUserDataByContext(userId, [
       "collections",
     ]);
-
     const collection = populatedUser.allCollections.find(
       (coll) => coll._id.toString() === collectionId
     );
@@ -264,31 +208,28 @@ exports.removeCardsFromCollection = async (req, res, next) => {
       return res.status(404).json({ message: "Collection not found." });
     }
 
-    // Remove specified cards
-    const cardIdsToRemove = cards.map((c) => c._id);
-    collection.cards = collection.cards.filter(
-      (card) => !cardIdsToRemove.includes(card.id)
-    );
-
-    // Now, you'll have to remove these cards from the CardInCollection model as well
-    await CardInCollection.deleteOne({
-      _id: { $in: cardIdsToRemove },
-      collectionId,
-    });
-
-    await collection.save();
+    // Check for the 'type' and call removeCards function accordingly
+    if (["decrement", "delete"].includes(type)) {
+      await removeCards(
+        collection,
+        cardsArray,
+        "collection",
+        CardInCollection,
+        type
+      );
+    } else {
+      return res.status(400).json({ message: "Invalid type specified." });
+    }
 
     await populatedUser.save();
-
+    // Re-fetch the populated user to get the updated collections
     populatedUser = await populateUserDataByContext(userId, ["collections"]);
-
-    // return the updated collection from the populated user
     const updatedCollection = populatedUser.allCollections.find(
       (coll) => coll._id.toString() === collectionId
     );
 
     res.status(200).json({
-      message: "Cards updated in collection successfully.",
+      message: `Cards ${type === "delete" ? "removed" : "updated"} from collection successfully.`,
       data: updatedCollection,
     });
   } catch (error) {
