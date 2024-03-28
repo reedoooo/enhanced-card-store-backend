@@ -268,8 +268,8 @@ function constructCardDataObject(cardData, additionalData) {
       acc[set.set_name] = set.set_rarity;
       return acc;
     }, {}),
-    sets: cardData?.card_sets.reduce((acc, set) => {
-      acc[set.set_name] = set;
+    sets: cardData?.card_sets?.reduce((acc, set) => {
+      acc[set.set_name] = set.set_name;
       return acc;
     }, {}),
     totalPrice: tcgplayerPrice,

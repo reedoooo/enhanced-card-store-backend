@@ -10,6 +10,7 @@ const {
   averagedDataSchema,
   // variantSchema,
 } = require("./CommonSchemas");
+const logger = require("../configs/winston");
 const createNewPriceEntry = (price) => {
   return {
     num: price,
@@ -82,7 +83,7 @@ const commonFields_Custom_Dynamic_Data = {
   },
   sets: {
     type: Map,
-    of: [cardSetSchema],
+    of: String,
   },
   totalPrice: { type: Number, default: 0 }, // AUTOSET: true
 };
@@ -215,8 +216,8 @@ genericCardSchema.pre("save", async function (next) {
 
     // Check if there's an existing entry for today's date (or whichever key you're using)
     const chartKey = new Date().toISOString().split("T")[0]; // Example key: 'YYYY-MM-DD'
-    if (!this.chart_datasets.has(chartKey)) {
-      this.chart_datasets.set(chartKey, [newChartDataEntry]); // Initialize with an array containing the new entry
+    if (!this.chart_datasets?.has(chartKey)) {
+      this.chart_datasets?.set(chartKey, [newChartDataEntry]); // Initialize with an array containing the new entry
     } else {
       const existingEntries = this.chart_datasets.get(chartKey);
       existingEntries.push(newChartDataEntry);
