@@ -1,16 +1,14 @@
 // INDEX FOR MODEL LAYOUT
 // =============================================================
-const User = require('./User');
-const UserBasicData = require('./user/UserBasicData');
-const UserSecurityData = require('./user/UserSecurityData');
-const GeneralUserStats = require('./user/GeneralUserStats');
-const Card = require('./Card');
-const { CardInCart, CardInDeck, CardInCollection, CardInSearch, CardSet, CardVariant } = Card;
-const CollectionModels = require('./Collection');
-const { Deck, Cart, Collection, SearchHistory } = CollectionModels;
-const SearchesHistory = require('./SearchHistory');
-const { SearchSession, SearchResult, SearchTerm } = SearchesHistory;
-const CommonSchemas = require('./CommonSchemas');
+const User = require("./User");
+const UserBasicData = require("./schemas/UserBasicData");
+const UserSecurityData = require("./schemas/UserSecurityData");
+const GeneralUserStats = require("./schemas/GeneralUserStats");
+const Card = require("./Card");
+const { CardInCart, CardInDeck, CardInCollection, CardSet, CardVariant } = Card;
+const CollectionModels = require("./Collection");
+const { Deck, Cart, Collection } = CollectionModels;
+const CommonSchemas = require("./schemas/CommonSchemas");
 const {
   priceEntrySchema,
   cardSetSchema,
@@ -19,9 +17,6 @@ const {
   chartDatasetsSchema,
   collectionPriceHistorySchema,
   cardVariantSchema,
-  searchTermSchema,
-  searchResultSchema,
-  searchSessionSchema,
 } = CommonSchemas;
 
 module.exports = {
@@ -33,18 +28,12 @@ module.exports = {
   CardInCart,
   CardInDeck,
   CardInCollection,
-  CardInSearch,
   CardSet,
   CardVariant,
   CollectionModels,
   Deck,
   Cart,
   Collection,
-  SearchHistory,
-  SearchesHistory,
-  SearchSession,
-  SearchResult,
-  SearchTerm,
   CommonSchemas,
   priceEntrySchema,
   cardSetSchema,
@@ -53,7 +42,4 @@ module.exports = {
   chartDatasetsSchema,
   collectionPriceHistorySchema,
   cardVariantSchema,
-  searchTermSchema,
-  searchResultSchema,
-  searchSessionSchema,
 };

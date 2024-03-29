@@ -1,35 +1,6 @@
-const CustomError = require('../../middleware/customError');
+const { validateInput } = require('../../middleware/errorHandling/validators');
 const User = require('../../models/User');
 const { getIO } = require('../../socket');
-
-const isValidObjectId = (id) => {
-  const ObjectIdRegEx = /^[0-9a-fA-F]{24}$/;
-  return ObjectIdRegEx.test(id);
-};
-
-const validateInput = (userId, pricingData) => {
-  try {
-    if (!isValidObjectId(userId)) {
-      throw new CustomError('UserId is missing, invalid, or not in the correct format.', 400);
-    }
-    if (!pricingData) {
-      throw new CustomError('Pricing data is not provided.', 400);
-    }
-
-    ['updatedPrices', 'previousPrices'].forEach((priceType) => {
-      if (typeof pricingData[priceType] !== 'object') {
-        throw new CustomError(`Invalid ${priceType} provided.`, 400);
-      }
-    });
-  } catch (error) {
-    const errorResponse = new CustomError(
-      'Failed to validate user input. Please try again later.',
-      500,
-    );
-    throw errorResponse; // Rethrow the error to be caught by the Express error middleware
-    // return undefined;
-  }
-};
 
 const updateUserCard = (card, pricingData) => {
   try {
@@ -61,7 +32,7 @@ const updateUserCard = (card, pricingData) => {
 
     return updatedCard;
   } catch (error) {
-    const errorResponse = new CustomError(
+    const errorResponse = new Error(
       'Failed to update current chart datasets. Please try again later.',
       500,
     );
@@ -98,7 +69,7 @@ const updateCurrentChartDataSets = (collection) => {
       }
     }
   } catch (error) {
-    const errorResponse = new CustomError(
+    const errorResponse = new Error(
       'Failed to update current chart datasets. Please try again later.',
       500,
     );
@@ -122,11 +93,11 @@ const updateUserCollections = async (userId, updatedData) => {
 
     const user = await User.findById(userId).populate('allCollections');
     if (!user) {
-      throw new CustomError('User not found.', 404);
+      throw new Error('User not found.', 404);
     }
 
     if (!Array.isArray(user.allCollections)) {
-      throw new CustomError(
+      throw new Error(
         'Failed to retrieve user collections or collections are not in the expected format.',
         500,
       );
@@ -160,7 +131,7 @@ const updateUserCollections = async (userId, updatedData) => {
       collections: user.allCollections,
     };
   } catch (error) {
-    const errorResponse = new CustomError(
+    const errorResponse = new Error(
       'Failed to update user collections. Please try again later.',
       500,
     );

@@ -323,6 +323,7 @@ const { constructCardDataObject } = require("../../utils/utils");
 const { CardSet, CardVariant } = require("../../models");
 const { default: mongoose } = require("mongoose");
 const { cardController } = require("../Cards/CardController");
+const { handleError } = require("../../middleware/errorHandling/errorHandler");
 // Improved error handling, consistent async/await usage, and clearer function responsibilities
 
 //  * [SECTION 6] Helper functions for different methods
@@ -363,7 +364,7 @@ const { cardController } = require("../Cards/CardController");
 // }
 async function createCardSets(cardSetsData, cardModel, cardId) {
   if (!Array.isArray(cardSetsData)) {
-    console.error("Invalid input: cardSetsData should be an array.");
+    handleError("Invalid input: cardSetsData should be an array.", 400);
     return [];
   }
 

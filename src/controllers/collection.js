@@ -1,23 +1,23 @@
 // !--------------------------! COLLECTIONS !--------------------------!
-const { CardInCollection } = require("../../../../src/models/Card");
-const { Collection } = require("../../../../src/models/Collection");
+const { CardInCollection } = require("../models/Card");
+const { Collection } = require("../models/Collection");
 const {
   populateUserDataByContext,
   deepPopulateCardFields,
   fetchPopulatedUserContext,
   findUserContextItem,
-} = require("../dataUtils");
+} = require("./User/dataUtils");
 const {
   setupDefaultCollectionsAndCards,
   reFetchForSave,
   fetchUserIdsFromUserSecurityData,
-} = require("../helpers");
-const logger = require("../../../configs/winston");
+} = require("./User/helpers");
+const logger = require("../configs/winston");
+const { sendJsonResponse } = require("../utils/utils");
+const { addOrUpdateCards, removeCards } = require("./User/cardUtilities");
 const {
-  sendJsonResponse,
   validateContextEntityExists,
-} = require("../../../utils/utils");
-const { addOrUpdateCards, removeCards } = require("../cardUtilities");
+} = require("../middleware/errorHandling/validators");
 
 // ! COLLECTION ROUTES (GET, CREATE, UPDATE, DELETE) !
 /**

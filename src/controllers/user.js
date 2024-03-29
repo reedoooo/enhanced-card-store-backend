@@ -1,6 +1,5 @@
-const CustomError = require("../../../middleware/errorHandling/customError");
-const { STATUS, MESSAGES } = require("../../../configs/constants");
-const { extractData } = require("../../../utils/utils");
+const { STATUS, MESSAGES } = require("../configs/constants");
+const { extractData } = require("../utils/utils");
 const jwt = require("jsonwebtoken");
 const {
   validateSignupInput,
@@ -9,9 +8,12 @@ const {
   findAndValidateUser,
   validateSigninInput,
   handleSigninError,
-} = require("../../../middleware/errorHandling/validators");
-const { createUser, createUserValidationData } = require("./userHelpers");
-const { populateUserDataByContext } = require("../dataUtils");
+} = require("../middleware/errorHandling/validators");
+const {
+  createUser,
+  createUserValidationData,
+} = require("./User/User/userHelpers");
+const { populateUserDataByContext } = require("./User/dataUtils");
 const {
   generateRefreshToken,
   updateRefreshToken,
@@ -20,8 +22,9 @@ const {
   saveRefreshToken,
   generateToken,
   saveTokens,
-} = require("../../../services/auth");
-const logger = require("../../../configs/winston");
+} = require("../middleware/auth");
+const logger = require("../configs/winston");
+const { handleError } = require("../middleware/errorHandling/errorHandler");
 // !--------------------------! USERS !--------------------------!
 
 // USER ROUTES: SIGNUP / SIGNIN
@@ -41,10 +44,6 @@ exports.signup = async (req, res, next) => {
       lastName
     );
     const verifiedUser = await createUserValidationData(newUser);
-    // const accessToken = await generateToken(newUser._id); // Access token generation
-    // const refreshToken = await generateRefreshToken(newUser._id); // Refresh token generation
-    // await saveTokens(newUser._id, accessToken, refreshToken); // Save both tokens
-
     await setupDefaultCollectionsAndCards(verifiedUser, "", {});
 
     const populatedUser = await populateUserDataByContext(verifiedUser._id, [
@@ -70,7 +69,6 @@ exports.signin = async (req, res, next) => {
   try {
     const { username, password } = req.body.userSecurityData;
     validateSigninInput(username, password);
-
     const user = await findAndValidateUser(username, password);
     const populatedUser = await populateUserDataByContext(user._id, [
       "decks",
@@ -81,17 +79,12 @@ exports.signin = async (req, res, next) => {
     const refreshToken = await generateRefreshToken(populatedUser._id); // New refresh token
     await saveTokens(populatedUser._id, accessToken, refreshToken);
 
-    // await updateRefreshToken(populatedUser._id, refreshToken);
-
-    // await populatedUser.save();
-
     res.status(200).json({
       message: "Sign in successful: Fetched user data successfully",
       data: { accessToken, refreshToken, user: populatedUser },
     });
   } catch (error) {
-    console.error("Sign in Error:", error);
-    handleSigninError(error, res, next);
+    handleError(error, 'Error signing in user');
   }
 };
 exports.signout = async (req, res, next) => {
@@ -99,17 +92,14 @@ exports.signout = async (req, res, next) => {
     const { userId, refreshToken } = req.body;
     const user = await User.findById(userId).populate("userSecurityData");
 
-    if (user && user.userSecurityData && user.userSecurityData.refreshToken) {
+    if (user && user?.userSecurityData && user.userSecurityData?.refreshToken) {
       invalidateToken(refreshToken);
       await updateRefreshToken(userId, null); // Set the refreshToken to null
     }
 
     res.status(200).json({ message: "Logout successful", data: { userId } });
   } catch (error) {
-    console.error("Logout Error:", error);
-    res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+		handleError(error, 'Error signing out user');
     next(error);
   }
 };
@@ -138,7 +128,6 @@ exports.checkToken = async (req, res, next) => {
     next(error);
   }
 };
-// USER DATA ROUTES (GET)
 exports.getUserData = async (req, res, next) => {
   try {
     const userId = req.params.userId;
@@ -148,18 +137,8 @@ exports.getUserData = async (req, res, next) => {
       "cart",
     ]);
     if (!populatedUser) {
-      throw new CustomError(MESSAGES.USER_NOT_FOUND, STATUS.NOT_FOUND);
+      throw new Error(MESSAGES.USER_NOT_FOUND, STATUS.NOT_FOUND);
     }
-
-    // UPDATE USER STATS
-
-    // populatedUser.generalUserStats.totalDecks = populatedUser?.allDecks?.length || 0;
-    // populatedUser.generalUserStats.totalCollections = populatedUser?.allCollections?.length || 0;
-    // populatedUser.generalUserStats.totalCardsInCollections = populatedUser?.allCollections?.reduce(
-    //   (acc, collection) => acc + collection.cards.length,
-    //   0,
-    // );
-
     res.status(200).json({
       message: "Fetched user data successfully",
       data: populatedUser,

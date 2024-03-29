@@ -10,6 +10,7 @@ const cors = require("cors");
 const http = require("http");
 const path = require("path");
 const compression = require("compression");
+require('./services/runCron');
 
 // Middleware and Routes
 const routes = require("./routes");

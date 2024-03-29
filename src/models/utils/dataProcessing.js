@@ -1,5 +1,5 @@
 const { formatISO } = require("date-fns");
-const logger = require("../configs/winston");
+const logger = require("../../configs/winston");
 const roundToNearestHundredth = (num) => Math.round(num * 100) / 100;
 exports.convertChartDataToArray = (averagedChartData) =>
   Object.values(averagedChartData);
@@ -105,17 +105,14 @@ const interpolateTimeValues = (start, end, count) => {
     new Date(start.getTime() + step * index).toISOString()
   );
 };
-
 const seedChartData = (chart, range) => {
   if (!chart || !Array.isArray(chart.data)) {
     logger.error("Invalid chart data provided to seedChartData.");
     return chart;
   }
   chart.data.sort((a, b) => new Date(a.x) - new Date(b.x));
-  // Adjust data points to match the required points count
   if (chart.data.length !== range.points) {
     if (chart.data.length > range.points) {
-      // Too many points: sample down to the required number
       const sampledData = getRequiredDataPoints(chart.data, range.points);
       chart.data = sampledData;
     } else if (chart.data.length < range.points) {
@@ -139,17 +136,11 @@ const seedChartData = (chart, range) => {
         x: x,
         y: interpolatedValues[index],
       }));
-
-      // Set the first data point's y-value to defaultPrevious if defined
-      // if (range.defaultPrevious !== undefined && chart.data.length > 0) {
-      //   chart.data[0].y = range.defaultPrevious;
-      // }
     }
   }
 
   return chart;
 };
-
 exports.processAndSortTimeData = (cardDataArray) => {
   if (!Array.isArray(cardDataArray)) {
     logger.error("Invalid cardDataArray provided to processAndSortTimeData.");
@@ -313,226 +304,3 @@ exports.updateCollectionStatistics = (
     ? ((totalPrice - currentStats.lowPoint) / currentStats.lowPoint) * 100
     : 0,
 });
-// /**
-//  * Calculates the growth rate between the last and first data point in the given chart data.
-//  *
-//  * @param {Object} chart - The Nivo chart data object.
-//  * @returns {Object} The Nivo chart data object with an additional growth property.
-//  */
-// exports.aggregateAndAverageData = (chart) => {
-//   if (!chart?.data?.length) return chart;
-//   chart = seedChartData(chart, { threshold: 1 }, 0); // Assume last 24 hours for seeding
-//   const lastValue = chart.data[chart.data.length - 1].y;
-//   const firstValue = chart.data[0].y;
-//   const growth = firstValue ? ((lastValue - firstValue) / firstValue) * 100 : 0;
-
-//   return { ...chart, growth };
-// };
-// const seedChartData = (chart, range) => {
-//   if (!chart || !Array.isArray(chart.data)) {
-//     console.error("Invalid chart data provided to seedChartData.");
-//     return chart;
-//   }
-//   if (chart.data.length > range.points) {
-//     chart.data = getRequiredDataPoints(chart.data, range.points);
-//   }
-//   const zeroCount = chart.data.filter((d) => !d.y).length;
-//   const requiredPoints = range.points;
-
-//   if (
-//     zeroCount / chart.data.length > 0.75 ||
-//     chart.data.length < requiredPoints
-//   ) {
-//     // If more than 75% of data are zeroes or not enough points, interpolate the data
-//     const interpolatedValues = interpolateValues(
-//       range.defaultFirst,
-//       range.defaultLast,
-//       requiredPoints
-//     );
-
-//     const interpolatedData = interpolatedValues.map((value, index) => ({
-//       x:
-//         index < chart.data.length
-//           ? chart.data[index].x
-//           : `Interpolated-${index}`,
-//       y: value,
-//     }));
-
-//     // In case we have previous data point from a different range
-//     if (range.defaultPrevious !== undefined && interpolatedData.length > 0) {
-//       interpolatedData[0].y = range.defaultPrevious;
-//     }
-//     return {
-//       ...chart,
-//       data: interpolatedData,
-//     };
-//   }
-
-//   return chart;
-// };
-
-// Object.keys(timeRangeDataMap)?.forEach((key) => {
-//   const { data, defaultFirst, defaultLast, defaultPrevious, threshold } =
-//     timeRangeDataMap[key];
-//   timeRangeDataMap[key].data = seedChartData(
-//     { defaultFirst, defaultLast, defaultPrevious, threshold },
-//     data
-//   );
-// });
-// exports.processTimeData = (dataArray) => {
-//   const cumulativeData = this.recalculatePriceHistory(dataArray);
-
-//   // dataArray = injectSeedData(dataArray);
-//   const now = new Date();
-//   // const labelsAndThresholds = getLabelsAndThresholds();
-
-//   return cumulativeData?.map((item) => {
-//     const itemDate = new Date(item.timestamp);
-//     const diffDays = (now - itemDate) / (1000 * 3600 * 24);
-//     let label = "365d";
-//     if (diffDays <= 1) {
-//       label = "24hr";
-//     } else if (diffDays <= 7) {
-//       label = "7d";
-//     } else if (diffDays <= 30) {
-//       label = "30d";
-//     } else if (diffDays <= 90) {
-//       label = "90d";
-//     } else if (diffDays <= 180) {
-//       label = "180d";
-//     } else if (diffDays <= 270) {
-//       label = "270d";
-//     } else if (diffDays <= 365) {
-//       label = "365d";
-//     }
-//     return { x: itemDate?.toISOString(), y: item?.num, label };
-//   });
-// };
-// /**
-//  * Sorts processed data into ranges based on the labels and thresholds defined in getLabelsAndThresholds function.
-//  * @param {Object} processedData - Processed data with timestamp and value properties.
-//  * @returns {Object} Object with keys as labels and values as Nivo charts data.
-//  */
-// exports.sortDataIntoRanges = (processedData) => {
-//   const labelsAndThresholds = getLabelsAndThresholds();
-//   if (!Array.isArray(labelsAndThresholds)) {
-//     console.error(
-//       "getLabelsAndThresholds did not return an array. Please check its implementation."
-//     );
-//     return {};
-//   }
-//   let nivoChartData = {};
-//   labelsAndThresholds?.forEach((labelThreshold) => {
-//     nivoChartData[labelThreshold.label] = seedChartData(
-//       {
-//         data: [],
-//         color: "#2e7c67",
-//         id: labelThreshold.label,
-//         name: `Last ${labelThreshold.label.toUpperCase()}`,
-//         growth: 0,
-//       },
-//       labelThreshold
-//     );
-//   });
-
-//   processedData?.forEach((item) => {
-//     if (item && "label" in item && "x" in item && "y" in item) {
-//       const rangeData = nivoChartData[item.label];
-//       if (rangeData) {
-//         const existingPoint = rangeData.data.find((d) => d.x === item.x);
-//         if (!existingPoint) {
-//           rangeData.data.push({ x: item.x, y: item.y });
-//         }
-//       }
-//     }
-//   });
-
-//   // Re-seed to ensure all ranges have sufficient data points after processing.
-//   Object.keys(nivoChartData).forEach((label) => {
-//     const labelThreshold = labelsAndThresholds.find((lt) => lt.label === label);
-//     if (labelThreshold) {
-//       nivoChartData[label] = seedChartData(
-//         nivoChartData[label],
-//         labelThreshold
-//       );
-//     }
-//   });
-//   return nivoChartData;
-// };
-// const getRequiredDataPoints = (data, requiredPoints) => {
-//   if (data.length <= requiredPoints) return data;
-
-//   // Calculate the interval for selecting data points evenly distributed across the range
-//   let sampledData = [];
-//   const everyNth = Math.floor(data.length / (requiredPoints - 1));
-
-//   // Always include the first and last data points
-//   for (let i = 0; i < data.length; i++) {
-//     if (i % everyNth === 0 || i === data.length - 1) {
-//       sampledData.push(data[i]);
-//     }
-
-//     // Stop if we've collected the required number of points
-//     if (sampledData.length >= requiredPoints) break;
-//   }
-
-//   // Ensure the last data point is always included
-//   if (sampledData[sampledData.length - 1].x !== data[data.length - 1].x) {
-//     sampledData[sampledData.length - 1] = data[data.length - 1];
-//   }
-
-//   return sampledData;
-// };
-// // Handle cases with excess data points
-// if (chart.data.length > range.points) {
-//   chart.data = getRequiredDataPoints(chart.data, range.points);
-// }
-
-// // Handle cases requiring interpolation
-// const zeroCount = chart.data.filter((d) => !d.y).length;
-// if (
-//   zeroCount / chart.data.length > 0.75 ||
-//   chart.data.length < range.points
-// ) {
-//   const interpolatedValues = interpolateValues(
-//     range.defaultFirst,
-//     range.defaultLast,
-//     range.points
-//   );
-//   chart.data = interpolatedValues.map((y, index) => ({
-//     x: chart?.data[index]?.x,
-//     y,
-//   }));
-
-//   if (range.defaultPrevious !== undefined && chart.data.length > 0) {
-//     chart.data[0].y = range.defaultPrevious;
-//   }
-// }
-// if (
-//   zeroCount / chart.data.length > 0.75 ||
-//   chart.data.length < range.points
-// ) {
-//   const interpolatedValues = interpolateValues(
-//     range.defaultFirst,
-//     range.defaultLast,
-//     range.points
-//   );
-
-//   chart.data = interpolatedValues.map((y, index) => ({
-//     x: chart.data[index]?.x || `Interpolated-${index}`,
-//     y,
-//   }));
-
-//   if (range.defaultPrevious !== undefined && chart.data.length > 0) {
-//     chart.data[0].y = range.defaultPrevious;
-//   }
-// }
-
-//   return chart;
-// };
-// /**
-//  * Processes card data to create cumulative collection values and categorizes them into different time ranges.
-//  *
-//  * @param {Object[]} cardDataArray - An array of objects with timestamp and card price.
-//  * @returns {Object} Object with keys as labels and arrays of data points as values.
-//  */

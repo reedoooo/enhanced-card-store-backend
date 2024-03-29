@@ -1,12 +1,6 @@
 // utils.js
-const jwt = require("jsonwebtoken");
 const { default: mongoose } = require("mongoose");
-const { GENERAL, MESSAGES, STATUS } = require("../../src/configs/constants");
-const CustomError = require("../middleware/errorHandling/customError");
-const User = require("../../src/models/User");
 const { default: axios } = require("axios");
-const { validationResult } = require("express-validator");
-const { Collection } = require("../../src/models/Collection");
 const { unifiedErrorHandler } = require("../middleware/loggers/logErrors");
 const axiosInstance = axios.create({
   baseURL: "https://db.ygoprodeck.com/api/v7/",
@@ -40,26 +34,6 @@ function sendJsonResponse(res, status, message, data) {
   res.status(status).json({ message, data });
 }
 /**
- * validateContextEntityExists that a deck exists.
- * @param {object} entity - The entity to be validated.
- * @param {string} errorMessage - The error message to be sent to the client.
- * @param {number} errorCode - The error code to be sent to the client.
- * @param {object} response - The response object to be sent to the client.
- * @returns {object} - The response object.
- * */
-function validateContextEntityExists(
-  entity,
-  errorMessage,
-  errorCode,
-  response
-) {
-  if (!entity) {
-    sendJsonResponse(response, errorCode, errorMessage);
-    throw new Error(errorMessage);
-  }
-}
-
-/**
  * Formats a date object to the format "DD/MM/YYYY, HH:MM".
  * @param {Date} date - The date object to be formatted.
  * @returns {string} - The formatted date string.
@@ -89,28 +63,6 @@ const formatDate = (date) => {
   hours = hours ? hours.toString().padStart(2, "0") : "12"; // the hour '0' should be '12'
   return `${day}/${month}, ${hours}:${minutes}${ampm}`;
 };
-const ensureNumber = (value) => Number(value);
-const ensureString = (value) => String(value);
-const ensureBoolean = (value) => Boolean(value);
-const ensureArray = (value) => (Array.isArray(value) ? value : []);
-const ensureObject = (value) => (typeof value === "object" ? value : {});
-const validateVarType = (value, type) => {
-  switch (type) {
-    case "number":
-      return ensureNumber(value);
-    case "string":
-      return ensureString(value);
-    case "boolean":
-      return ensureBoolean(value);
-    case "array":
-      return ensureArray(value);
-    case "object":
-      return ensureObject(value);
-    default:
-      return value;
-  }
-};
-const validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 /**
  * Creates a new price entry object.
  * @param {number} price - The price to be added to the price entry.
@@ -130,10 +82,7 @@ const createNewPriceEntry = (price) => {
 function removeDuplicatePriceHistoryFromCollection(cards) {
   // Iterate over each card in the collection
   return cards.map((card) => {
-    // Extract the card's price history
     const { priceHistory } = card;
-
-    // Remove duplicates from this card's price history
     const uniquePriceHistory = priceHistory.reduce((unique, currentEntry) => {
       const duplicate = unique.find((entry) => entry.num === currentEntry.num);
       if (!duplicate) {
@@ -235,6 +184,12 @@ const calculateCollectionValue = (cards) => {
     return totalValue + cardPrice * cardQuantity;
   }, 0);
 };
+/**
+ * Constructs the card data object.
+ * @param {object} cardData - The card data object.
+ * @param {object} additionalData - The additional data object.
+ * @returns {object} - The constructed card data object.
+ * */
 function constructCardDataObject(cardData, additionalData) {
   const tcgplayerPrice = cardData?.card_prices[0]?.tcgplayer_price || 0;
   const cardSet =
@@ -243,16 +198,16 @@ function constructCardDataObject(cardData, additionalData) {
       : null;
   const defaultPriceObj = createNewPriceEntry(tcgplayerPrice);
   const formatDateNY = (dateInput) => {
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     })
-    .format(new Date(dateInput))
-    .split('/')
-    .reverse()
-    .join('-'); // Ensures the format is 'YYYY-MM-DD'
+      .format(new Date(dateInput))
+      .split("/")
+      .reverse()
+      .join("-"); // Ensures the format is 'YYYY-MM-DD'
   };
 
   const addedAtFormatted = formatDateNY(cardData.addedAt || new Date());
@@ -312,11 +267,8 @@ function constructCardDataObject(cardData, additionalData) {
 
 module.exports = {
   asyncHandler,
-  ensureNumber,
   getCardInfo,
-  validateObjectId,
   extractData,
-  validateVarType,
   formatDateTime,
   calculateCollectionValue,
   asyncErrorHandler,
@@ -324,7 +276,5 @@ module.exports = {
   formatDate,
   removeDuplicatePriceHistoryFromCollection,
   constructCardDataObject,
-
   sendJsonResponse,
-  validateContextEntityExists,
 };

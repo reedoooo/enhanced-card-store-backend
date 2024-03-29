@@ -1,5 +1,6 @@
 // src/middleware/logRequests.js
 const logger = require("../../configs/winston");
+require("colors");
 
 const logWarnings = (err, req, res, next) => {
 	logger.warn(
@@ -11,5 +12,9 @@ const logWarnings = (err, req, res, next) => {
     error: process.env.NODE_ENV === "production"? {} : err.stack,
   });
 };
+const handleWarning = (warning, message) => {
+  logger.warn("[WARNING] ".yellow + message, warning);
+  throw new Error(message);
+};
 
-module.exports = { logWarnings };
+module.exports = { logWarnings, handleWarning };

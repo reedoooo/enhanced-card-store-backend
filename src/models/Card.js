@@ -4,48 +4,12 @@ const {
   priceEntrySchema,
   cardImageSchema,
   cardPriceSchema,
-  chartDatasetsSchema,
   cardVariantSchema,
   cardSetSchema,
   averagedDataSchema,
-  // variantSchema,
-} = require("./CommonSchemas");
+  chartDatasetEntrySchema,
+} = require("./schemas/CommonSchemas");
 const logger = require("../configs/winston");
-const createNewPriceEntry = (price) => {
-  return {
-    num: price,
-    timestamp: new Date(),
-  };
-};
-function calculateContextualQuantity(card, context) {
-  logger.info(
-    "calculating contextual quantity for: ",
-    card.name,
-    "in context: ",
-    context
-  );
-  switch (context) {
-    case "SearchHistory":
-      return card.quantity;
-    case "Deck":
-      return card.quantity;
-    case "Collection":
-      return card.quantity;
-    case "Cart":
-      return card.quantity;
-    default:
-      throw new Error("Invalid context");
-  }
-}
-const chartDatasetEntrySchema = new Schema(
-  {
-    label: String,
-    x: Date,
-    y: { type: Number, min: 0 },
-  },
-  { _id: false }
-); // Consider not automatically generating an _id for subdocuments
-
 // COMMON FIELD SCHEMAS: this data comes straight from the API
 // SAVE FUNCTION: fetchAndTransformCardData
 const commonFields_API_Data = {
@@ -123,10 +87,12 @@ const uniqueVariantFields = {
     Cart: Number,
   }, // AUTOSET: true
 };
+// UNIQUE FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
 const referenceSchema = new Schema({
   refId: { type: Schema.Types.ObjectId, required: true },
   quantity: { type: Number, required: true },
 });
+// UNIQUE FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
 const allRefsSchema = new Schema({
   decks: [referenceSchema],
   collections: [referenceSchema],
@@ -136,7 +102,7 @@ const allRefsSchema = new Schema({
     of: referenceSchema,
   },
 });
-
+// UNIQUE FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
 const randomCardSchema = new Schema({
   name: { type: String, required: false }, // AUTOSET: false || required: true
   id: { type: String, required: false, unique: false }, // AUTOSET: false || required: true
@@ -151,7 +117,8 @@ const randomCardSchema = new Schema({
   attribute: String, // AUTOSET: false
   image: String, // AUTOSET: false
   refs: allRefsSchema, // AUTOSET: false
-  priceHistory: [priceEntrySchema], // AUTOSET: false  averagedChartData: {
+  priceHistory: [priceEntrySchema],
+  valueHistory: [priceEntrySchema],
   averagedChartData: {
     type: Map,
     of: averagedDataSchema,
@@ -209,7 +176,7 @@ genericCardSchema.pre("save", async function (next) {
     // );
     const newPriceEntry = createNewPriceEntry(this.price); // Your existing function
     const newChartDataEntry = {
-      label: 'Price',
+      label: "Price",
       x: new Date(),
       y: this.totalPrice,
     };
@@ -341,13 +308,11 @@ const CardVariant = model("CardVariant", cardVariantSchema);
 const CardInCollection = mongoose.model("CardInCollection", genericCardSchema);
 const CardInDeck = mongoose.model("CardInDeck", genericCardSchema);
 const CardInCart = mongoose.model("CardInCart", genericCardSchema);
-const CardInSearch = mongoose.model("CardInSearch", genericCardSchema);
 
 module.exports = {
   CardInCollection,
   CardInDeck,
   CardInCart,
-  CardInSearch,
   CardSet,
   CardVariant,
   RandomCard,

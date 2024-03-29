@@ -1,9 +1,9 @@
 // !--------------------------! CARTS !--------------------------!
-const { CardInCart } = require("../../../../src/models/Card");
-const { Cart } = require("../../../../src/models/Collection");
+const { CardInCart } = require("../models/Card");
+const { Cart } = require("../models/Collection");
 // const User = require("../../../src/models/User");
-const { populateUserDataByContext } = require("../dataUtils");
-const { reFetchForSave } = require("../helpers");
+const { populateUserDataByContext } = require("./User/dataUtils");
+const { reFetchForSave } = require("./User/helpers");
 async function addToCart(user, cartItems) {
   for (const item of cartItems) {
     console.log("item", item);
@@ -96,7 +96,15 @@ async function updateCartItems(user, cartItems, type) {
 
   return { updatedCart: user.cart };
 }
-
+const updateCardQuantity = (card, quantity, type) => {
+  if (type === "increment") {
+    card.quantity += 1;
+  } else if (type === "decrement" && card.quantity > 1) {
+    card.quantity -= 1;
+  } else if (type === "decrement" && card.quantity === 1) {
+    card.quantity = 0;
+  }
+};
 exports.getUserCart = async (req, res, next) => {
   const { userId } = req.params;
 
@@ -207,15 +215,6 @@ exports.removeCardsFromCart = async (req, res, next) => {
     next(error);
   }
 };
-const updateCardQuantity = (card, quantity, type) => {
-  if (type === "increment") {
-    card.quantity += 1;
-  } else if (type === "decrement" && card.quantity > 1) {
-    card.quantity -= 1;
-  } else if (type === "decrement" && card.quantity === 1) {
-    card.quantity = 0;
-  }
-};
 exports.addCardsToCart = async (req, res, next) => {
   const { userId, cartUpdates, method, type } = req.body; // Assuming cartUpdates contains the updates for the cart
   // console.log('cartUpdates', cartUpdates);
@@ -249,66 +248,22 @@ exports.addCardsToCart = async (req, res, next) => {
           "Cart",
           "CardInCart"
         ); // Assuming this function is correctly implemented
-        // const newCardInCart = new CardInCart({
-        //   ...reSavedCard,
-        //   quantity: 1, // Starting with a quantity of 1 for new cards
-        // });
-
-        // Save the new card instance to the database
-        // await newCardInCart.save();
-        // Card doesn't exist, so add it
         cart.cart.push(reSavedCard._id);
-
-        // Update the cart directly, assuming it's a mutable reference from populatedUser
-        // cart[existingCardIndex] = newCardInCart;
-
-        // cart.push({
-        //   ...reSavedCard,
-        //   quantity: 1, // Add new card with quantity set to 1
-        // });
       }
     }
-    // for (const update of cartUpdates) {
-    //   const cardInCartIndex = cart?.cart?.findIndex((c) => c._id === update?._id);
-    //   if (cardInCartIndex !== -1) {
-    //     // Card exists in the cart
-    //     const cardInCart = cart[cardInCartIndex];
-    //     const quantityChange =
-    //       type === 'increment' ? 1 : type === 'decrement' && cardInCart?.quantity > 1 ? -1 : 0;
-
-    //     if (quantityChange !== 0) {
-    //       cardInCart.quantity += quantityChange;
-    //       // Update the cart directly, assuming it's a mutable reference from populatedUser
-    //       cart[cardInCartIndex] = cardInCart;
-    //     }
-    //   } else if (type === 'increment') {
-    //     // New card, only add if incrementing
-    //     const reSavedCard = await reFetchForSave(update, userId, 'Cart', 'CardInCart'); // Assuming this function is correctly implemented
-    //     cart.push({
-    //       ...reSavedCard,
-    //       quantity: 1, // Add new card with quantity set to 1
-    //     });
-    //   }
-    // }
 
     await cart.save();
 
-    // Assuming a method to update cart in user document or a save method that handles this
-    await populatedUser.save(); // Saving after all updates to cart
-
-    // Optionally repopulate if needed to return the updated cart data
-    // Assuming cart is a subdocument or referenced in some way that allows for population
+    await populatedUser.save(); // Saving after all updates to cart 
     await populatedUser.populate({
       path: "cart.cart",
       model: "CardInCart",
     });
 
-    res
-      .status(200)
-      .json({
-        message: "Cart updated successfully.",
-        data: populatedUser.cart,
-      });
+    res.status(200).json({
+      message: "Cart updated successfully.",
+      data: populatedUser.cart,
+    });
   } catch (error) {
     console.error("Error updating cart:", error);
     next(error);
@@ -377,111 +332,5 @@ exports.updateCardsInCart = async (req, res, next) => {
     next(error);
   }
 };
-// exports.addCardsToCart = async (req, res, next) => {
-//   const { userId, cart, method, type } = req.body;
-//   console.log('cart', cart);
-//   console.log('method', method);
-//   console.log('type', type);
-//   console.log('userId', userId);
-//   if (!Array.isArray(cart)) {
-//     return res.status(400).json({ error: 'Cart must be an array' });
-//   }
-
-//   try {
-//     const populatedUser = await populateUserDataByContext(userId, ['cart']);
-
-//     const cart = populatedUser.cart;
-//     console.log('cart', cart);
-//     if (!cart) {
-//       return res.status(404).json({ message: 'Cart not found.' });
-//     }
-
-//     const processedCardIds = new Set(); // Set to track processed card IDs
-
-//     if (!populatedUser) {
-//       return res.status(404).json({ error: 'User not found' });
-//     }
-//     for (const cardData of cart.cart) {
-//       if (processedCardIds.has(cardData.id)) {
-//         console.log('Skipping duplicate card:', cardData.id);
-//         continue; // Skip duplicate card IDs
-//       }
-//       let cardInCart = cart.cart.find((c) => c.id.toString() === cardData.id);
-//       if (cardInCart) {
-//         console.log('Updating existing card in cart:', cardInCart.name.blue);
-//         // Ensure quantity is only increased or decreased by one
-//         const quantityChange =
-//           type === 'increment' ? 1 : type === 'decrement' && cardInCart.quantity > 0 ? -1 : 0;
-//         cardInCart.quantity += quantityChange;
-//         // await cardInCart.save(); // Assume save method updates the cart's total price
-//         if (cardInCart.quantity === 0) {
-//           // Remove the card from the cart if its quantity becomes 0
-//           const index = cart.indexOf(cardInCart);
-//           cart.splice(index, 1);
-//         } else {
-//           console.log('Adding new card to cart:', cardData.name);
-//           const reSavedCard = await reFetchForSave(cardData, cart?._id, 'Cart', 'CardInCart');
-//           cart.cart.push(reSavedCard?._id);
-//         }
-
-//         // Update cart totals only if quantity actually changed
-//         if (quantityChange !== 0) {
-//           cart.totalQuantity += quantityChange;
-//           cart.totalPrice += quantityChange * cardInCart.price;
-//         }
-//       } else if (type === 'increment') {
-//         // Add new card with quantity 1 only if incrementing
-//         console.log('Adding new card to cart:', update.name);
-//         update.quantity = 1; // Set quantity to 1 for new cards
-//         const reSavedCard = await reFetchForSave(update, cart?._id, 'Cart', 'CardInCart');
-//         cart.push(reSavedCard?._id); // Assuming reSavedCard?._id is the updated card data
-//         // Update cart totals for the new card
-//         cart.totalQuantity += 1;
-//         cart.totalPrice += update.price;
-//       }
-//       processedCardIds.add(cardData.id);
-//     }
-//     await cart.save();
-//     await populatedUser.save();
-
-//     await cart.populate({
-//       path: 'cart',
-//       model: 'CardInCart',
-//     });
-
-//     res.status(200).json({ message: 'Cards added to cart successfully.', data: cart });
-//   } catch (error) {
-//     console.error('Error adding cards to cart:', error);
-//     next(error);
-//   }
-// };
-
-//     switch (method) {
-//       case 'POST':
-//         await addToCart(user, cart);
-//         break;
-//       case 'DELETE':
-//         await removeFromCart(user, cart);
-//         break;
-//       case 'PUT':
-//         // eslint-disable-next-line no-case-declarations
-//         const { updatedCart } = await updateCartItems(user, cart, type);
-
-//         user.cart = updatedCart;
-
-//         break;
-//       default:
-//         return res.status(400).json({ error: 'Invalid method for updating cart' });
-//     }
-
-//     await user.save();
-
-//     user = await populateUserDataByContext(userId, ['cart']);
-//     res.status(200).json({ message: 'Cart updated', data: user.cart });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: 'Server error' });
-//   }
-// };
 
 // !--------------------------! CARTS !--------------------------!

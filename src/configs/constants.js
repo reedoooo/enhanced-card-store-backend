@@ -1,19 +1,6 @@
 require('colors');
 const path = require('path');
 
-// Constants for status of a response
-// Constants for status of a response
-// const STATUS = {
-//   SUCCESS: ['success', 'ok', 200].map(String).map((s) => s.green),
-//   ERROR: ['error', 'fail', 500].map(String).map((s) => s.red),
-//   UNAUTHORIZED: ['unauthorized', 'unauthenticated', 401].map(String).map((s) => s.yellow),
-//   FORBIDDEN: ['forbidden', 403].map(String).map((s) => s.yellow),
-//   BAD_REQUEST: ['bad request', 400].map(String).map((s) => s.yellow),
-//   NOT_FOUND: ['not found', 404].map(String).map((s) => s.yellow),
-//   CONFLICT: ['conflict', 409].map(String).map((s) => s.red),
-//   DUPLICATE_KEY_ERROR: ['duplicate key error', 11000].map(String).map((s) => s.red),
-//   INTERNAL_SERVER_ERROR: ['internal server error', 500].map(String).map((s) => s.red),
-// };
 const STATUS = {
   SUCCESS: 200 || 'success' || 'ok',
   ERROR: 500 || 'error' || 'fail',
@@ -174,6 +161,8 @@ const GENERAL = {
   COLLECTION_CHART_DATA_UPDATED: 'Collection and ChartData successfully updated',
   VALIDATION_ERROR: 'Validation Error',
   SERVER_ERROR: (error) => `Server error: ${error.message}`,
+  PUBLIC_PATH: path.join(__dirname, '..', 'public'),
+  UPLOADED_IMAGES_PATH: path.join(__dirname, '..', 'public', 'images'),
 };
 
 const FILE_CONSTANTS = {

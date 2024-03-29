@@ -1,5 +1,6 @@
 // src/middleware/errorHandler.js
 const logger = require("../../configs/winston");
+require("colors");
 
 const errorHandler = (err, req, res, next) => {
   logger.error(
@@ -11,5 +12,8 @@ const errorHandler = (err, req, res, next) => {
     error: process.env.NODE_ENV === "production" ? {} : err.stack,
   });
 };
-
-module.exports = errorHandler;
+const handleError = (error, message) => {
+  logger.error("[ERROR] ".red + message, error);
+  throw new Error(message);
+};
+module.exports = { errorHandler, handleError };

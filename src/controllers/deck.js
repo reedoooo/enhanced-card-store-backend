@@ -1,18 +1,18 @@
-const CustomError = require("../../../middleware/errorHandling/customError");
-const { CardInDeck } = require("../../../../src/models/Card");
-const { Deck } = require("../../../../src/models/Collection");
+const { CardInDeck } = require("../models/Card");
+const { Deck } = require("../models/Collection");
 const {
   populateUserDataByContext,
   fetchPopulatedUserContext,
   findUserContextItem,
-} = require("../dataUtils");
-const { reFetchForSave } = require("../helpers");
-const logger = require("../../../configs/winston");
-const { addOrUpdateCards, removeCards } = require("../cardUtilities");
+} = require("./User/dataUtils");
+const { reFetchForSave } = require("./User/helpers");
+const logger = require("../configs/winston");
+const { addOrUpdateCards, removeCards } = require("./User/cardUtilities");
+const { sendJsonResponse } = require("../utils/utils");
+const { handleError } = require("../middleware/errorHandling/errorHandler");
 const {
-  sendJsonResponse,
   validateContextEntityExists,
-} = require("../../../utils/utils");
+} = require("../middleware/errorHandling/validators");
 
 // !--------------------------! DECKS !--------------------------!
 exports.getAllDecksForUser = async (req, res, next) => {
@@ -28,6 +28,7 @@ exports.getAllDecksForUser = async (req, res, next) => {
       populatedUser.allDecks
     );
   } catch (error) {
+    handleError(error, res);
     next(error);
   }
 };
@@ -43,6 +44,7 @@ exports.updateDeckDetails = async (req, res, next) => {
     await deck.save();
     sendJsonResponse(res, 200, `Deck updated successfully.`, deck);
   } catch (error) {
+    handleError(error, res);
     next(error);
   }
 };

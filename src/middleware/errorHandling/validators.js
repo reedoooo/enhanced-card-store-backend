@@ -1,14 +1,53 @@
 const mongoose = require("mongoose");
 const User = require("../../models/User");
 const bcrypt = require("bcrypt");
-// VALIDATES: createAndSaveCardInContext()
+const ensureNumber = (value) => Number(value);
+const ensureString = (value) => String(value);
+const ensureBoolean = (value) => Boolean(value);
+const ensureArray = (value) => (Array.isArray(value) ? value : []);
+const ensureObject = (value) => (typeof value === "object" ? value : {});
+const validateVarType = (value, type) => {
+  switch (type) {
+    case "number":
+      return ensureNumber(value);
+    case "string":
+      return ensureString(value);
+    case "boolean":
+      return ensureBoolean(value);
+    case "array":
+      return ensureArray(value);
+    case "object":
+      return ensureObject(value);
+    default:
+      return value;
+  }
+};
+const validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+/**
+ * validateContextEntityExists that a deck exists.
+ * @param {object} entity - The entity to be validated.
+ * @param {string} errorMessage - The error message to be sent to the client.
+ * @param {number} errorCode - The error code to be sent to the client.
+ * @param {object} response - The response object to be sent to the client.
+ * @returns {object} - The response object.
+ * */
+function validateContextEntityExists(
+  entity,
+  errorMessage,
+  errorCode,
+  response
+) {
+  if (!entity) {
+    sendJsonResponse(response, errorCode, errorMessage);
+    throw new Error(errorMessage);
+  }
+}
 function validateCardData(cardData, cardModel) {
   if (!cardData) throw new Error("Card data is required");
   if (!mongoose.modelNames().includes(cardModel)) {
     throw new Error(`Invalid card model: ${cardModel}`);
   }
 }
-// VALIDATES: signup()
 function validateSignupInput(username, password, email) {
   if (!username || !password || !email) {
     throw new Error("Missing required fields");
@@ -36,7 +75,6 @@ function handleSignupError(error, res, next) {
   // For other errors, you might want to pass them to an error handling middleware
   next(error);
 }
-// VALIDATES: signin()
 function validateSigninInput(username, password) {
   if (!username || !password) {
     throw new Error("Missing required fields");
@@ -79,6 +117,37 @@ function handleSigninError(error, res, next) {
     .status(error.status || 500)
     .json({ message: error.message || "An unexpected error occurred" });
 }
+const isValidObjectId = (id) => {
+  const ObjectIdRegEx = /^[0-9a-fA-F]{24}$/;
+  return ObjectIdRegEx.test(id);
+};
+
+const validateInput = (userId, pricingData) => {
+  try {
+    if (!isValidObjectId(userId)) {
+      throw new Error(
+        "UserId is missing, invalid, or not in the correct format.",
+        400
+      );
+    }
+    if (!pricingData) {
+      throw new Error("Pricing data is not provided.", 400);
+    }
+
+    ["updatedPrices", "previousPrices"].forEach((priceType) => {
+      if (typeof pricingData[priceType] !== "object") {
+        throw new Error(`Invalid ${priceType} provided.`, 400);
+      }
+    });
+  } catch (error) {
+    const errorResponse = new Error(
+      "Failed to validate user input. Please try again later.",
+      500
+    );
+    throw errorResponse; // Rethrow the error to be caught by the Express error middleware
+    // return undefined;
+  }
+};
 
 module.exports = {
   validateCardData,
@@ -88,4 +157,15 @@ module.exports = {
   validateSigninInput,
   findAndValidateUser,
   handleSigninError,
+  validateObjectId,
+  validateVarType,
+  ensureNumber,
+  ensureString,
+  ensureBoolean,
+  ensureArray,
+  ensureObject,
+  validateContextEntityExists,
+  validateObjectId,
+  validateInput,
+  isValidObjectId,
 };

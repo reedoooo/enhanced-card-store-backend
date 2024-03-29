@@ -1,10 +1,13 @@
 const { fetchCardPrices } = require("../controllers/Cards/helpers");
 const { populateUserDataByContext } = require("../controllers/User/dataUtils");
+const { handleError } = require("../middleware/errorHandling/errorHandler");
+const { infoLogger } = require("../middleware/loggers/logInfo");
+const { handleWarning } = require("../middleware/loggers/logWarning");
+const { User } = require("../models");
 const {
   formatDate,
   removeDuplicatePriceHistoryFromCollection,
 } = require("../utils/utils");
-const { User } = require("../src/models");
 require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
@@ -16,16 +19,17 @@ const logPriceChangesToFile = (priceChanges) => {
     .join("");
   fs.appendFile(filePath, logMessages, (err) => {
     if (err) {
-      console.error("Error saving price changes to file:", err);
+      handleError(err, "Error saving price changes to file:");
     } else {
-      console.log("Price changes logged to file successfully.");
+      infoLogger("Price changes logged to file successfully.");
     }
   });
 };
+
 const processCardPriceChange = async (card, collectionName) => {
   const apiPricesArray = await fetchCardPrices(card.name);
   if (!apiPricesArray) {
-    console.warn(`No price fetched for card: ${card.name}`);
+    handleWarning(`No price fetched for card: ${card.name}`);
     return null; // Return null to indicate no update needed
   }
 
@@ -36,7 +40,7 @@ const processCardPriceChange = async (card, collectionName) => {
 
     if (Math.abs(priceDifference) >= 0.01) {
       let message = `Collection: ${collectionName} | Card: ${card.name}, Old Price: ${oldPrice}, New Price: ${newPrice} Difference: ${priceDifference.toFixed(2)}`;
-      console.log(message);
+      infoLogger(message);
       card.latestPrice.num = newPrice;
       card.priceHistory.push({ timestamp: new Date(), num: newPrice });
       await card.save(); // Assuming card.save() is a valid method to persist changes
@@ -54,22 +58,24 @@ const processCardPriceChange = async (card, collectionName) => {
 
   return null;
 };
+
 function formatPriceChangeMessage(change) {
   // Format the price change message here based on the change object
   return `[Time: ${formatDate(new Date())}], [Collection: ${change.collectionName}] | [Card: ${change.cardName}, Old Price: ${change.oldPrice}, New Price: ${change.newPrice}] Difference: ${change.priceDifference.toFixed(2)}`;
 }
+
 const updatedCollectionCron = async () => {
   try {
-    console.log("STARTING COLLECTION UPDATE CRON JOB...");
+    infoLogger("STARTING COLLECTION UPDATE CRON JOB...");
     let globalPriceChanges = []; // To store all changes for logging later
 
     const users = await User.find({}).select("_id");
-    for (const userId of users.map((u) => u._id)) {
+    for (const userId of users?.map((u) => u._id)) {
       const userPopulated = await populateUserDataByContext(userId, [
         "collections",
       ]);
       if (!userPopulated?.allCollections) {
-        console.warn(`No collections found for user ID: ${userId}`);
+        handleWarning(`No collections found for user ID: ${userId}`);
         continue;
       }
 
@@ -86,12 +92,9 @@ const updatedCollectionCron = async () => {
             globalPriceChanges.push(formatPriceChangeMessage(priceChange)); // Format and add to global changes
           }
         }
-        // Remove duplicate price history entries for each card before saving
         collection.cards = removeDuplicatePriceHistoryFromCollection(
           collection.cards
         );
-
-        // Save only if there are changes with a difference of $0.01 or more
         if (collectionPriceChanges.length > 0) {
           collection.priceChangeHistory.push({
             timestamp: new Date(),
@@ -101,11 +104,11 @@ const updatedCollectionCron = async () => {
         } else {
           // Check if over an hour has passed since the last price history update
           const lastUpdate =
-            collection.priceChangeHistory.slice(-1)[0]?.timestamp;
+            collection.priceChangeHistory?.slice(-1)[0]?.timestamp;
           const now = new Date();
           if (lastUpdate && now - new Date(lastUpdate) > 3600000) {
             console;
-            collection.priceChangeHistory.push({
+            collection.priceChangeHistory?.push({
               timestamp: now,
               priceChanges: [],
             });
@@ -119,10 +122,10 @@ const updatedCollectionCron = async () => {
     if (globalPriceChanges.length > 0) {
       logPriceChangesToFile(globalPriceChanges);
     } else {
-      console.log("No price changes detected.".red);
+      infoLogger("No price changes detected.".red);
     }
   } catch (error) {
-    console.error("Error in cron job:", error);
+    handleError(error, "Error in cron job:");
   }
 };
 

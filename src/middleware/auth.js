@@ -1,6 +1,6 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const { User } = require("../../src/models");
+const { User } = require("../models");
 let invalidRefreshTokens = new Set();
 
 const validatePassword = async (password, hashedPassword) => {

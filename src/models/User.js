@@ -18,7 +18,6 @@ const UserSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: 'UserSecurityData',
     },
-    searchHistory: [{ type: Schema.Types.ObjectId, ref: 'SearchHistory' }],
     allDecks: [
       {
         type: Schema.Types.ObjectId,

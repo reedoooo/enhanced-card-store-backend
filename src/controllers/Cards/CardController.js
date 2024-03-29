@@ -2,7 +2,6 @@ const axios = require("axios");
 const {
   CardInCollection,
   CardInDeck,
-  CardInSearch,
 } = require("../../../src/models");
 const { queryBuilder, fetchCardPrices, fetchAndGenerateRandomCardData } = require("./helpers");
 const User = require("../../models/User");
@@ -134,60 +133,6 @@ const cardController = {
       throw error; // Propagate the error
     }
   },
-  getAllCards: async () => {
-    let cards = await CardInSearch.find({}).limit(30);
-
-    if (cards.length === 0) {
-      await cardController.getCardsFromApi();
-      cards = await CardInSearch.find({}).limit(30);
-    }
-
-    return cards;
-  },
-  getCardById: async (id) => {
-    return await CardInSearch.findOne({ id: id });
-  },
-  getCardByType: async (type) => {
-    return await CardInSearch.find({ type: type });
-  },
-  getCardByAttribute: async (attribute) => {
-    return await CardInSearch.find({ attribute: attribute });
-  },
-  getCardByName: async (name) => {
-    return await CardInSearch.findOne({ name: name });
-  },
-  // fetchCardImage: async (id, name) => {
-  //   try {
-  //     if (!id && !name) {
-  //       throw new CustomError('Card ID or name is required', 400);
-  //     }
-  //     const response = await axiosInstance.get(`/cardinfo.php?name=${name}`);
-  //     console.log('RESPONSE:', response);
-  //     const fetchedCard = response?.data?.data?.[0];
-
-  //     if (!fetchedCard) {
-  //       throw new CustomError('Card not found', 404);
-  //     }
-
-  //     const bufferedImage = fetchedCard?.card_images?.[0]?.image_url;
-
-  //     // if (!imageUrl) {
-  //     //   throw new CustomError('Image not found', 404);
-  //     // }
-
-  //     return bufferedImage;
-
-  //     // const imageResponse = await axios.get(imageUrl, {
-  //     //   responseType: 'arraybuffer',
-  //     // });
-
-  //     // const buffer = Buffer.from(imageResponse.data, 'binary');
-  //     // return buffer;
-  //   } catch (error) {
-  //     console.error('Error fetching card image:', error);
-  //     throw error; // Propagate the error
-  //   }
-  // },
   updateExistingCardInUserCollection: async (
     userId,
     collectionId,
