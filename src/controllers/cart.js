@@ -28,7 +28,7 @@ async function addToCart(user, cartItems) {
 
       await cartCard.save();
 
-      user.cart.cart.push(cartCard?._id);
+      user.cart.items.push(cartCard?._id);
 
       await user.save();
 
@@ -43,7 +43,7 @@ async function removeFromCart(user, cartItems) {
     await CardInCart.findOneAndRemove({ cardId: item.id, userId: user._id });
   }
   // Filter the cart to remove the deleted items
-  user.cart.cart = user.cart.cart.filter(
+  user.cart.items = user.cart.items.filter(
     (cardInCartId) => !cartItems.some((item) => item.id === cardInCartId)
   );
 }
@@ -83,7 +83,7 @@ async function updateCartItems(user, cartItems, type) {
 
       await CardInCart.findOneAndRemove({ cardId: item.id, userId: user._id });
       // Remove from user's cart
-      user.cart.cart = user.cart.cart.filter(
+      user.cart.items = user.cart.items.filter(
         (cartItem) => cartItem.toString() !== cardInCart?._id.toString()
       );
     }
@@ -236,19 +236,19 @@ exports.addCardsToCart = async (req, res, next) => {
     for (const update of cartUpdates) {
       console.log("update", update);
       console.log("cartUpdatescartUpdatescartUpdates", cartUpdates);
-      const existingCardIndex = cart.cart.findIndex((c) => c.id === update.id);
+      const existingCardIndex = cart.items.findIndex((c) => c.id === update.id);
       if (existingCardIndex !== -1) {
         // Card exists, so update it
-        const existingCard = cart.cart[existingCardIndex];
+        const existingCard = cart.items[existingCardIndex];
         updateCardQuantity(existingCard, update.quantity, type); // Assume this is your logic to update quantity
       } else {
         const reSavedCard = await reFetchForSave(
           update,
-          cart._id,
+          cart?._id,
           "Cart",
           "CardInCart"
         ); // Assuming this function is correctly implemented
-        cart.cart.push(reSavedCard._id);
+        cart?.items?.push(reSavedCard?._id);
       }
     }
 
@@ -256,7 +256,7 @@ exports.addCardsToCart = async (req, res, next) => {
 
     await populatedUser.save(); // Saving after all updates to cart 
     await populatedUser.populate({
-      path: "cart.cart",
+      path: "cart.items",
       model: "CardInCart",
     });
 
@@ -319,10 +319,10 @@ exports.updateCardsInCart = async (req, res, next) => {
     await populatedUser.save(); // Save changes to the user document as well
 
     // Optionally, repopulate the cart items if necessary for the response
-    await cart.populate({
-      path: "cart",
-      model: "CardInCart",
-    });
+    // await cart.populate({
+    //   path: "cart",
+    //   model: "CardInCart",
+    // });
 
     res
       .status(200)

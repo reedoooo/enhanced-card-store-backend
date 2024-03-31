@@ -324,44 +324,7 @@ const { CardSet, CardVariant } = require("../../models");
 const { default: mongoose } = require("mongoose");
 const { cardController } = require("../Cards/CardController");
 const { handleError } = require("../../middleware/errorHandling/errorHandler");
-// Improved error handling, consistent async/await usage, and clearer function responsibilities
 
-//  * [SECTION 6] Helper functions for different methods
-//  * Helper function to create a card data object.
-//  * @param {Object} card - The card object.
-//  * @param {Object} existingCardData - The existing card data object.
-//  * @returns {Object} - A card data object.
-//  * @throws {Error} If the card data is invalid
-//  */
-// async function createCardVariants(sets, cardModel, cardId) {
-//   return Promise.all(
-//     sets.map(async (setId, index) => {
-//       // Assuming 'sets' array contains objects with the required fields
-//       const set = await CardSet.findById(setId);
-
-//       if (!set) {
-//         throw new Error(`CardSet with ID ${setId} not found`);
-//       }
-
-//       const cardVariant = new CardVariant({
-//         set_name: set.set_name,
-//         set_code: set.set_code,
-//         rarity: set.set_rarity,
-//         rarity_code: set.set_rarity_code,
-//         price: set.set_price,
-//         selected: false, // Default value
-//         alt_art_image_url: "", // Default value, update if necessary
-//         set: setId, // Reference to the CardSet's ObjectId
-//         cardModel: cardModel,
-//         cardId: cardId,
-//         variant: index + 1, // Assuming the index is 0-based
-//       });
-
-//       await cardVariant.save();
-//       return cardVariant._id;
-//     })
-//   );
-// }
 async function createCardSets(cardSetsData, cardModel, cardId) {
   if (!Array.isArray(cardSetsData)) {
     handleError("Invalid input: cardSetsData should be an array.", 400);

@@ -181,23 +181,9 @@ async function fetchAndGenerateRandomCardData() {
       attribute: response?.data?.attribute,
       averagedChartData: {},
     };
-    // let averagedChartData = generateFluctuatingPriceData(30, 100); // Start with a base price of 100 for simplicity
-
-    // data.averagedChartData = {
-    //   "30d": averagedChartData,
-    // };
     newCardData.averagedChartData["30d"] = chartData;
-    // newCardData.priceHistory = generatePriceHistory(30);
-    logger.info(
-      "Fetched and generated random card data",
-      newCardData.averagedChartData["30d"]
-    );
-    // Generate priceHistory with fake data
-    // const priceHistory = generatePriceHistory(30);
-    // Calculate and set the average for 30d in averagedChartData
     const newCard = new RandomCard(newCardData);
     await newCard.save();
-
     return newCard; // Return the saved card data
   } catch (error) {
     logger.error("Failed to fetch random card:", error);

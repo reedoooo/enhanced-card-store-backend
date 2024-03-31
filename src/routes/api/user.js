@@ -81,7 +81,7 @@ router.put(
 
 // CART ROUTES
 router.get("/:userId/cart", asyncHandler(getUserCart));
-router.post("/:userId/cart/createCart", asyncHandler(createEmptyCart));
+router.post("/:userId/cart/create", asyncHandler(createEmptyCart));
 router.post("/:userId/cart/add", asyncHandler(addCardsToCart));
 router.delete("/:userId/cart/remove", asyncHandler(removeCardsFromCart));
 router.put("/:userId/cart/update", asyncHandler(updateCardsInCart));

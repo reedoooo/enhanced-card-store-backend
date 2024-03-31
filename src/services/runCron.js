@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const { updatedCollectionCron } = require('./updatedCollectionCron');
+require('colors');
 
 updatedCollectionCron();
 // Run every 1 minutes

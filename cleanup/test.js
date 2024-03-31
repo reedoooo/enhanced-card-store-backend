@@ -1,6 +1,6 @@
-const { CardInCollection } = require("../../src/models/Card");
-const User = require("../../src/models/User");
-const { getCardInfo, calculateCollectionValue } = require("./utils");
+const { CardInCollection } = require("../src/models/Card");
+const User = require("../src/models/User");
+const { getCardInfo, calculateCollectionValue } = require("../src/utils/utils");
 
 const checkAndUpdateCardPrices = async (userId, selectedList, io) => {
   try {

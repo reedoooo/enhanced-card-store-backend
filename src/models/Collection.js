@@ -24,7 +24,13 @@ const { infoLogger } = require("../middleware/loggers/logInfo");
 require("colors");
 
 const DeckSchema = createSchemaWithCommonFields("cards", "CardInDeck");
-const CartSchema = createSchemaWithCommonFields("cart", "CardInCart");
+const CartSchema = createSchemaWithCommonFields("items", "CardInCart");
+// const CartSchema = new Schema(
+//   {
+//    ...CartCommonFieldsSchema,
+//     items: [{ type: Schema.Types.ObjectId, ref: "CardInCart" }],
+//   }
+// );
 const CollectionSchema = new Schema(
   {
     ...createCommonFields(),

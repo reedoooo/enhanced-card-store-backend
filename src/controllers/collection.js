@@ -11,6 +11,7 @@ const {
   setupDefaultCollectionsAndCards,
   reFetchForSave,
   fetchUserIdsFromUserSecurityData,
+  fetchAllCollectionIds,
 } = require("./User/helpers");
 const logger = require("../configs/winston");
 const { sendJsonResponse } = require("../utils/utils");
@@ -18,6 +19,8 @@ const { addOrUpdateCards, removeCards } = require("./User/cardUtilities");
 const {
   validateContextEntityExists,
 } = require("../middleware/errorHandling/validators");
+const { handleError } = require("../middleware/errorHandling/errorHandler");
+const { infoLogger } = require("../middleware/loggers/logInfo");
 
 // ! COLLECTION ROUTES (GET, CREATE, UPDATE, DELETE) !
 /**
@@ -93,8 +96,9 @@ exports.updateExistingCollection = async (req, res, next) => {
     const populatedUser = await fetchPopulatedUserContext(req.params.userId, [
       "collections",
     ]);
-    const collection = findUserCollection(
+    const collection = findUserContextItem(
       populatedUser,
+      "allCollections",
       req.params.collectionId
     );
     Object.assign(collection, req.body.updatedCollectionData);
@@ -113,28 +117,44 @@ exports.updateExistingCollection = async (req, res, next) => {
  * @param {Response} res - The response object
  * @param {NextFunction} next - The next middleware function
  * @returns {Promise<Response>} A promise that resolves to a response object
- * @todo Update this to use the new CardInCollection schema
  * @todo Optionally, you might want to delete the collection from the Collection model as well.
  * @todo Update this to use the new CardInCollection schema
  */
 exports.deleteExistingCollection = async (req, res, next) => {
   try {
+    infoLogger("Deleting collection:", req.body.collectionId);
+
     const populatedUser = await fetchPopulatedUserContext(req.params.userId, [
       "collections",
     ]);
+    infoLogger(
+      `Deleting collection: ${req.params.collectionId}`,
+      req.params.collectionId
+    );
+
+    // const collection = findUserContextItem(
+    //   populatedUser,
+    //   "allCollections",
+    //   req.params.collectionId
+    // );
     populatedUser.allCollections = populatedUser.allCollections.filter(
       (c) => c._id.toString() !== req.params.collectionId
     );
+    infoLogger("Deleting collection:", req.params.collectionId);
     await populatedUser.save();
 
     await Collection.findByIdAndDelete(req.params.collectionId);
+    infoLogger("Collection deleted successfully:", req.params.collectionId);
+    const { collectionIds } = fetchAllCollectionIds(populatedUser._id);
+    infoLogger(`All Collection IDS: ${collectionIds}`, collectionIds);
     sendJsonResponse(
       res,
       200,
       "Collection deleted successfully",
-      req.params.collectionId
+      collectionIds
     );
   } catch (error) {
+    handleError(error, "Error deleting collection:");
     logger.error("Error deleting collection:", error);
     next(error);
   }

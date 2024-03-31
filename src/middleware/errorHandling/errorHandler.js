@@ -14,6 +14,6 @@ const errorHandler = (err, req, res, next) => {
 };
 const handleError = (error, message) => {
   logger.error("[ERROR] ".red + message, error);
-  throw new Error(message);
+  throw new Error('['.red + message + ']'.red + ' ' + error.message);
 };
 module.exports = { errorHandler, handleError };

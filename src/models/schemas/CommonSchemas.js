@@ -150,11 +150,10 @@ const cardImageSchema = createSchema({
   image_url_cropped: String,
 });
 const cardPriceSchema = createSchema(createPriceFields());
-const chartDatasetEntrySchema = createSchema(
+const chartDatasetEntrySchema = new Schema(
   {
     label: String,
-    x: Date,
-    y: { type: Number, min: 0 },
+    data: [{ x: Date, y: Number }],
   },
   { _id: false }
 );
@@ -218,11 +217,20 @@ const collectionStatisticsSchema = new Schema({
   },
 });
 // Define a schema for the individual data points in each chart
-const dataPointSchema = new Schema({
-  label: String,
-  x: Date,
-  y: Number,
+const dataPointSchema = createSchema(
+  {
+    label: { type: String, required: false, default: "Label" },
+    x: { type: Date, required: false, default: Date.now },
+    y: { type: Number, min: 0, required: false, default: 0 },
+  },
+  { _id: false }
+);
+const createDataPoint = (x, y, stringVal) => ({
+  label: `${stringVal}: [${y}] [${x}]`,
+  x: new Date(),
+  y: 0,
 });
+
 const chartDataSchema = new Schema({
   id: String,
   name: String,
@@ -279,9 +287,11 @@ module.exports = {
   averagedDataSchema,
   chartDatasetEntrySchema,
   chartDataSchema,
+  dataPointSchema,
   createCommonFields,
   createSchemaWithCommonFields,
   updateTotals,
   calculateContextualQuantity,
   createNewPriceEntry,
+  createDataPoint,
 };

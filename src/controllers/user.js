@@ -25,6 +25,7 @@ const {
 } = require("../middleware/auth");
 const logger = require("../configs/winston");
 const { handleError } = require("../middleware/errorHandling/errorHandler");
+const { User } = require("../models");
 // !--------------------------! USERS !--------------------------!
 
 // USER ROUTES: SIGNUP / SIGNIN
@@ -57,6 +58,8 @@ exports.signup = async (req, res, next) => {
         "User created successfully, default collections created, and default cards added",
       data: {
         user: populatedUser,
+        userId: verifiedUser._id,
+
         accessToken: verifiedUser.userSecurityData.accessToken,
         refreshToken: verifiedUser.userSecurityData.refreshToken,
       },
@@ -81,10 +84,10 @@ exports.signin = async (req, res, next) => {
 
     res.status(200).json({
       message: "Sign in successful: Fetched user data successfully",
-      data: { accessToken, refreshToken, user: populatedUser },
+      data: { accessToken, refreshToken, user: populatedUser, userId: populatedUser._id },
     });
   } catch (error) {
-    handleError(error, 'Error signing in user');
+    handleError(error, "Error signing in user");
   }
 };
 exports.signout = async (req, res, next) => {
@@ -99,7 +102,7 @@ exports.signout = async (req, res, next) => {
 
     res.status(200).json({ message: "Logout successful", data: { userId } });
   } catch (error) {
-		handleError(error, 'Error signing out user');
+    handleError(error, "Error signing out user");
     next(error);
   }
 };
@@ -151,9 +154,9 @@ exports.getUserData = async (req, res, next) => {
 exports.updateUserData = async (req, res, next) => {
   try {
     const userId = req.params.userId;
-    const updatedUser = req.body;
+    const { updatedUserData } = req.body;
 
-    if (!userId || !updatedUser || typeof updatedUser !== "object") {
+    if (!userId || !updatedUserData || typeof updatedUserData !== "object") {
       return res.status(400).json({ message: "Invalid request data" });
     }
 
@@ -164,18 +167,24 @@ exports.updateUserData = async (req, res, next) => {
     }
 
     // Update basic and security data as needed, while avoiding direct assignments to protected fields
-    if (updatedUser.userBasicData) {
+    if (updatedUserData.userBasicData) {
       await User.findByIdAndUpdate(userId, {
-        $set: { userBasicData: updatedUser.userBasicData },
+        $set: { userBasicData: updatedUserData.userBasicData },
       });
-      console.log("UPDATED USER BASIC DATA", updatedUser.userBasicData);
+      console.log("UPDATED USER BASIC DATA", updatedUserData.userBasicData);
     }
-    if (updatedUser.userSecurityData) {
+    if (updatedUserData.userSecurityData) {
       await User.findByIdAndUpdate(userId, {
-        $set: { userSecurityData: updatedUser.userSecurityData },
+        $set: { userSecurityData: updatedUserData.userSecurityData },
       });
-      console.log("UPDATED USER SECURITY DATA", updatedUser.userSecurityData);
+      console.log(
+        "UPDATED USER SECURITY DATA",
+        updatedUserData.userSecurityData
+      );
     }
+    await User.findByIdAndUpdate(userId, {
+      $set: { updatedAt: new Date() },
+    });
 
     // Fetch the updated user and populate necessary fields
     const updatedUserDoc = await populateUserDataByContext(userId, [
@@ -205,4 +214,23 @@ exports.updateUserData = async (req, res, next) => {
     next(error);
   }
 };
+// export const verifyToken = async (req, res, next) => {
+//   try {
+//     let token = req.header("Authorization");
+
+//     if (!token) {
+//       return res.status(403).send("Access Denied");
+//     }
+
+//     if (token.startsWith("Bearer ")) {
+//       token = token.slice(7, token.length).trimLeft();
+//     }
+
+//     const verified = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+//     req.user = verified;
+//     next();
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// };
 // !--------------------------! USERS !--------------------------!

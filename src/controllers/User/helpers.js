@@ -18,6 +18,7 @@ const {
   handleError,
 } = require("../../middleware/errorHandling/errorHandler.js");
 const { infoLogger } = require("../../middleware/loggers/logInfo.js");
+const User = require("../../models/User.js");
 const ERROR_MESSAGES = {
   defaultCardDataFetchFailed: (cardName) =>
     `Failed to fetch default card data for ${cardName}`,
@@ -32,7 +33,10 @@ async function fetchAndTransformCardData(cardName, context) {
   if (!cardData || cardData.length === 0) {
     throw new Error(ERROR_MESSAGES.defaultCardDataFetchFailed(cardName));
   }
-  infoLogger(`Default card fetched for ${context}: ${cardData[0].name}`, context);
+  infoLogger(
+    `Default card fetched for ${context}: ${cardData[0].name}`,
+    context
+  );
   return cardData[0];
 }
 
@@ -93,7 +97,10 @@ async function createAndSaveDefaultCollection(
     infoLogger(`New ${collectionData.name}:`, collection);
     return collection;
   } catch (error) {
-    handleError(error, `Error creating the default collection ${collectionName}`);
+    handleError(
+      error,
+      `Error creating the default collection ${collectionName}`
+    );
   }
 }
 /**
@@ -109,12 +116,16 @@ async function createDefaultCollectionsAndCards(userId) {
     const collectionTypes = [
       { type: Collection, name: "My First Collection" },
       { type: Deck, name: "My First Deck" },
-      { type: Cart, name: "My First Cart" }
+      { type: Cart, name: "My First Cart" },
     ];
 
     // Function to create and log collections
     const createAndLogCollection = async ({ type, name }) => {
-      const collection = await createAndSaveDefaultCollection(type, name, userId);
+      const collection = await createAndSaveDefaultCollection(
+        type,
+        name,
+        userId
+      );
       console.log(`Created ${name}`);
       return collection;
     };
@@ -126,7 +137,8 @@ async function createDefaultCollectionsAndCards(userId) {
 
     // Fetch card data once and reuse it for each collection
     const cardName = "dark magician";
-    const defaultCardData = await cardController.fetchAndTransformCardData(cardName);
+    const defaultCardData =
+      await cardController.fetchAndTransformCardData(cardName);
     if (!defaultCardData || defaultCardData.length === 0) {
       throw new Error(`Failed to fetch default card data for ${cardName}`);
     }
@@ -146,105 +158,27 @@ async function createDefaultCollectionsAndCards(userId) {
     };
 
     // Create and save CardInContext for each collection, then push to collections
-    const cardsInContext = await Promise.all(collections.map(createAndLogCardInContext));
-    cardsInContext.forEach((card, index) => pushDefaultCardsToCollections(collections[index], card));
+    const cardsInContext = await Promise.all(
+      collections.map(createAndLogCardInContext)
+    );
+    cardsInContext.forEach((card, index) =>
+      pushDefaultCardsToCollections(collections[index], card)
+    );
 
     // Save all updated collections
-    await Promise.all(collections.map(collection => collection.save()));
+    await Promise.all(collections.map((collection) => collection.save()));
     console.log("Saved all updated collections");
 
     // Destructure collections to return individually named objects
     const [defaultCollection, defaultDeck, defaultCart] = collections;
     return { defaultCollection, defaultDeck, defaultCart };
   } catch (error) {
-    throw new Error(`Error creating default collections and cards: ${error.message}`);
+    throw new Error(
+      `Error creating default collections and cards: ${error.message}`
+    );
   }
 }
 
-// async function createDefaultCollectionsAndCards(userId) {
-//   try {
-//     // Ensure that these calls return the saved Mongoose document
-//     const defaultCollection = await createAndSaveDefaultCollection(
-//       Collection,
-//       "My First Collection",
-//       userId
-//     );
-//     const defaultDeck = await createAndSaveDefaultCollection(
-//       Deck,
-//       "My First Deck",
-//       userId
-//     );
-//     const defaultCart = await createAndSaveDefaultCollection(Cart, "", userId);
-
-//     infoLogger(
-//       "SECTION 2 COMPLETE: DEFAULT COLLECTION, DECK, CART",
-//       defaultCart
-//     );
-//     const defaultCardData =
-//       await cardController.fetchAndTransformCardData("dark magician");
-//     if (!defaultCardData || defaultCardData.length === 0) {
-//       throw new Error("Failed to fetch default card data", defaultCardData);
-//     }
-//     infoLogger("SECTION 3: DEFAULT CARD DATA", defaultCardData[0].name);
-//     const cardInfo = defaultCardData[0]; // Assuming the first element has the necessary data
-//     infoLogger(
-//       "SECTION 3.05: COMPLETE: FETCH DEFAULT CARD DATA",
-//       cardInfo.name
-//     );
-
-//     // Create and save CardInContext
-//     const defaultCardForCollection = await createAndSaveCardInContext(
-//       cardInfo,
-//       defaultCollection._id,
-//       "CardInCollection",
-//       "Collection"
-//     );
-//     const defaultCardForDeck = await createAndSaveCardInContext(
-//       cardInfo,
-//       defaultDeck._id,
-//       "CardInDeck",
-//       "Deck"
-//     );
-//     const defaultCardForCart = await createAndSaveCardInContext(
-//       cardInfo,
-//       defaultCart._id,
-//       "CardInCart",
-//       "Cart"
-//     );
-//     infoLogger(
-//       "SECTION 4 COMPLETE: DEFAULT CARD FOR COLLECTION, DECK, CART",
-//       "collection",
-//       defaultCardForCollection.name,
-//       "deck",
-//       defaultCardForDeck.name,
-//       "cart",
-//       defaultCardForCart.name
-//     );
-//     // Push default cards to their respective collections
-//     // await Promise.all([defaultCollection.save(), defaultDeck.save(), defaultCart.save()]);
-//     infoLogger("SECTION 5 COMPLETE: SAVE ALL DOCUMENTS");
-
-//     // Add default cards to their respective collections
-//     pushDefaultCardsToCollections(defaultCollection, defaultCardForCollection);
-//     pushDefaultCardsToCollections(defaultDeck, defaultCardForDeck);
-//     pushDefaultCardsToCollections(defaultCart, defaultCardForCart);
-//     infoLogger("SECTION 5.5 COMPLETE: PUSH DEFAULT CARDS TO COLLECTION");
-
-//     // Save the updated collections
-//     await Promise.all([
-//       defaultCollection.save(),
-//       defaultDeck.save(),
-//       defaultCart.save(),
-//     ]);
-//     infoLogger("SECTION 6 COMPLETE: SAVE UPDATED CONTEXTS");
-
-//     return { defaultCollection, defaultDeck, defaultCart };
-//   } catch (error) {
-//     throw new Error(
-//       `Failed in SECTION: Error creating default collections and cards: ${error.message}`
-//     );
-//   }
-// }
 /**
  * [SECTION 10] Helper functions for different methods
  * Function to re-fetch card data and save it
@@ -409,6 +343,23 @@ async function fetchUserIdsFromUserSecurityData() {
     throw error;
   }
 }
+const fetchAllCollectionIds = async (userId) => {
+  try {
+    const user = await User.findById(userId).populate("allCollections");
+    const allIds = [];
+    infoLogger(`${user.allCollections}`.yellow);
+
+    user.allCollections.forEach((collection) => {
+      allIds.push(collection._id);
+    });
+
+    infoLogger(`${allIds}`.yellow, allIds);
+    return allIds;
+  } catch (error) {
+    console.error("Error fetching collection IDs:", error);
+    throw error;
+  }
+};
 
 module.exports = {
   createDefaultCollectionsAndCards,
@@ -422,6 +373,7 @@ module.exports = {
   setupDefaultCollectionsAndCards,
   fetchUserIdsFromUserSecurityData,
   reFetchForSave,
+  fetchAllCollectionIds,
 };
 // async function getDefaultCardForContext(context) {
 //   const defaultCardName = "Blue-Eyes White Dragon";

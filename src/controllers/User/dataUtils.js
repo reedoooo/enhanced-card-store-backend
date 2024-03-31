@@ -38,7 +38,7 @@ function getPopulatePathForContext(context) {
       return {
         path: "cart",
         populate: {
-          path: "cart",
+          path: "items",
           model: "CardInCart",
           populate: deepPopulateCardFields(),
         },

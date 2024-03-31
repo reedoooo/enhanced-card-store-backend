@@ -1,9 +1,12 @@
+const { now } = require("mongoose");
 const { fetchCardPrices } = require("../controllers/Cards/helpers");
 const { populateUserDataByContext } = require("../controllers/User/dataUtils");
 const { handleError } = require("../middleware/errorHandling/errorHandler");
+const { logFunctionSteps } = require("../middleware/loggers/logFunctionSteps");
 const { infoLogger } = require("../middleware/loggers/logInfo");
 const { handleWarning } = require("../middleware/loggers/logWarning");
-const { User } = require("../models");
+const { User, CardInCollection } = require("../models");
+const { createDataPoint } = require("../models/schemas/CommonSchemas");
 const {
   formatDate,
   removeDuplicatePriceHistoryFromCollection,
@@ -25,24 +28,91 @@ const logPriceChangesToFile = (priceChanges) => {
     }
   });
 };
+const processCardPriceChange = async (cardData, collectionName, userId) => {
+  const userPopulated = await populateUserDataByContext(userId, [
+    "collections",
+  ]);
+  // const collection = userPopulated.allCollections.find(
+  //   (coll) => coll._id.toString() === collectionName
+  // );
+  const card = await CardInCollection.findById(cardData?._id);
+  logFunctionSteps(
+    "3",
+    `Price:  ${card.price} CurrentLatestPrice:  ${card.latestPrice.num} for card: ${card.name}`
+  );
 
-const processCardPriceChange = async (card, collectionName) => {
   const apiPricesArray = await fetchCardPrices(card.name);
   if (!apiPricesArray) {
-    handleWarning(`No price fetched for card: ${card.name}`);
+    handleWarning(`No price found for card: ${cardData.name}`);
     return null; // Return null to indicate no update needed
   }
-
   const newPrice = apiPricesArray[0]?.tcgplayer_price;
+  const newPrice2 = card.price;
+  logFunctionSteps(
+    "3",
+    `Price:  ${newPrice2}` +
+      " | ".green +
+      `CurrentLatestPrice:  ${card.latestPrice.num}` +
+      " | ".green +
+      `NewPrice:  ${newPrice}` +
+      " | ".green +
+      `Difference:  ${newPrice - newPrice2}` +
+      " | ".green +
+      `for card: ${card.name}`
+  );
   if (card.latestPrice.num !== newPrice) {
     const oldPrice = card.latestPrice.num;
+    const oldTimestamp = card.latestPrice.timestamp;
     const priceDifference = newPrice - oldPrice;
-
-    if (Math.abs(priceDifference) >= 0.01) {
+    const priceDifference2 = newPrice2 - oldPrice;
+    // logFunctionSteps('3', `Price Difference: ${priceDifference.toFixed(2)} for card: ${card.name} Old Price: ${oldPrice}, New Price: ${newPrice}`);
+    if (
+      Math.abs(priceDifference) >= 0.01 ||
+      Math.abs(priceDifference2) >= 0.01
+    ) {
+      const priceChangeEntry = {
+        timestamp: new Date(),
+        oldPrice,
+        newPrice,
+        priceDifference,
+      };
+      card?.priceChangeHistory?.push(priceChangeEntry);
+      let messageCover = "-------------------".green;
       let message = `Collection: ${collectionName} | Card: ${card.name}, Old Price: ${oldPrice}, New Price: ${newPrice} Difference: ${priceDifference.toFixed(2)}`;
-      infoLogger(message);
+      let fullMessage = `${messageCover} ${message} ${messageCover}`;
+      logFunctionSteps("4", message);
+
+      infoLogger(`Price change detected for card: ${card.name}`, fullMessage);
       card.latestPrice.num = newPrice;
-      card.priceHistory.push({ timestamp: new Date(), num: newPrice });
+      card.latestPrice.timestamp = new Date();
+      card.lastSavedPrice.num = oldPrice;
+      card.lastSavedPrice.timestamp = oldTimestamp;
+      card.price = newPrice;
+      const valueEntry = {
+        timestamp: new Date(now),
+        num: card.totalPrice,
+      }; // Your existing function
+      card?.valueHistory?.push(valueEntry);
+      card?.nivoValueHistory?.push(
+        createDataPoint(valueEntry?.timestamp, valueEntry?.num, "Data: ")
+      );
+      const itemDate =
+        new Date(
+          card?.dailyPriceHistory[
+            card?.dailyPriceHistory?.length - 1
+          ]?.timestamp
+        ) || new Date();
+      const diffDays = (new Date() - itemDate) / (1000 * 3600 * 24);
+      if (diffDays <= 1) {
+        card.dailyPriceHistory.push({
+          timestamp: new Date(now),
+          num: parseFloat(newPrice),
+        });
+        logFunctionSteps(
+          "5",
+          `Daily Price History Updated for card: ${card.name} with new price: ${newPrice} and price difference: ${priceDifference.toFixed(2)}`
+        );
+      }
       await card.save(); // Assuming card.save() is a valid method to persist changes
 
       return {
@@ -58,18 +128,17 @@ const processCardPriceChange = async (card, collectionName) => {
 
   return null;
 };
-
 function formatPriceChangeMessage(change) {
   // Format the price change message here based on the change object
   return `[Time: ${formatDate(new Date())}], [Collection: ${change.collectionName}] | [Card: ${change.cardName}, Old Price: ${change.oldPrice}, New Price: ${change.newPrice}] Difference: ${change.priceDifference.toFixed(2)}`;
 }
-
 const updatedCollectionCron = async () => {
   try {
     infoLogger("STARTING COLLECTION UPDATE CRON JOB...");
     let globalPriceChanges = []; // To store all changes for logging later
 
     const users = await User.find({}).select("_id");
+    logFunctionSteps("1", `${users.length} users found`);
     for (const userId of users?.map((u) => u._id)) {
       const userPopulated = await populateUserDataByContext(userId, [
         "collections",
@@ -81,11 +150,16 @@ const updatedCollectionCron = async () => {
 
       for (const collection of userPopulated.allCollections) {
         let collectionPriceChanges = []; // Store changes for this collection
+        logFunctionSteps(
+          "2",
+          `${collection.cards.length} cards found in collection ${collection.name}`
+        );
 
         for (const card of collection.cards) {
           const priceChange = await processCardPriceChange(
             card,
-            collection.name
+            collection.name,
+            userPopulated?._id
           );
           if (priceChange) {
             collectionPriceChanges.push(priceChange);
@@ -96,7 +170,7 @@ const updatedCollectionCron = async () => {
           collection.cards
         );
         if (collectionPriceChanges.length > 0) {
-          collection.priceChangeHistory.push({
+          collection?.priceChangeHistory?.push({
             timestamp: new Date(),
             priceChanges: collectionPriceChanges,
           });
@@ -104,11 +178,11 @@ const updatedCollectionCron = async () => {
         } else {
           // Check if over an hour has passed since the last price history update
           const lastUpdate =
-            collection.priceChangeHistory?.slice(-1)[0]?.timestamp;
+            collection?.priceChangeHistory?.slice(-1)[0]?.timestamp;
           const now = new Date();
           if (lastUpdate && now - new Date(lastUpdate) > 3600000) {
             console;
-            collection.priceChangeHistory?.push({
+            collection?.priceChangeHistory?.push({
               timestamp: now,
               priceChanges: [],
             });
@@ -128,5 +202,4 @@ const updatedCollectionCron = async () => {
     handleError(error, "Error in cron job:");
   }
 };
-
 exports.updatedCollectionCron = updatedCollectionCron;

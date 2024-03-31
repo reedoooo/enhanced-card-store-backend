@@ -4,8 +4,12 @@ const { Schema } = mongoose;
 const UserSchema = new Schema(
   {
     username: { type: String, required: true, unique: true },
+    userId: { type: String, required: false, unique: true },
+    email: { type: String, required: false, unique: true },
+    loginStatus: { type: Boolean, required: false, default: false },
     accessToken: { type: String, required: false },
     refreshToken: { type: String, required: false },
+    lastUpdated: { type: Date, required: false },
     generalUserStats: {
       type: Schema.Types.ObjectId,
       ref: 'GeneralUserStats',
