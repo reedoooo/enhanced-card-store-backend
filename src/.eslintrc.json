@@ -18,6 +18,7 @@
     "no-console": "off",
     "indent": "off",
     "@typescript-eslint/indent": "off",
+    "no-unused-vars": "off",
     "linebreak-style": "off",
     "quotes": ["error", "single", { "avoidEscape": true }],
     "semi": ["error", "always"],

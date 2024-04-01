@@ -1,14 +1,14 @@
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const { User } = require("../models");
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { User } = require('../models');
 let invalidRefreshTokens = new Set();
 
 const validatePassword = async (password, hashedPassword) => {
   return await bcrypt.compare(password, hashedPassword);
 };
 async function fetchUserById(userId) {
-  const user = await User.findById(userId).populate("userSecurityData");
-  if (!user) throw new Error("User not found");
+  const user = await User.findById(userId).populate('userSecurityData');
+  if (!user) throw new Error('User not found');
   return user;
 }
 function generateJWT(payload, secret, options) {
@@ -21,8 +21,8 @@ function generateJWT(payload, secret, options) {
  * */
 async function generateToken(userId, isRefreshToken = false) {
   try {
-    const user = await User.findById(userId).populate("userSecurityData");
-    if (!user) throw new Error("User not found");
+    const user = await User.findById(userId).populate('userSecurityData');
+    if (!user) throw new Error('User not found');
 
     const payload = {
       userId: user._id,
@@ -33,13 +33,13 @@ async function generateToken(userId, isRefreshToken = false) {
     if (!isRefreshToken) {
       payload.role_data = user.userSecurityData.role_data; // Only for access token
     }
-    const options = { expiresIn: isRefreshToken ? "7d" : "1h" };
+    const options = { expiresIn: isRefreshToken ? '7d' : '1h' };
     const secret = isRefreshToken
       ? process.env.REFRESH_TOKEN_SECRET
       : process.env.SECRET_KEY;
     return generateJWT(payload, secret, options);
   } catch (error) {
-    console.error("Error generating token:", error);
+    console.error('Error generating token:', error);
     throw error;
   }
 }

@@ -1,30 +1,9 @@
 // utils.js
-const { default: mongoose } = require("mongoose");
-const { default: axios } = require("axios");
-const { unifiedErrorHandler } = require("../middleware/loggers/logErrors");
+const { default: axios } = require('axios');
 const axiosInstance = axios.create({
-  baseURL: "https://db.ygoprodeck.com/api/v7/",
+  baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
-/**
- * Handles errors in async functions.
- * @param {function} fn - The async function to be wrapped.
- * @returns {function} - The wrapped function.
- * */
-const asyncHandler = (fn) => (req, res, next) => {
-  Promise.resolve(fn(req, res, next)).catch((error) => {
-    unifiedErrorHandler(error, req, res, next);
-  });
-};
-/**
- * Handles errors in async functions.
- * @param {function} fn - The async function to be wrapped.
- * @returns {function} - The wrapped function.
- */
-const asyncErrorHandler = (fn) => (req, res, next) => {
-  Promise.resolve(fn(req, res, next)).catch((error) => {
-    unifiedErrorHandler(error, req, res, next);
-  });
-};
+
 /**
  * Handles errors in async functions.
  * @param {function} fn - The async function to be wrapped.
@@ -39,12 +18,11 @@ function sendJsonResponse(res, status, message, data) {
  * @returns {string} - The formatted date string.
  * */
 const formatDateTime = (date) => {
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const year = date.getFullYear();
-  const hours = date.getHours().toString().padStart(2, "0");
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const ampm = hours >= 12 ? "pm" : "am";
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
 
   return `${day}/${month}/${year}, ${hours}:${minutes}`;
 };
@@ -54,13 +32,13 @@ const formatDateTime = (date) => {
  * @returns {string} - The formatted date string.
  * */
 const formatDate = (date) => {
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
   let hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const ampm = hours >= 12 ? "pm" : "am";
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'pm' : 'am';
   hours = hours % 12;
-  hours = hours ? hours.toString().padStart(2, "0") : "12"; // the hour '0' should be '12'
+  hours = hours ? hours.toString().padStart(2, '0') : '12'; // the hour '0' should be '12'
   return `${day}/${month}, ${hours}:${minutes}${ampm}`;
 };
 /**
@@ -116,7 +94,7 @@ function removeDuplicatePriceHistoryFromCollection(cards) {
 const getCardInfo = async (cardName) => {
   try {
     const { data } = await axiosInstance.get(
-      `/cardinfo.php?name=${encodeURIComponent(cardName)}`
+      `/cardinfo.php?name=${encodeURIComponent(cardName)}`,
     );
     // console.log('Card info:', data?.data[0]);
     return data?.data[0];
@@ -156,11 +134,11 @@ const calculateCollectionValue = (cards) => {
     !cards?.name &&
     !cards?.restructuredCollection
   ) {
-    console.warn("Invalid or missing collection", cards);
+    console.warn('Invalid or missing collection', cards);
     return 0;
   }
 
-  if (cards?.tag === "new") {
+  if (cards?.tag === 'new') {
     return 0;
   }
   if (cards?.restructuredCollection) {
@@ -197,24 +175,10 @@ function constructCardDataObject(cardData, additionalData) {
       ? cardData.card_sets[0]
       : null;
   const defaultPriceObj = createNewPriceEntry(tcgplayerPrice);
-  const formatDateNY = (dateInput) => {
-    return new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    })
-      .format(new Date(dateInput))
-      .split("/")
-      .reverse()
-      .join("-"); // Ensures the format is 'YYYY-MM-DD'
-  };
-
-  const addedAtFormatted = formatDateNY(cardData.addedAt || new Date());
 
   return {
     image:
-      cardData?.card_images.length > 0 ? cardData.card_images[0].image_url : "",
+      cardData?.card_images.length > 0 ? cardData.card_images[0].image_url : '',
     quantity: additionalData.quantity || 1,
     price: tcgplayerPrice,
     rarity: cardSet?.set_rarity,
@@ -228,7 +192,7 @@ function constructCardDataObject(cardData, additionalData) {
       return acc;
     }, {}),
     totalPrice: tcgplayerPrice,
-    tag: additionalData.tag || "",
+    tag: additionalData.tag || '',
     collectionId: additionalData.collectionId,
     collectionModel: additionalData.collectionModel,
     cardModel: additionalData.cardModel,
@@ -237,7 +201,7 @@ function constructCardDataObject(cardData, additionalData) {
     card_sets: cardData?.card_sets,
     card_images: cardData?.card_images,
     card_prices: cardData?.card_prices,
-    id: cardData?.id?.toString() || "",
+    id: cardData?.id?.toString() || '',
     name: cardData?.name,
     // create map for chart_datasets organized by date
     // chart_datasets: cardData?.card_prices?.reduce((acc, price) => {
@@ -266,12 +230,10 @@ function constructCardDataObject(cardData, additionalData) {
 }
 
 module.exports = {
-  asyncHandler,
   getCardInfo,
   extractData,
   formatDateTime,
   calculateCollectionValue,
-  asyncErrorHandler,
   createNewPriceEntry,
   formatDate,
   removeDuplicatePriceHistoryFromCollection,
