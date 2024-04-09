@@ -9,7 +9,7 @@ const {
   generateToken,
   generateRefreshToken,
   saveTokens,
-} = require("../../../services/auth");
+} = require("../../../middleware/auth");
 async function createUser(
   username,
   password,
@@ -29,6 +29,9 @@ async function createUser(
 
   const newUser = new User({
     username,
+    email,
+    loginStatus: true,
+    lastUpdated: new Date(),
     userSecurityData: newUserSecurityData._id,
     userBasicData: newUserBasicData._id,
   });

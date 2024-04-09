@@ -1,36 +1,8 @@
-// utils.js
-const jwt = require("jsonwebtoken");
-const { default: mongoose } = require("mongoose");
-const { GENERAL, MESSAGES, STATUS } = require("../../src/configs/constants");
-const CustomError = require("../middleware/errorHandling/customError");
-const User = require("../../src/models/User");
-const { default: axios } = require("axios");
-const { validationResult } = require("express-validator");
-const { Collection } = require("../../src/models/Collection");
-const { unifiedErrorHandler } = require("../middleware/loggers/logErrors");
+const { default: axios } = require('axios');
 const axiosInstance = axios.create({
-  baseURL: "https://db.ygoprodeck.com/api/v7/",
+  baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
-/**
- * Handles errors in async functions.
- * @param {function} fn - The async function to be wrapped.
- * @returns {function} - The wrapped function.
- * */
-const asyncHandler = (fn) => (req, res, next) => {
-  Promise.resolve(fn(req, res, next)).catch((error) => {
-    unifiedErrorHandler(error, req, res, next);
-  });
-};
-/**
- * Handles errors in async functions.
- * @param {function} fn - The async function to be wrapped.
- * @returns {function} - The wrapped function.
- */
-const asyncErrorHandler = (fn) => (req, res, next) => {
-  Promise.resolve(fn(req, res, next)).catch((error) => {
-    unifiedErrorHandler(error, req, res, next);
-  });
-};
+
 /**
  * Handles errors in async functions.
  * @param {function} fn - The async function to be wrapped.
@@ -40,37 +12,16 @@ function sendJsonResponse(res, status, message, data) {
   res.status(status).json({ message, data });
 }
 /**
- * validateContextEntityExists that a deck exists.
- * @param {object} entity - The entity to be validated.
- * @param {string} errorMessage - The error message to be sent to the client.
- * @param {number} errorCode - The error code to be sent to the client.
- * @param {object} response - The response object to be sent to the client.
- * @returns {object} - The response object.
- * */
-function validateContextEntityExists(
-  entity,
-  errorMessage,
-  errorCode,
-  response
-) {
-  if (!entity) {
-    sendJsonResponse(response, errorCode, errorMessage);
-    throw new Error(errorMessage);
-  }
-}
-
-/**
  * Formats a date object to the format "DD/MM/YYYY, HH:MM".
  * @param {Date} date - The date object to be formatted.
  * @returns {string} - The formatted date string.
  * */
 const formatDateTime = (date) => {
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const year = date.getFullYear();
-  const hours = date.getHours().toString().padStart(2, "0");
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const ampm = hours >= 12 ? "pm" : "am";
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
 
   return `${day}/${month}/${year}, ${hours}:${minutes}`;
 };
@@ -80,37 +31,15 @@ const formatDateTime = (date) => {
  * @returns {string} - The formatted date string.
  * */
 const formatDate = (date) => {
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
   let hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const ampm = hours >= 12 ? "pm" : "am";
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'pm' : 'am';
   hours = hours % 12;
-  hours = hours ? hours.toString().padStart(2, "0") : "12"; // the hour '0' should be '12'
+  hours = hours ? hours.toString().padStart(2, '0') : '12'; // the hour '0' should be '12'
   return `${day}/${month}, ${hours}:${minutes}${ampm}`;
 };
-const ensureNumber = (value) => Number(value);
-const ensureString = (value) => String(value);
-const ensureBoolean = (value) => Boolean(value);
-const ensureArray = (value) => (Array.isArray(value) ? value : []);
-const ensureObject = (value) => (typeof value === "object" ? value : {});
-const validateVarType = (value, type) => {
-  switch (type) {
-    case "number":
-      return ensureNumber(value);
-    case "string":
-      return ensureString(value);
-    case "boolean":
-      return ensureBoolean(value);
-    case "array":
-      return ensureArray(value);
-    case "object":
-      return ensureObject(value);
-    default:
-      return value;
-  }
-};
-const validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 /**
  * Creates a new price entry object.
  * @param {number} price - The price to be added to the price entry.
@@ -130,10 +59,7 @@ const createNewPriceEntry = (price) => {
 function removeDuplicatePriceHistoryFromCollection(cards) {
   // Iterate over each card in the collection
   return cards.map((card) => {
-    // Extract the card's price history
     const { priceHistory } = card;
-
-    // Remove duplicates from this card's price history
     const uniquePriceHistory = priceHistory.reduce((unique, currentEntry) => {
       const duplicate = unique.find((entry) => entry.num === currentEntry.num);
       if (!duplicate) {
@@ -166,9 +92,7 @@ function removeDuplicatePriceHistoryFromCollection(cards) {
  * */
 const getCardInfo = async (cardName) => {
   try {
-    const { data } = await axiosInstance.get(
-      `/cardinfo.php?name=${encodeURIComponent(cardName)}`
-    );
+    const { data } = await axiosInstance.get(`/cardinfo.php?name=${encodeURIComponent(cardName)}`);
     // console.log('Card info:', data?.data[0]);
     return data?.data[0];
   } catch (error) {
@@ -201,17 +125,12 @@ const extractData = ({ body }) => {
  * @returns {number} - The total value of the collection.
  * */
 const calculateCollectionValue = (cards) => {
-  if (
-    !cards?.cards &&
-    !Array.isArray(cards) &&
-    !cards?.name &&
-    !cards?.restructuredCollection
-  ) {
-    console.warn("Invalid or missing collection", cards);
+  if (!cards?.cards && !Array.isArray(cards) && !cards?.name && !cards?.restructuredCollection) {
+    console.warn('Invalid or missing collection', cards);
     return 0;
   }
 
-  if (cards?.tag === "new") {
+  if (cards?.tag === 'new') {
     return 0;
   }
   if (cards?.restructuredCollection) {
@@ -235,31 +154,74 @@ const calculateCollectionValue = (cards) => {
     return totalValue + cardPrice * cardQuantity;
   }, 0);
 };
+const extractRawTCGPlayerData = (cardData) => {
+  const {
+    id,
+    name,
+    type,
+    frameType,
+    desc,
+    atk,
+    def,
+    level,
+    race,
+    attribute,
+    card_sets,
+    card_images,
+    card_prices,
+  } = cardData;
+
+  // Return the destructured card object (or directly return cardData for the entire object as is)
+  return {
+    id,
+    name,
+    type,
+    frameType,
+    desc,
+    atk,
+    def,
+    level,
+    race,
+    attribute,
+    card_sets,
+    card_images,
+    card_prices,
+  };
+};
+const constructInitialCardData = (rawTcgPlayerData) => {
+  let card_set = null;
+  if (rawTcgPlayerData?.card_sets && rawTcgPlayerData?.card_sets?.length > 0) {
+    card_set = rawTcgPlayerData?.card_sets[0];
+  }
+  return {
+    price: rawTcgPlayerData?.card_prices[0]?.tcgplayer_price || 0,
+    image: rawTcgPlayerData?.card_images.length > 0 ? rawTcgPlayerData.card_images[0].image_url : '',
+    rarity: card_set?.set_rarity || '',
+    rarities: rawTcgPlayerData?.card_sets?.reduce((acc, set) => {
+      acc[set.set_name] = set.set_rarity;
+      return acc;
+    }, {}),
+    sets: rawTcgPlayerData?.card_sets?.reduce((acc, set) => {
+      acc[set.set_name] = set.set_name;
+      return acc;
+    }, {}),
+    card_set: card_set ? card_set : {},
+  };
+};
+/**
+ * Constructs the card data object.
+ * @param {object} cardData - The card data object.
+ * @param {object} additionalData - The additional data object.
+ * @returns {object} - The constructed card data object.
+ * */
 function constructCardDataObject(cardData, additionalData) {
   const tcgplayerPrice = cardData?.card_prices[0]?.tcgplayer_price || 0;
   const cardSet =
-    cardData?.card_sets && cardData?.card_sets.length > 0
-      ? cardData.card_sets[0]
-      : null;
+    cardData?.card_sets && cardData?.card_sets.length > 0 ? cardData.card_sets[0] : null;
   const defaultPriceObj = createNewPriceEntry(tcgplayerPrice);
-  const formatDateNY = (dateInput) => {
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    })
-    .format(new Date(dateInput))
-    .split('/')
-    .reverse()
-    .join('-'); // Ensures the format is 'YYYY-MM-DD'
-  };
-
-  const addedAtFormatted = formatDateNY(cardData.addedAt || new Date());
 
   return {
-    image:
-      cardData?.card_images.length > 0 ? cardData.card_images[0].image_url : "",
+    image: cardData?.card_images.length > 0 ? cardData.card_images[0].image_url : '',
     quantity: additionalData.quantity || 1,
     price: tcgplayerPrice,
     rarity: cardSet?.set_rarity,
@@ -273,7 +235,7 @@ function constructCardDataObject(cardData, additionalData) {
       return acc;
     }, {}),
     totalPrice: tcgplayerPrice,
-    tag: additionalData.tag || "",
+    tag: additionalData.tag || '',
     collectionId: additionalData.collectionId,
     collectionModel: additionalData.collectionModel,
     cardModel: additionalData.cardModel,
@@ -282,7 +244,7 @@ function constructCardDataObject(cardData, additionalData) {
     card_sets: cardData?.card_sets,
     card_images: cardData?.card_images,
     card_prices: cardData?.card_prices,
-    id: cardData?.id?.toString() || "",
+    id: cardData?.id?.toString() || '',
     name: cardData?.name,
     // create map for chart_datasets organized by date
     // chart_datasets: cardData?.card_prices?.reduce((acc, price) => {
@@ -311,20 +273,16 @@ function constructCardDataObject(cardData, additionalData) {
 }
 
 module.exports = {
-  asyncHandler,
-  ensureNumber,
   getCardInfo,
-  validateObjectId,
   extractData,
-  validateVarType,
   formatDateTime,
   calculateCollectionValue,
-  asyncErrorHandler,
   createNewPriceEntry,
   formatDate,
   removeDuplicatePriceHistoryFromCollection,
   constructCardDataObject,
-
   sendJsonResponse,
-  validateContextEntityExists,
+  extractRawTCGPlayerData,
+  constructInitialCardData,
+  axiosInstance,
 };

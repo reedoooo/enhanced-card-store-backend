@@ -1,5 +1,13 @@
 // // src/middleware/logRequests.js
-// const logger = require("../../configs/winston");
+const logger = require("../../configs/winston");
+
+const infoLogger = (message, data) => {
+	logger.info("[INFO] ".blue + message, data);
+};
+
+module.exports = {
+  infoLogger,
+};
 
 // const logInfo = () => {
 // 	logger.ingo("[INFO] ".blue + req.method + " " + req.originalUrl);

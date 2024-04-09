@@ -4,48 +4,15 @@ const {
   priceEntrySchema,
   cardImageSchema,
   cardPriceSchema,
-  chartDatasetsSchema,
   cardVariantSchema,
   cardSetSchema,
   averagedDataSchema,
-  // variantSchema,
-} = require("./CommonSchemas");
+  chartDatasetEntrySchema,
+  createNewPriceEntry,
+  dataPointSchema,
+  createDataPoint,
+} = require("./schemas/CommonSchemas");
 const logger = require("../configs/winston");
-const createNewPriceEntry = (price) => {
-  return {
-    num: price,
-    timestamp: new Date(),
-  };
-};
-function calculateContextualQuantity(card, context) {
-  logger.info(
-    "calculating contextual quantity for: ",
-    card.name,
-    "in context: ",
-    context
-  );
-  switch (context) {
-    case "SearchHistory":
-      return card.quantity;
-    case "Deck":
-      return card.quantity;
-    case "Collection":
-      return card.quantity;
-    case "Cart":
-      return card.quantity;
-    default:
-      throw new Error("Invalid context");
-  }
-}
-const chartDatasetEntrySchema = new Schema(
-  {
-    label: String,
-    x: Date,
-    y: { type: Number, min: 0 },
-  },
-  { _id: false }
-); // Consider not automatically generating an _id for subdocuments
-
 // COMMON FIELD SCHEMAS: this data comes straight from the API
 // SAVE FUNCTION: fetchAndTransformCardData
 const commonFields_API_Data = {
@@ -94,10 +61,15 @@ const uniqueFields_Custom_Dynamic_Data = {
   lastSavedPrice: priceEntrySchema, // AUTOSET: true
   priceHistory: [priceEntrySchema], // AUTOSET: true
   dailyPriceHistory: [priceEntrySchema], // AUTOSET: false
-  chart_datasets: {
-    type: Map,
-    of: [chartDatasetEntrySchema], // This assumes you want to store an array of entries under each key in the Map
-  },
+  priceChangeHistory: [
+    {
+      timestamp: Date,
+      oldPrice: Number,
+      newPrice: Number,
+      priceDifference: Number,
+    },
+  ],
+  chart_datasets: [chartDatasetEntrySchema],
   nivoChartData: {
     id: String,
     color: String,
@@ -108,6 +80,7 @@ const uniqueFields_Custom_Dynamic_Data = {
 // SAVE FUNCTION: fetchAndTransformCardData
 const uniqueVariantFields = {
   cardVariants: [{ type: Schema.Types.ObjectId, ref: "CardVariant" }], // Reference to CardSet
+  cardModel: String, // AUTOSET: true
   variant: { type: Schema.Types.ObjectId, ref: "CardVariant" }, // Reference to CardSet
   rarity: String, // AUTOSET: true
   contextualQuantity: {
@@ -123,10 +96,12 @@ const uniqueVariantFields = {
     Cart: Number,
   }, // AUTOSET: true
 };
+// UNIQUE FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
 const referenceSchema = new Schema({
   refId: { type: Schema.Types.ObjectId, required: true },
   quantity: { type: Number, required: true },
 });
+// UNIQUE FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
 const allRefsSchema = new Schema({
   decks: [referenceSchema],
   collections: [referenceSchema],
@@ -136,11 +111,10 @@ const allRefsSchema = new Schema({
     of: referenceSchema,
   },
 });
-
+// UNIQUE FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
 const randomCardSchema = new Schema({
   name: { type: String, required: false }, // AUTOSET: false || required: true
   id: { type: String, required: false, unique: false }, // AUTOSET: false || required: true
-  // rarity: String,
   type: String, // AUTOSET: false
   frameType: String, // AUTOSET: false
   desc: String, // AUTOSET: false
@@ -150,8 +124,12 @@ const randomCardSchema = new Schema({
   race: String, // AUTOSET: false
   attribute: String, // AUTOSET: false
   image: String, // AUTOSET: false
+  dailyPriceChange: Number,
+  dailyPercentageChange: String,
   refs: allRefsSchema, // AUTOSET: false
-  priceHistory: [priceEntrySchema], // AUTOSET: false  averagedChartData: {
+  priceHistory: [priceEntrySchema],
+  valueHistory: [priceEntrySchema],
+  nivoValueHistory: [dataPointSchema],
   averagedChartData: {
     type: Map,
     of: averagedDataSchema,
@@ -193,6 +171,12 @@ genericCardSchema.pre("save", async function (next) {
   if (!this.image) {
     this.image = this.card_images[0]?.image_url || "";
   }
+  if (!this.valueHistory) {
+    this.valueHistory = [];
+  }
+  if (!this.nivoValueHistory) {
+    this.nivoValueHistory = [];
+  }
   if (this.cardVariants && this.cardVariants.length > 0) {
     const variantIsInCardVariants = this.cardVariants.includes(this.variant);
     if (!this.variant || !variantIsInCardVariants) {
@@ -208,28 +192,39 @@ genericCardSchema.pre("save", async function (next) {
     //   createNivoXYValue(this.addedAt, this.totalPrice)
     // );
     const newPriceEntry = createNewPriceEntry(this.price); // Your existing function
+    this.priceHistory.push(newPriceEntry);
     const newChartDataEntry = {
-      label: 'Price',
-      x: new Date(),
-      y: this.totalPrice,
+      label: "Your Label",
+      data: [{ x: new Date(), y: this.totalPrice }],
     };
+    this.chart_datasets.push(newChartDataEntry);
 
     // Check if there's an existing entry for today's date (or whichever key you're using)
-    const chartKey = new Date().toISOString().split("T")[0]; // Example key: 'YYYY-MM-DD'
-    if (!this.chart_datasets?.has(chartKey)) {
-      this.chart_datasets?.set(chartKey, [newChartDataEntry]); // Initialize with an array containing the new entry
-    } else {
-      const existingEntries = this.chart_datasets.get(chartKey);
-      existingEntries.push(newChartDataEntry);
-      this.chart_datasets.set(chartKey, existingEntries); // Update the Map with the new array of entries
-    }
+    // const chartKey = new Date().toISOString().split("T")[0]; // Example key: 'YYYY-MM-DD'
+    // if (!this.chart_datasets?.has(chartKey)) {
+    //   this.chart_datasets?.set(chartKey, [newChartDataEntry]); // Initialize with an array containing the new entry
+    // } else {
+    //   const existingEntries = this.chart_datasets.get(chartKey);
+    //   existingEntries.push(newChartDataEntry);
+    //   this.chart_datasets.set(chartKey, existingEntries);
+    // }
+    const oldTotal = this.totalPrice;
+    this.lastSavedPrice = createNewPriceEntry(oldTotal); // Your existing function
     this.totalPrice = this.quantity * this.price;
-    this.latestPrice = newPriceEntry;
-    this.priceHistory.push(newPriceEntry);
+    this.latestPrice = createNewPriceEntry(this.quantity * this.price); // Your existing function
+    // this.lastSavedPrice = this.valueHistory[this?.valueHistory?.length - 1];
+    const valueEntry = {
+      timestamp: new Date(),
+      num: this.totalPrice,
+    }; // Your existing function
+    this.valueHistory.push(valueEntry);
+    this.nivoValueHistory.push(
+      createDataPoint(valueEntry?.timestamp, valueEntry?.num, "Data: ")
+    );
     this.tag = "" || "default";
 
     // Update contextual quantities and total prices
-    const contextKeys = ["SearchHistory", "Deck", "Collection", "Cart"];
+    const contextKeys = ["Deck", "Collection", "Cart"];
     contextKeys.forEach((context) => {
       if (context === this.collectionModel) {
         this.contextualQuantity[context] = calculateContextualQuantity(
@@ -307,7 +302,6 @@ genericCardSchema.pre("save", async function (next) {
     // Clear the updateRefs to prevent reprocessing
     this.updateRefs = null;
   }
-  // Populate the variant field
   try {
     await this.populate("variant");
 
@@ -341,13 +335,11 @@ const CardVariant = model("CardVariant", cardVariantSchema);
 const CardInCollection = mongoose.model("CardInCollection", genericCardSchema);
 const CardInDeck = mongoose.model("CardInDeck", genericCardSchema);
 const CardInCart = mongoose.model("CardInCart", genericCardSchema);
-const CardInSearch = mongoose.model("CardInSearch", genericCardSchema);
 
 module.exports = {
   CardInCollection,
   CardInDeck,
   CardInCart,
-  CardInSearch,
   CardSet,
   CardVariant,
   RandomCard,
