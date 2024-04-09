@@ -1,26 +1,18 @@
 // !--------------------------! COLLECTIONS !--------------------------!
-const { CardInCollection } = require("../models/Card");
-const { Collection } = require("../models/Collection");
+const { CardInCollection } = require('../models/Card');
+const { Collection } = require('../models/Collection');
 const {
   populateUserDataByContext,
-  deepPopulateCardFields,
   fetchPopulatedUserContext,
   findUserContextItem,
-} = require("./User/dataUtils");
-const {
-  setupDefaultCollectionsAndCards,
-  reFetchForSave,
-  fetchUserIdsFromUserSecurityData,
-  fetchAllCollectionIds,
-} = require("./User/helpers");
-const logger = require("../configs/winston");
-const { sendJsonResponse } = require("../utils/utils");
-const { addOrUpdateCards, removeCards } = require("./User/cardUtilities");
-const {
-  validateContextEntityExists,
-} = require("../middleware/errorHandling/validators");
-const { handleError } = require("../middleware/errorHandling/errorHandler");
-const { infoLogger } = require("../middleware/loggers/logInfo");
+} = require('./dataUtils');
+const { setupDefaultCollectionsAndCards, fetchAllCollectionIds } = require('./User/helpers');
+const logger = require('../configs/winston');
+const { sendJsonResponse } = require('../utils/utils');
+const { addOrUpdateCards, removeCards } = require('./User/cardUtilities');
+const { validateContextEntityExists } = require('../middleware/errorHandling/validators');
+const { handleError } = require('../middleware/errorHandling/errorHandler');
+const { infoLogger } = require('../middleware/loggers/logInfo');
 
 // ! COLLECTION ROUTES (GET, CREATE, UPDATE, DELETE) !
 /**
@@ -30,25 +22,15 @@ const { infoLogger } = require("../middleware/loggers/logInfo");
  * @param {NextFunction} next - The next middleware function.
  */
 exports.getAllCollectionsForUser = async (req, res, next) => {
-  try {
-    // const populatedUser = await fetchPopulatedUserCollections(
-    //   req.params.userId
-    // );
-    const populatedUser = await fetchPopulatedUserContext(req.params.userId, [
-      "collections",
-    ]);
-    validateContextEntityExists(populatedUser, "User not found", 404, res);
+  const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
+  validateContextEntityExists(populatedUser, 'User not found', 404, res);
 
-    sendJsonResponse(
-      res,
-      200,
-      `Fetched collections for user ${req.params.userId}`,
-      populatedUser.allCollections
-    );
-  } catch (error) {
-    logger.error("Error fetching collections", { error });
-    next(error);
-  }
+  sendJsonResponse(
+    res,
+    200,
+    `Fetched collections for user ${req.params.userId}`,
+    populatedUser.allCollections,
+  );
 };
 /**
  * Creates a new collection for a user.
@@ -57,31 +39,17 @@ exports.getAllCollectionsForUser = async (req, res, next) => {
  * @param {NextFunction} next - The next middleware function
  */
 exports.createNewCollection = async (req, res, next) => {
-  try {
-    const populatedUser = await fetchPopulatedUserContext(req.params.userId, [
-      "collections",
-    ]);
-    const newCollection = await setupDefaultCollectionsAndCards(
-      populatedUser,
-      "Collection",
-      req.body
-    );
-    populatedUser.allCollections.push(newCollection._id);
-    await populatedUser.save();
+  const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
+  const newCollection = await setupDefaultCollectionsAndCards(
+    populatedUser,
+    'Collection',
+    req.body,
+  );
+  populatedUser.allCollections.push(newCollection._id);
+  await populatedUser.save();
 
-    const populatedCollection = await Collection.findById(
-      newCollection._id
-    ).populate("cards");
-    sendJsonResponse(
-      res,
-      201,
-      "New collection created successfully",
-      populatedCollection
-    );
-  } catch (error) {
-    logger.error("Error in createNewCollection", error);
-    next(error);
-  }
+  const populatedCollection = await Collection.findById(newCollection._id).populate('cards');
+  sendJsonResponse(res, 201, 'New collection created successfully', populatedCollection);
 };
 /**
  * Updates a collection for a user and syncs the collection's cards with the database.
@@ -92,23 +60,12 @@ exports.createNewCollection = async (req, res, next) => {
  * @todo Update this to use the new CardInCollection schema
  */
 exports.updateExistingCollection = async (req, res, next) => {
-  try {
-    const populatedUser = await fetchPopulatedUserContext(req.params.userId, [
-      "collections",
-    ]);
-    const collection = findUserContextItem(
-      populatedUser,
-      "allCollections",
-      req.params.collectionId
-    );
-    Object.assign(collection, req.body.updatedCollectionData);
-    await collection.save();
+  const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
+  const collection = findUserContextItem(populatedUser, 'allCollections', req.params.collectionId);
+  Object.assign(collection, req.body.updatedCollectionData);
+  await collection.save();
 
-    sendJsonResponse(res, 200, "Collection updated successfully", collection);
-  } catch (error) {
-    logger.error("Error updating collection:", error);
-    next(error);
-  }
+  sendJsonResponse(res, 200, 'Collection updated successfully', collection);
 };
 /**
  * Deletes a collection for a user and removes the collection from the user's collections.
@@ -121,43 +78,18 @@ exports.updateExistingCollection = async (req, res, next) => {
  * @todo Update this to use the new CardInCollection schema
  */
 exports.deleteExistingCollection = async (req, res, next) => {
-  try {
-    infoLogger("Deleting collection:", req.body.collectionId);
+  const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
+  infoLogger(`Deleting collection: ${req.params.collectionId}`, req.params.collectionId);
+  populatedUser.allCollections = populatedUser.allCollections.filter(
+    (c) => c._id.toString() !== req.params.collectionId,
+  );
+  await Collection.findByIdAndDelete(req.params.collectionId);
+  await populatedUser.save();
 
-    const populatedUser = await fetchPopulatedUserContext(req.params.userId, [
-      "collections",
-    ]);
-    infoLogger(
-      `Deleting collection: ${req.params.collectionId}`,
-      req.params.collectionId
-    );
-
-    // const collection = findUserContextItem(
-    //   populatedUser,
-    //   "allCollections",
-    //   req.params.collectionId
-    // );
-    populatedUser.allCollections = populatedUser.allCollections.filter(
-      (c) => c._id.toString() !== req.params.collectionId
-    );
-    infoLogger("Deleting collection:", req.params.collectionId);
-    await populatedUser.save();
-
-    await Collection.findByIdAndDelete(req.params.collectionId);
-    infoLogger("Collection deleted successfully:", req.params.collectionId);
-    const { collectionIds } = fetchAllCollectionIds(populatedUser._id);
-    infoLogger(`All Collection IDS: ${collectionIds}`, collectionIds);
-    sendJsonResponse(
-      res,
-      200,
-      "Collection deleted successfully",
-      collectionIds
-    );
-  } catch (error) {
-    handleError(error, "Error deleting collection:");
-    logger.error("Error deleting collection:", error);
-    next(error);
-  }
+  infoLogger('Collection deleted successfully:', req.params.collectionId);
+  const { collectionIds } = fetchAllCollectionIds(populatedUser._id);
+  infoLogger(`All Collection IDS: ${collectionIds}`, collectionIds);
+  sendJsonResponse(res, 200, 'Collection deleted successfully', collectionIds);
 };
 /**
  * STATUS:
@@ -173,32 +105,20 @@ exports.addCardsToCollection = async (req, res, next) => {
   const { cards } = req.body;
   const cardsArray = Array.isArray(cards) ? cards : [cards];
   try {
-    const populatedUser = await fetchPopulatedUserContext(userId, [
-      "collections",
-    ]);
-    const collection = findUserContextItem(
-      populatedUser,
-      "allCollections",
-      collectionId
-    );
+    const populatedUser = await fetchPopulatedUserContext(userId, ['collections']);
+    const collection = findUserContextItem(populatedUser, 'allCollections', collectionId);
 
     // Utilize addOrUpdateCards utility
-    await addOrUpdateCards(
-      collection,
-      cardsArray,
-      collectionId,
-      "Collection",
-      CardInCollection
-    );
+    await addOrUpdateCards(collection, cardsArray, collectionId, 'Collection', CardInCollection);
 
     await populatedUser.save();
-    await collection.populate({ path: "cards", model: "CardInCollection" });
+    await collection.populate({ path: 'cards', model: 'CardInCollection' });
 
-    sendJsonResponse(res, 200, "Cards added to collection successfully.", {
+    sendJsonResponse(res, 200, 'Cards added to collection successfully.', {
       data: collection,
     });
   } catch (error) {
-    logger.error("Error adding cards to collection:", error);
+    logger.error('Error adding cards to collection:', error);
     next(error);
   }
 };
@@ -217,43 +137,35 @@ exports.removeCardsFromCollection = async (req, res, next) => {
   const { cards, type } = req.body; // Include type in the request body
   const cardsArray = Array.isArray(cards) ? cards : [cards];
   try {
-    let populatedUser = await populateUserDataByContext(userId, [
-      "collections",
-    ]);
+    let populatedUser = await populateUserDataByContext(userId, ['collections']);
     const collection = populatedUser.allCollections.find(
-      (coll) => coll._id.toString() === collectionId
+      (coll) => coll._id.toString() === collectionId,
     );
 
     if (!collection) {
-      return res.status(404).json({ message: "Collection not found." });
+      return res.status(404).json({ message: 'Collection not found.' });
     }
 
     // Check for the 'type' and call removeCards function accordingly
-    if (["decrement", "delete"].includes(type)) {
-      await removeCards(
-        collection,
-        cardsArray,
-        "collection",
-        CardInCollection,
-        type
-      );
+    if (['decrement', 'delete'].includes(type)) {
+      await removeCards(collection, cardsArray, 'collection', CardInCollection, type);
     } else {
-      return res.status(400).json({ message: "Invalid type specified." });
+      return res.status(400).json({ message: 'Invalid type specified.' });
     }
 
     await populatedUser.save();
     // Re-fetch the populated user to get the updated collections
-    populatedUser = await populateUserDataByContext(userId, ["collections"]);
+    populatedUser = await populateUserDataByContext(userId, ['collections']);
     const updatedCollection = populatedUser.allCollections.find(
-      (coll) => coll._id.toString() === collectionId
+      (coll) => coll._id.toString() === collectionId,
     );
 
     res.status(200).json({
-      message: `Cards ${type === "delete" ? "removed" : "updated"} from collection successfully.`,
+      message: `Cards ${type === 'delete' ? 'removed' : 'updated'} from collection successfully.`,
       data: updatedCollection,
     });
   } catch (error) {
-    console.error("Error updating collection:", error);
+    console.error('Error updating collection:', error);
     next(error);
   }
 };

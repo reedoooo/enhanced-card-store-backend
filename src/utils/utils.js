@@ -1,4 +1,3 @@
-// utils.js
 const { default: axios } = require('axios');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
@@ -93,9 +92,7 @@ function removeDuplicatePriceHistoryFromCollection(cards) {
  * */
 const getCardInfo = async (cardName) => {
   try {
-    const { data } = await axiosInstance.get(
-      `/cardinfo.php?name=${encodeURIComponent(cardName)}`,
-    );
+    const { data } = await axiosInstance.get(`/cardinfo.php?name=${encodeURIComponent(cardName)}`);
     // console.log('Card info:', data?.data[0]);
     return data?.data[0];
   } catch (error) {
@@ -128,12 +125,7 @@ const extractData = ({ body }) => {
  * @returns {number} - The total value of the collection.
  * */
 const calculateCollectionValue = (cards) => {
-  if (
-    !cards?.cards &&
-    !Array.isArray(cards) &&
-    !cards?.name &&
-    !cards?.restructuredCollection
-  ) {
+  if (!cards?.cards && !Array.isArray(cards) && !cards?.name && !cards?.restructuredCollection) {
     console.warn('Invalid or missing collection', cards);
     return 0;
   }
@@ -162,6 +154,60 @@ const calculateCollectionValue = (cards) => {
     return totalValue + cardPrice * cardQuantity;
   }, 0);
 };
+const extractRawTCGPlayerData = (cardData) => {
+  const {
+    id,
+    name,
+    type,
+    frameType,
+    desc,
+    atk,
+    def,
+    level,
+    race,
+    attribute,
+    card_sets,
+    card_images,
+    card_prices,
+  } = cardData;
+
+  // Return the destructured card object (or directly return cardData for the entire object as is)
+  return {
+    id,
+    name,
+    type,
+    frameType,
+    desc,
+    atk,
+    def,
+    level,
+    race,
+    attribute,
+    card_sets,
+    card_images,
+    card_prices,
+  };
+};
+const constructInitialCardData = (rawTcgPlayerData) => {
+  let card_set = null;
+  if (rawTcgPlayerData?.card_sets && rawTcgPlayerData?.card_sets?.length > 0) {
+    card_set = rawTcgPlayerData?.card_sets[0];
+  }
+  return {
+    price: rawTcgPlayerData?.card_prices[0]?.tcgplayer_price || 0,
+    image: rawTcgPlayerData?.card_images.length > 0 ? rawTcgPlayerData.card_images[0].image_url : '',
+    rarity: card_set?.set_rarity || '',
+    rarities: rawTcgPlayerData?.card_sets?.reduce((acc, set) => {
+      acc[set.set_name] = set.set_rarity;
+      return acc;
+    }, {}),
+    sets: rawTcgPlayerData?.card_sets?.reduce((acc, set) => {
+      acc[set.set_name] = set.set_name;
+      return acc;
+    }, {}),
+    card_set: card_set ? card_set : {},
+  };
+};
 /**
  * Constructs the card data object.
  * @param {object} cardData - The card data object.
@@ -171,14 +217,11 @@ const calculateCollectionValue = (cards) => {
 function constructCardDataObject(cardData, additionalData) {
   const tcgplayerPrice = cardData?.card_prices[0]?.tcgplayer_price || 0;
   const cardSet =
-    cardData?.card_sets && cardData?.card_sets.length > 0
-      ? cardData.card_sets[0]
-      : null;
+    cardData?.card_sets && cardData?.card_sets.length > 0 ? cardData.card_sets[0] : null;
   const defaultPriceObj = createNewPriceEntry(tcgplayerPrice);
 
   return {
-    image:
-      cardData?.card_images.length > 0 ? cardData.card_images[0].image_url : '',
+    image: cardData?.card_images.length > 0 ? cardData.card_images[0].image_url : '',
     quantity: additionalData.quantity || 1,
     price: tcgplayerPrice,
     rarity: cardSet?.set_rarity,
@@ -239,4 +282,7 @@ module.exports = {
   removeDuplicatePriceHistoryFromCollection,
   constructCardDataObject,
   sendJsonResponse,
+  extractRawTCGPlayerData,
+  constructInitialCardData,
+  axiosInstance,
 };

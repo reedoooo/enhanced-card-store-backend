@@ -68,6 +68,7 @@ app.use((error, req, res, next) => {
   if (res.headersSent) {
     return next(error);
   }
+  
   unifiedErrorHandler(error, req, res, next);
 });
 

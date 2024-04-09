@@ -1,45 +1,10 @@
 // Require Mongoose
-const mongoose = require("mongoose");
-const logger = require("../../configs/winston");
+const mongoose = require('mongoose');
+const logger = require('../../configs/winston');
 const { Schema, Types } = mongoose;
 // Enhanced DRY approach: Common field configurations
 const requiredString = { type: String, required: true };
 const requiredDecimal128 = { type: Types.Decimal128, required: true };
-const optionalString = { type: String, required: false }; // Newly added for optional strings
-const requiredNumber = { type: Number, required: true, min: 0 };
-const defaultDateNow = { type: Date, default: Date.now };
-const defaultBooleanFalse = { type: Boolean, default: false };
-const enumColors = [
-  "red",
-  "orange",
-  "yellow",
-  "green",
-  "teal",
-  "blue",
-  "purple",
-  "pink",
-];
-const priceFieldsWithCurrency = [
-  "cardmarket",
-  "tcgplayer",
-  "ebay",
-  "amazon",
-  "coolstuffinc",
-].reduce((acc, curr) => {
-  acc[`${curr}_price`] = Types.Decimal128; // Consider if required or optional based on usage
-  return acc;
-}, {});
-const createEnumField = (enumOptions, required = true) => ({
-  type: String,
-  enum: enumOptions,
-  required,
-});
-const validateArrayLength = (maxLength) => ({
-  validate: [
-    (v) => v.length <= maxLength,
-    `{PATH} exceeds the limit of ${maxLength}`,
-  ],
-});
 const commonSchemaOptions = { timestamps: true };
 const requiredObjectId = (refPath) => ({
   type: Schema.Types.ObjectId,
@@ -55,21 +20,19 @@ const createPriceFields = () => ({
 });
 const createReferenceFields = (enumOptions) => ({
   cardModel: { type: String, enum: enumOptions, required: true },
-  cardId: { type: Schema.Types.ObjectId, refPath: "cardModel", required: true },
+  cardId: { type: Schema.Types.ObjectId, refPath: 'cardModel', required: true },
 });
-
-const createSchema = (fields, options = {}) =>
-  new Schema(fields, { _id: false, ...options });
+const createSchema = (fields, options = {}) => new Schema(fields, { _id: false, ...options });
 function arrayLimit(val) {
   // Mapping of chart data IDs to their maximum lengths
   const limits = {
-    "24hr": 24,
-    "7d": 7,
-    "30d": 30,
-    "90d": 90,
-    "180d": 180,
-    "270d": 270,
-    "365d": 365,
+    '24hr': 24,
+    '7d': 7,
+    '30d': 30,
+    '90d': 90,
+    '180d': 180,
+    '270d': 270,
+    '365d': 365,
   };
 
   // Use 'this.id' to access the id of the chart and apply the appropriate limit
@@ -88,7 +51,7 @@ async function updateTotals(cardModel, cardsField) {
   }
 }
 const createCommonFields = () => ({
-  userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   totalPrice: { type: Number, default: 0 },
   totalQuantity: { type: Number, default: 0 },
   quantity: { type: Number, default: 0 },
@@ -96,7 +59,7 @@ const createCommonFields = () => ({
 const createSchemaWithCommonFields = (cardsRef, schemaName) => {
   const schema = new Schema(
     {
-      userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+      userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
       totalPrice: { type: Number, default: 0 },
       totalQuantity: { type: Number, default: 0 },
       quantity: { type: Number, default: 0 },
@@ -105,27 +68,25 @@ const createSchemaWithCommonFields = (cardsRef, schemaName) => {
       [cardsRef]: [{ type: Schema.Types.ObjectId, ref: schemaName }],
       tags: {
         type: Array,
-        default: [],
+        of: String,
+        default: ['tags'],
       },
+      selectedTags: {
+        type: Array,
+        of: String,
+        default: ['tags'],
+      },
+
       color: {
         type: String,
-        enum: [
-          "red",
-          "orange",
-          "yellow",
-          "green",
-          "teal",
-          "blue",
-          "purple",
-          "pink",
-        ],
-        default: "teal",
+        enum: ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink'],
+        default: 'blue',
       },
     },
-    { timestamps: true }
+    { timestamps: true },
   );
 
-  schema.pre("save", async function (next) {
+  schema.pre('save', async function (next) {
     await updateTotals.call(this, mongoose.model(schemaName), cardsRef);
     next();
   });
@@ -153,9 +114,15 @@ const cardPriceSchema = createSchema(createPriceFields());
 const chartDatasetEntrySchema = new Schema(
   {
     label: String,
-    data: [{ x: Date, y: Number }],
+    data: [
+      {
+        id: String,
+        x: Date,
+        y: Number,
+      },
+    ],
   },
-  { _id: false }
+  { _id: false },
 );
 const cardSetSchema = new Schema(
   {
@@ -164,9 +131,9 @@ const cardSetSchema = new Schema(
     set_rarity: String,
     set_rarity_code: String,
     set_price: requiredDecimal128,
-    ...createReferenceFields(["CardInCollection", "CardInDeck", "CardInCart"]),
+    ...createReferenceFields(['CardInCollection', 'CardInDeck', 'CardInCart']),
   },
-  commonSchemaOptions
+  commonSchemaOptions,
 );
 cardSetSchema.index({ set_code: 1 }); // Index for performance
 const cardVariantSchema = new Schema(
@@ -178,15 +145,17 @@ const cardVariantSchema = new Schema(
     price: requiredDecimal128,
     selected: { type: Boolean, default: false },
     alt_art_image_url: String,
-    set: requiredObjectId("CardSet"),
-    ...createReferenceFields(["CardInCollection", "CardInDeck", "CardInCart"]),
+    set: requiredObjectId('CardSet'),
+    ...createReferenceFields(['CardInCollection', 'CardInDeck', 'CardInCart']),
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 const collectionPriceChangeHistorySchema = new Schema({
   timestamp: Date,
   priceChanges: [
     {
+      timestamp: Date,
+      difference: Number,
       collectionName: String,
       cardName: String,
       oldPrice: Number,
@@ -216,21 +185,23 @@ const collectionStatisticsSchema = new Schema({
     priceIncreased: Boolean,
   },
 });
-// Define a schema for the individual data points in each chart
 const dataPointSchema = createSchema(
   {
-    label: { type: String, required: false, default: "Label" },
+    label: { type: String, required: false, default: 'Label' },
+    id: { type: String, required: false },
     x: { type: Date, required: false, default: Date.now },
     y: { type: Number, min: 0, required: false, default: 0 },
   },
-  { _id: false }
+  { _id: false },
 );
 const createDataPoint = (x, y, stringVal) => ({
   label: `${stringVal}: [${y}] [${x}]`,
-  x: new Date(),
-  y: 0,
+  id: `${Date.now()}`,
+  x,
+  y,
+  // x: new Date(),
+  // y: 0,
 });
-
 const chartDataSchema = new Schema({
   id: String,
   name: String,
@@ -247,31 +218,27 @@ const averagedDataSchema = new Schema(
     color: String,
     data: [
       {
+        id: String,
         x: Date,
         y: Number,
       },
     ],
   },
-  { _id: false }
+  { _id: false },
 );
 function calculateContextualQuantity(card, context) {
-  logger.info(
-    "calculating contextual quantity for: ",
-    card.name,
-    "in context: ",
-    context
-  );
+  logger.info('calculating contextual quantity for: ', card.name, 'in context: ', context);
   switch (context) {
-    case "SearchHistory":
+    case 'SearchHistory':
       return card.quantity;
-    case "Deck":
+    case 'Deck':
       return card.quantity;
-    case "Collection":
+    case 'Collection':
       return card.quantity;
-    case "Cart":
+    case 'Cart':
       return card.quantity;
     default:
-      throw new Error("Invalid context");
+      throw new Error('Invalid context');
   }
 }
 

@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 const { Schema, model } = mongoose;
 const {
   priceEntrySchema,
@@ -7,10 +7,11 @@ const {
   updateTotals,
   createCommonFields,
   createSchemaWithCommonFields,
-} = require("./schemas/CommonSchemas");
+  collectionPriceChangeHistorySchema,
+} = require('./schemas/CommonSchemas');
 
-const { CardInCollection, CardInDeck, CardInCart } = require("./Card");
-const logger = require("../configs/winston");
+const { CardInCollection, CardInDeck, CardInCart } = require('./Card');
+const logger = require('../configs/winston');
 const {
   updateCollectionStatistics,
   generateCardDataPoints,
@@ -19,18 +20,12 @@ const {
   recalculatePriceHistory,
   convertChartDataToArray,
   commonSchemaOptions,
-} = require("./utils/dataProcessing");
-const { infoLogger } = require("../middleware/loggers/logInfo");
-require("colors");
+} = require('./utils/dataProcessing');
+const { infoLogger } = require('../middleware/loggers/logInfo');
+require('colors');
 
-const DeckSchema = createSchemaWithCommonFields("cards", "CardInDeck");
-const CartSchema = createSchemaWithCommonFields("items", "CardInCart");
-// const CartSchema = new Schema(
-//   {
-//    ...CartCommonFieldsSchema,
-//     items: [{ type: Schema.Types.ObjectId, ref: "CardInCart" }],
-//   }
-// );
+const DeckSchema = createSchemaWithCommonFields('cards', 'CardInDeck');
+const CartSchema = createSchemaWithCommonFields('items', 'CardInCart');
 const CollectionSchema = new Schema(
   {
     ...createCommonFields(),
@@ -43,6 +38,7 @@ const CollectionSchema = new Schema(
     latestPrice: priceEntrySchema,
     lastSavedPrice: priceEntrySchema,
     dailyCollectionPriceHistory: [priceEntrySchema],
+    collectionPriceChangeHistory: collectionPriceChangeHistorySchema,
     collectionPriceHistory: [priceEntrySchema],
     collectionValueHistory: [priceEntrySchema],
     nivoChartData: {
@@ -53,6 +49,21 @@ const CollectionSchema = new Schema(
       type: Map,
       of: chartDataSchema,
     },
+    selectedChartDataKey: {
+      type: String,
+      default: '24h',
+    },
+    selectedChartData: {
+      type: [chartDataSchema],
+    },
+    selectedStatDataKey: {
+      type: String,
+      default: 'highpoint',
+    },
+    selectedColorDataKey: {
+      type: String,
+      default: 'blue',
+    },
     newNivoChartData: [
       {
         id: String,
@@ -60,12 +71,19 @@ const CollectionSchema = new Schema(
         data: [{ x: Date, y: Number }],
       },
     ],
-    cards: [{ type: Schema.Types.ObjectId, ref: "CardInCollection" }],
+    cards: [{ type: Schema.Types.ObjectId, ref: 'CardInCollection' }],
   },
-  commonSchemaOptions
+  commonSchemaOptions,
 );
-CollectionSchema.pre("save", async function (next) {
-  infoLogger("Pre-save hook for collection:", this.name);
+CollectionSchema.pre('save', async function (next) {
+  infoLogger('Pre-save hook for collection:', this.name);
+  // if (this.isNew) {
+  // Initialize selectedChartData based on the key
+  // const selectedData = this.averagedChartData.get(this.selectedChartDataKey);
+  //   if (selectedData) {
+  //     this.selectedChartData = selectedData;
+  //   }
+  // }
   let newTotalPrice = 0;
   let newTotalQuantity = 0;
   if (Array.isArray(this.cards) && this.cards.length > 0) {
@@ -105,25 +123,25 @@ CollectionSchema.pre("save", async function (next) {
   this.collectionStatistics = updateCollectionStatistics(
     { ...this.collectionStatistics },
     newTotalPrice,
-    newTotalQuantity
+    newTotalQuantity,
   );
   this.lastUpdated = new Date();
-  logger.info("[INFO][ 6 ]".green, "all values updated");
-  this.markModified("totalPrice");
-  this.markModified("totalQuantity");
-  this.markModified("collectionPriceHistory");
-  this.markModified("collectionValueHistory");
-  this.markModified("nivoChartData");
-  this.markModified("averagedChartData");
-  this.markModified("newNivoChartData");
-  this.markModified("collectionStatistics");
-  this.markModified("lastUpdated");
+  logger.info('[INFO][ 6 ]'.green, 'all values updated');
+  this.markModified('totalPrice');
+  this.markModified('totalQuantity');
+  this.markModified('collectionPriceHistory');
+  this.markModified('collectionValueHistory');
+  this.markModified('nivoChartData');
+  this.markModified('averagedChartData');
+  this.markModified('newNivoChartData');
+  this.markModified('collectionStatistics');
+  this.markModified('lastUpdated');
 
   next();
 });
 
 module.exports = {
-  Deck: model("Deck", DeckSchema),
-  Cart: model("Cart", CartSchema),
-  Collection: model("Collection", CollectionSchema),
+  Deck: model('Deck', DeckSchema),
+  Cart: model('Cart', CartSchema),
+  Collection: model('Collection', CollectionSchema),
 };

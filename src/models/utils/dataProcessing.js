@@ -133,6 +133,7 @@ const seedChartData = (chart, range) => {
       );
 
       chart.data = interpolatedXValues.map((x, index) => ({
+        id: `${formatISO(new Date(x))}`, // Ensuring id is a string version of x
         x: x,
         y: interpolatedValues[index],
       }));
@@ -259,6 +260,7 @@ exports.processTimeSeriesData = (data) => {
   const now = new Date();
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const hourlyDataPoints = Array.from({ length: 24 }, (_, i) => ({
+    id: formatISO(new Date(oneDayAgo.getTime() + i * 60 * 60 * 1000)), // Ensuring id is a string
     x: new Date(oneDayAgo.getTime() + i * 60 * 60 * 1000).toISOString(),
     y: null,
   }));

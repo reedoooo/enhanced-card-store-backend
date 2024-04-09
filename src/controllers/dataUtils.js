@@ -1,50 +1,50 @@
-const { User } = require("../../../src/models");
+const { User } = require('../models');
 
 function deepPopulateCardFields() {
   return [
-    { path: "card_sets", model: "CardSet" },
+    { path: 'card_sets', model: 'CardSet' },
     {
-      path: "cardVariants",
-      model: "CardVariant",
+      path: 'cardVariants',
+      model: 'CardVariant',
       populate: [
-        { path: "set", model: "CardSet" },
+        { path: 'set', model: 'CardSet' },
         // { path: 'variant', model: 'CardVariant' },
       ],
     },
-    { path: "variant", model: "CardVariant" },
+    { path: 'variant', model: 'CardVariant' },
   ];
 }
 function getPopulatePathForContext(context) {
   switch (context) {
-    case "decks":
+    case 'decks':
       return {
-        path: "allDecks",
+        path: 'allDecks',
         populate: {
-          path: "cards",
-          model: "CardInDeck",
+          path: 'cards',
+          model: 'CardInDeck',
           populate: deepPopulateCardFields(),
         },
       };
-    case "collections":
+    case 'collections':
       return {
-        path: "allCollections",
+        path: 'allCollections',
         populate: {
-          path: "cards",
-          model: "CardInCollection",
+          path: 'cards',
+          model: 'CardInCollection',
           populate: deepPopulateCardFields(),
         },
       };
-    case "cart":
+    case 'cart':
       return {
-        path: "cart",
+        path: 'cart',
         populate: {
-          path: "items",
-          model: "CardInCart",
+          path: 'items',
+          model: 'CardInCart',
           populate: deepPopulateCardFields(),
         },
       };
     default:
-      throw new Error("Invalid context");
+      throw new Error('Invalid context');
   }
 }
 /**
@@ -55,16 +55,13 @@ function getPopulatePathForContext(context) {
  */
 async function populateUserDataByContext(userId, contexts) {
   if (!Array.isArray(contexts) || contexts.length === 0) {
-    throw new Error("Contexts must be a non-empty array");
+    throw new Error('Contexts must be a non-empty array');
   }
 
   let query = User.findById(userId)
-    .populate("userSecurityData", "username email role_data")
-    .populate("userBasicData", "firstName lastName")
-    .populate(
-      "generalUserStats",
-      "totalDecks totalCollections totalCardsInCollections"
-    );
+    .populate('userSecurityData', 'username email role_data')
+    .populate('userBasicData', 'firstName lastName')
+    .populate('generalUserStats', 'totalDecks totalCollections totalCardsInCollections');
 
   contexts.forEach((context) => {
     const populatePath = getPopulatePathForContext(context);
@@ -74,7 +71,7 @@ async function populateUserDataByContext(userId, contexts) {
   try {
     return await query;
   } catch (error) {
-    console.error("Error populating user data:", error);
+    console.error('Error populating user data:', error);
     throw error;
   }
 }
@@ -103,9 +100,7 @@ function findUserContextItem(populatedUser, contextField, itemId) {
     throw new Error(`Context field ${contextField} not found.`);
   }
 
-  const item = populatedUser[contextField].find(
-    (d) => d._id.toString() === itemId
-  );
+  const item = populatedUser[contextField].find((d) => d._id.toString() === itemId);
   if (!item) {
     throw new Error(`${contextField.slice(0, -1)} not found`);
   }

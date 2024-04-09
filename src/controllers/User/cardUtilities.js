@@ -1,5 +1,32 @@
+const logger = require("../../configs/winston");
 const { reFetchForSave } = require("./helpers");
+/**
+ * Removes duplicate cards from an entity's cards array and updates the original card's quantity.
+ * @param {Object} entity - The entity containing the cards to be deduplicated.
+ * @param {Model} cardModel - The Mongoose model of the card being deduplicated.
+ */
+async function deDuplicate(entity, cardModel) {
+  // Create a map to track occurrences of card ids
+  const cardOccurrenceMap = new Map();
 
+  // Iterate in reverse to prioritize older cards over newer duplicates
+  for (let i = entity.cards.length - 1; i >= 0; i--) {
+    const cardId = entity.cards[i].id.toString();
+    if (cardOccurrenceMap.has(cardId)) {
+      // Found a duplicate, remove it and update quantity of the original card
+      let originalCard = await cardModel.findById(cardOccurrenceMap.get(cardId));
+      originalCard.quantity += 1;
+      originalCard.totalPrice = originalCard.quantity * originalCard.price;
+      await originalCard.save();
+
+      // Remove the duplicate card from the entity's cards array
+      entity.cards.splice(i, 1);
+    } else {
+      // Not a duplicate, add to map with its database ID
+      cardOccurrenceMap.set(cardId, entity.cards[i]._id);
+    }
+  }
+}
 /**
  * Dynamically adds cards to either a deck or collection based on the context.
  * @param {Object} target - The deck or collection from which to add cards.
@@ -17,20 +44,25 @@ async function addOrUpdateCards(
   cardModel
 ) {
   for (const cardData of cards) {
-    console.log(`Processing card: ${cardData.id}`);
+    logger.info(`Processing card: ${cardData.id}`);
     let foundCard = entity.cards.find((c) => c.id.toString() === cardData.id);
 
     if (foundCard) {
       let cardInEntity = await cardModel.findById(foundCard._id);
+      if (cardModel === 'CardInDeck' && cardInEntity.quantity === 3) {
+        throw new Error(
+          `Cannot add card ${cardInEntity?.name} to deck ${target.name} as this card is already at max quantity.`
+        );
+      }
       if (cardInEntity) {
-        console.log(`Updating existing card: ${cardInEntity.name}`);
+        logger.info(`Updating existing card: ${cardInEntity.name}`);
         cardInEntity.quantity += 1;
         cardInEntity.totalPrice = cardInEntity.quantity * cardInEntity.price;
         await cardInEntity.save();
         entity.totalQuantity += cardData.quantity;
         entity.totalPrice += cardData.quantity * cardInEntity.price;
       } else {
-        console.log(`Card not found in ${entityType}:`, foundCard._id);
+        logger.info(`Card not found in ${entityType}:`, foundCard._id);
       }
     } else {
       if (!cardData.price) {
@@ -47,6 +79,7 @@ async function addOrUpdateCards(
       entity.cards.push(reSavedCard?._id);
     }
   }
+  await deDuplicate(entity, cardModel);
 
   await entity.save();
   return entity;
