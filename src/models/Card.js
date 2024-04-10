@@ -161,6 +161,7 @@ const genericCardSchema = new Schema(
   { timestamps: { createdAt: "addedAt", updatedAt: "updatedAt" } }
 );
 genericCardSchema.pre("save", async function (next) {
+  logger.info(`SAVING ${this.name}`, this.name); // this?.chart_datasets?.data?.push(
   // if (!this.isModified('price') && !this.isModified('quantity')) return next();
   if (!this.refId) {
     this.refId = this._id;
@@ -188,7 +189,7 @@ genericCardSchema.pre("save", async function (next) {
     return next();
   }
   if (this.isModified("quantity") || this.isModified("price")) {
-    logger.info("quantity modified", this.quantity); // this?.chart_datasets?.data?.push(
+    logger.info(`quantity modified ${this.quantity}`, this.quantity); // this?.chart_datasets?.data?.push(
     //   createNivoXYValue(this.addedAt, this.totalPrice)
     // );
     const newPriceEntry = createNewPriceEntry(this.price); // Your existing function

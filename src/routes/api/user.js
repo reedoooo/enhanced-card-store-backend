@@ -13,6 +13,7 @@ const {
   deleteDeck,
   addCardsToDeck,
   removeCardsFromDeck,
+  getDeckById,
 } = deckController;
 const {
   getAllCollectionsForUser,
@@ -51,6 +52,7 @@ router.put('/:userId/userData/update', updateUserData);
 
 // DECK ROUTES
 router.get('/:userId/decks/allDecks', getAllDecksForUser);
+router.get('/:userId/decks/:deckId', getDeckById);
 router.post('/:userId/decks/create', createNewDeck);
 router.put('/:userId/decks/:deckId/deckDetails', updateDeckDetails);
 router.delete('/:userId/decks/:deckId/delete', deleteDeck);

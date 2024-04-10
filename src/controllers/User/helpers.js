@@ -12,6 +12,7 @@ const { getCardInfo } = require('../../utils/utils');
 const logger = require('../../configs/winston.js');
 const { infoLogger } = require('../../middleware/loggers/logInfo.js');
 const User = require('../../models/User.js');
+const { axiosInstance } = require('../../utils/utils.js');
 // !--------------------------! USERS !--------------------------!
 /**
  * [SECTION 2] Helper functions for different methods
@@ -90,10 +91,10 @@ async function fetchAndSaveRandomCard(collectionId, collectionModel, cardModel) 
 const setupDefaultCollectionsAndCards = async (user, collectionModel, collectionData) => {
   let newCollection;
   if (collectionModel) {
-    newCollection = await createAndSaveDefaultCollection(
+    newCollection = await setCollectionModel(
       mongoose.model(collectionModel),
       `${collectionModel} Name`,
-      logger.error._id,
+      user._id,
       collectionData,
     );
 

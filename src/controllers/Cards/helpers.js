@@ -6,16 +6,16 @@ const { axiosInstance } = require('../../utils/utils');
  * @param {Object}  - An object containing the query parameters.
  * @returns {string} - A query string containing the parameters.
  */
-function queryBuilder(name, race, type, level, attribute, id) {
-  logger.info(`[SEARCH QUERY CONTENTS][${(name, race, type, level, attribute, id)}]`);
+function queryBuilder(data) {
+  logger.info(`[SEARCH QUERY CONTENTS][${(data.searchTerm, data.race, data.type, data.level, data.attribute, data.id)}]`);
 
   const queryParts = [
-    name && `fname=${encodeURIComponent(name)}`,
-    race && `race=${encodeURIComponent(race)}`,
-    type && `type=${encodeURIComponent(type)}`,
-    level && `level=${encodeURIComponent(level)}`,
-    attribute && `attribute=${encodeURIComponent(attribute)}`,
-    id && `id=${encodeURIComponent(id)}`,
+    data.searchTerm && `fname=${encodeURIComponent(data.searchTerm)}`,
+    data.race && `race=${encodeURIComponent(data.race)}`,
+    data.type && `type=${encodeURIComponent(data.type)}`,
+    data.level && `level=${encodeURIComponent(data.level)}`,
+    data.attribute && `attribute=${encodeURIComponent(data.attribute)}`,
+    data.id && `id=${encodeURIComponent(data.id)}`,
   ].filter(Boolean);
 
   const fullQuery = queryParts.join('&');
