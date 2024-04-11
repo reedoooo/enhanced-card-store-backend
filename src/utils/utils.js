@@ -93,10 +93,10 @@ function removeDuplicatePriceHistoryFromCollection(cards) {
 const getCardInfo = async (cardName) => {
   try {
     const { data } = await axiosInstance.get(`/cardinfo.php?name=${encodeURIComponent(cardName)}`);
-    // console.log('Card info:', data?.data[0]);
+    // logger.info('Card info:', data?.data[0]);
     return data?.data[0];
   } catch (error) {
-    console.error(`Error fetching card info for card NAME ${cardName}:`, error);
+    logger.error(`Error fetching card info for card NAME ${cardName}:`, error);
     throw error;
   }
 };
@@ -195,7 +195,8 @@ const constructInitialCardData = (rawTcgPlayerData) => {
   }
   return {
     price: rawTcgPlayerData?.card_prices[0]?.tcgplayer_price || 0,
-    image: rawTcgPlayerData?.card_images.length > 0 ? rawTcgPlayerData.card_images[0].image_url : '',
+    image:
+      rawTcgPlayerData?.card_images.length > 0 ? rawTcgPlayerData.card_images[0].image_url : '',
     rarity: card_set?.set_rarity || '',
     rarities: rawTcgPlayerData?.card_sets?.reduce((acc, set) => {
       acc[set.set_name] = set.set_rarity;

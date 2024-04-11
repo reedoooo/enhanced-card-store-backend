@@ -1,4 +1,4 @@
-const { User } = require('../models');
+const { User } = require('../../models');
 
 function deepPopulateCardFields() {
   return [
@@ -54,26 +54,16 @@ function getPopulatePathForContext(context) {
  * @returns Populated user data
  */
 async function populateUserDataByContext(userId, contexts) {
-  if (!Array.isArray(contexts) || contexts.length === 0) {
-    throw new Error('Contexts must be a non-empty array');
-  }
-
   let query = User.findById(userId)
     .populate('userSecurityData', 'username email role_data')
     .populate('userBasicData', 'firstName lastName')
     .populate('generalUserStats', 'totalDecks totalCollections totalCardsInCollections');
-
-  contexts.forEach((context) => {
+  contexts?.forEach((context) => {
     const populatePath = getPopulatePathForContext(context);
-    query = query.populate(populatePath);
+    query = query?.populate(populatePath);
   });
-
-  try {
-    return await query;
-  } catch (error) {
-    console.error('Error populating user data:', error);
-    throw error;
-  }
+  const populatedUser = await query?.exec();
+  return populatedUser;
 }
 /**
  * Fetches a populated user document based on the given userId and context.

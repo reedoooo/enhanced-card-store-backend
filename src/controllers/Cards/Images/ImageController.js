@@ -14,7 +14,7 @@
 //     const { filename } = await download.image(options);
 //     return filename; // Return the saved filename path
 //   } catch (error) {
-//     console.error('Failed to download image', error);
+//     logger.error('Failed to download image', error);
 //     throw error;
 //   }
 // }

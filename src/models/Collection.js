@@ -76,7 +76,7 @@ const CollectionSchema = new Schema(
   commonSchemaOptions,
 );
 CollectionSchema.pre('save', async function (next) {
-  infoLogger('Pre-save hook for collection:', this.name);
+  infoLogger('[Pre-save hook for collection:]'.red, this.name);
   // if (this.isNew) {
   // Initialize selectedChartData based on the key
   // const selectedData = this.averagedChartData.get(this.selectedChartDataKey);
@@ -114,6 +114,8 @@ CollectionSchema.pre('save', async function (next) {
       });
 
       this.averagedChartData = safeAggregatedMap;
+      // safeAggregatedMap.get will return undefined if the key is not found
+      this.selectedChartData = safeAggregatedMap[this.selectedChartDataKey];
       const nivoChartArray = convertChartDataToArray(this.averagedChartData);
       this.newNivoChartData = [nivoChartArray];
     }

@@ -60,7 +60,7 @@ function logToSpecializedLogger(level, message, meta) {
   const logger =
     specializedLoggers[meta?.section] ||
     createLoggerWithTransports(meta?.section);
-  logger.log({ level, message, ...meta });
+  logger.info({ level, message, ...meta });
 
   if (meta.error instanceof Error) {
     const errorInfo = {

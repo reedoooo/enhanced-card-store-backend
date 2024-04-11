@@ -1,37 +1,26 @@
 const { default: mongoose } = require('mongoose');
-const { cardController } = require('../CardController.js');
-const {
-  createAndSaveCardInContext,
-  createAndSaveCard,
-  pushDefaultCardsToCollections,
-  selectFirstVariant,
-  createCardSets,
-  createCardVariants,
-} = require('./cardModelHelpers.jsx');
-const { getCardInfo } = require('../../utils/utils');
+const { getCardInfo } = require('../../utils/utils.js');
 const logger = require('../../configs/winston.js');
 const { infoLogger } = require('../../middleware/loggers/logInfo.js');
 const User = require('../../models/User.js');
 const { axiosInstance } = require('../../utils/utils.js');
+const {
+  createAndSaveCardInContext,
+  createAndSaveCard,
+  selectFirstVariant,
+} = require('./helpers2.js');
 // !--------------------------! USERS !--------------------------!
-/**
- * [SECTION 2] Helper functions for different methods
- * Function to create and save a default collection
- * @param {*} Model
- * @param {*} collectionName
- * @param {*} userId
- * @returns {Collection} A Collection instance
- */
 async function setCollectionModel(Model, collectionName, userId, collectionData = {}) {
   const collection = new Model({
     ...collectionData,
     userId,
     name: collectionData.name || collectionName,
   });
+  await collection.save();
   return collection;
 }
-
 async function createDefaultCollectionsAndCards(userId) {
+  // Collection types remain unchanged
   const collectionTypes = [
     { type: Collection, name: 'My First Collection' },
     { type: Deck, name: 'My First Deck' },
@@ -41,9 +30,11 @@ async function createDefaultCollectionsAndCards(userId) {
   const updatedCollectionTypes = [];
 
   for (const collectionType of collectionTypes) {
+    // Unchanged collection creation logic
     const collection = await setCollectionModel(collectionType.type, collectionType.name, userId);
     updatedCollectionTypes.push(collection);
 
+    // Fetch default card data and create cards in context
     const defaultCards = await cardController.fetchAndTransformCardData('dark magician');
     logger.info(`Fetched default card data: ${defaultCards[0].name}`);
 
@@ -55,50 +46,53 @@ async function createDefaultCollectionsAndCards(userId) {
     );
     logger.info(`Created default card for ${collection.name}: ${cardInContext.name}`);
 
+    // Push card ID to collection and save
     collection.cards.push(cardInContext._id);
     await collection.save();
     logger.info(`Saved updated ${collection.name}`);
   }
 
-  const [defaultCollection, defaultDeck, defaultCart] = updatedCollectionTypes;
-  return { defaultCollection, defaultDeck, defaultCart };
+  return {
+    defaultCollection: updatedCollectionTypes[0],
+    defaultDeck: updatedCollectionTypes[1],
+    defaultCart: updatedCollectionTypes[2],
+  };
 }
-
 async function reFetchForSave(card, collectionId, collectionModel, cardModel) {
   if (!card) {
     throw new Error('Card is required in reFetchForSave');
   }
-  if (!collectionId) {
-    throw new Error('Collection ID is required in reFetchForSave');
-  }
-  if (!collectionModel) {
-    throw new Error('Collection model is required in reFetchForSave');
-  }
-  if (!cardModel) {
-    throw new Error('Card model is required in reFetchForSave');
-  }
   const response = await getCardInfo(card?.name);
-  return await createAndSaveCard(response, collectionId, collectionModel, cardModel, 'refetch');
+  // const cardData = response.data;
+  // return await createAndSaveCard(response, collectionId, collectionModel, cardModel, 'refetch');
+  return await createAndSaveCard(response, {
+    collectionId,
+    collectionModel,
+    cardModel,
+    tag: 'random',
+  });
 }
-
 async function fetchAndSaveRandomCard(collectionId, collectionModel, cardModel) {
   const endpoint = 'randomcard.php';
   const response = await axiosInstance.get(endpoint);
   const cardData = response.data;
-  return await createAndSaveCard(cardData, collectionId, collectionModel, cardModel, 'random');
+  return await createAndSaveCard(cardData, {
+    collectionId,
+    collectionModel,
+    cardModel,
+    tag: 'random',
+  });
 }
-
 const setupDefaultCollectionsAndCards = async (user, collectionModel, collectionData) => {
-  let newCollection;
   if (collectionModel) {
-    newCollection = await setCollectionModel(
+    const newCollection = await setCollectionModel(
       mongoose.model(collectionModel),
       `${collectionModel} Name`,
       user._id,
       collectionData,
     );
 
-    let randomCardData = await fetchAndSaveRandomCard(
+    const randomCardData = await fetchAndSaveRandomCard(
       newCollection._id,
       collectionModel,
       `CardIn${collectionModel}`,
@@ -107,18 +101,17 @@ const setupDefaultCollectionsAndCards = async (user, collectionModel, collection
     newCollection.cards.push(randomCardData._id);
     await newCollection.save();
     infoLogger('[SECTION X-0] COMPLETE: CREATE DEFAULT COLLECTIONS AND CARDS');
-    return newCollection; // Return the new collection
+    return newCollection;
   } else {
     const { defaultCollection, defaultDeck, defaultCart } = await createDefaultCollectionsAndCards(
       user._id,
     );
-    infoLogger('[SECTION X-0] COMPLETE: CREATE DEFAULT COLLECTIONS AND CARDS');
     user.allCollections.push(defaultCollection._id);
     user.allDecks.push(defaultDeck._id);
     user.cart = defaultCart._id;
-    infoLogger('[SECTION X-1] COMPLETE: PUSH DEFAULT COLLECTIONS AND CARDS TO USER');
 
-    await logger.error.save();
+    infoLogger('[SECTION X-1] COMPLETE: PUSH DEFAULT COLLECTIONS AND CARDS TO USER');
+    logger.info('User: ', user);
     infoLogger('[SECTION X-2] COMPLETE: SAVE USER');
   }
 };
@@ -153,11 +146,6 @@ const fetchAllCollectionIds = async (userId) => {
 
 module.exports = {
   createDefaultCollectionsAndCards,
-  pushDefaultCardsToCollections,
-  // createAndSaveDefaultCollection,
-  createCardSets,
-  createCardVariants,
-  createAndSaveCardInContext,
   selectFirstVariant,
   setupDefaultCollectionsAndCards,
   fetchUserIdsFromUserSecurityData,

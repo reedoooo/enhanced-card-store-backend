@@ -1,4 +1,3 @@
-const axios = require('axios');
 const {
   queryBuilder,
   fetchCardPrices,
@@ -6,7 +5,11 @@ const {
 } = require('./Cards/helpers');
 const User = require('../models/User');
 const logger = require('../configs/winston');
-const { axiosInstance, extractRawTCGPlayerData, constructInitialCardData } = require('../utils/utils');
+const {
+  axiosInstance,
+  extractRawTCGPlayerData,
+  constructInitialCardData,
+} = require('../utils/utils');
 const cardController = {
   fetchPriceData: async (cardName) => {
     const card_prices = await fetchCardPrices(cardName);

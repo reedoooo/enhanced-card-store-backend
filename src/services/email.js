@@ -15,9 +15,9 @@ const transporter = nodemailer.createTransport({
 
 // Cron job every Saturday at midnight
 cron.schedule('* * * * *', () => {
-  console.log('------------------------');
-  console.log('Email cron job running...');
-  console.log('------------------------');
+  logger.info('------------------------');
+  logger.info('Email cron job running...');
+  logger.info('------------------------');
 
   let messageOptions = {
     from: process.env.SMTP_USER,
@@ -29,11 +29,11 @@ cron.schedule('* * * * *', () => {
   transporter.sendMail(messageOptions, (error, info) => {
     if (error) {
       if (error.syscall == 'getaddrinfo') {
-        console.log("!!! - Can't connect to SMTP server.");
+        logger.info("!!! - Can't connect to SMTP server.");
       }
       throw error;
     } else {
-      console.log('Email successfully sent!');
+      logger.info('Email successfully sent!');
     }
   });
 });

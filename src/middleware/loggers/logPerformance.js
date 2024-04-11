@@ -23,7 +23,7 @@ const logRequestDetails = (req, eventType, message, duration = null) => {
     logInfo.status >= 500 ? "error" : logInfo.status >= 400 ? "warn" : "info";
 
   // Log the request details using Winston
-  logger.log(level, `${eventType} ${message}`, logInfo);
+  logger.info(level, `${eventType} ${message}`, logInfo);
 };
 
 const logPerformance = (req, res, next) => {

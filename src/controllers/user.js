@@ -8,8 +8,8 @@ const {
   findAndValidateUser,
   validateSigninInput,
 } = require('../middleware/errorHandling/validators');
-const { createUser, createUserValidationData } = require('./User/User/userHelpers');
-const { populateUserDataByContext } = require('./dataUtils');
+const { createUser, createUserValidationData } = require('./utils/helpers2');
+const { populateUserDataByContext } = require('./utils/dataUtils');
 const {
   generateRefreshToken,
   invalidateToken,
@@ -18,7 +18,7 @@ const {
 } = require('../middleware/auth');
 const logger = require('../configs/winston');
 const { User } = require('../models');
-const { setupDefaultCollectionsAndCards } = require('./User/helpers');
+const { setupDefaultCollectionsAndCards } = require('./utils/helpers');
 // !--------------------------! USERS !--------------------------!
 exports.signup = async (req, res, next) => {
   const { username, password, email, role_data, firstName, lastName } = extractData(req);
@@ -136,7 +136,7 @@ exports.updateUserData = async (req, res, next) => {
   const updatedUserDoc = await populateUserDataByContext(userId, ['decks', 'collections', 'cart']);
 
   if (!updatedUserDoc) {
-    console.error('User not found', updatedUserDoc);
+    logger.error('User not found', updatedUserDoc);
     return res.status(404).json({ message: 'User not found', data: updatedUserDoc });
   }
   logger.info('UPDATED USER DATA', updatedUserDoc);

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
+const { infoLogger } = require('../middleware/loggers/logInfo');
 const { Schema } = mongoose;
-
+require('colors');
 const UserSchema = new Schema(
   {
     username: { type: String, required: true, unique: true },
@@ -41,5 +42,10 @@ const UserSchema = new Schema(
   },
   { timestamps: true },
 );
+
+UserSchema.pre('save', async function (next) {
+  infoLogger('[Pre-save hook for user:]'.red, this.username);
+  next();
+});
 
 module.exports = mongoose.model('User', UserSchema);

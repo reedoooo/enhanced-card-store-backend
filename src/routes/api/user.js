@@ -22,6 +22,8 @@ const {
   deleteExistingCollection,
   addCardsToCollection,
   removeCardsFromCollection,
+  deleteCardFromCollection,
+  decrementCardQuantityInCollection,
 } = collectionController;
 const {
   getUserCart,
@@ -80,7 +82,14 @@ router.put(
   '/:userId/collections/:collectionId/cards/remove',
   removeCardsFromCollection,
 );
-
+router.put(
+  '/:userId/collections/:collectionId/cards/:cardId/deleteCardFromCollection',
+  deleteCardFromCollection,
+);
+router.put(
+  '/:userId/collections/:collectionId/cards/:cardId/decrementCardQuantity',
+  decrementCardQuantityInCollection,
+);
 // CART ROUTES
 router.get('/:userId/cart', getUserCart);
 router.post('/:userId/cart/create', createEmptyCart);

@@ -139,10 +139,10 @@ cardSetSchema.index({ set_code: 1 }); // Index for performance
 const cardVariantSchema = new Schema(
   {
     set_name: String,
-    set_code: requiredString,
+    set_code: String,
     rarity: String,
     rarity_code: String,
-    price: requiredDecimal128,
+    price: { type: Types.Decimal128, default: 0 },
     selected: { type: Boolean, default: false },
     alt_art_image_url: String,
     set: requiredObjectId('CardSet'),

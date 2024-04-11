@@ -1,24 +1,16 @@
-const { CardInDeck } = require('../models/Card');
-const { Deck } = require('../models/Collection');
-const {
-  populateUserDataByContext,
-  fetchPopulatedUserContext,
-  findUserContextItem,
-} = require('./dataUtils');
-const logger = require('../configs/winston');
-const { addOrUpdateCards, removeCards } = require('./User/cardUtilities');
+const { fetchPopulatedUserContext } = require('./utils/dataUtils');
+const { addOrUpdateCards, removeCards } = require('./utils/helpers2');
 const { sendJsonResponse } = require('../utils/utils');
 const { validateContextEntityExists } = require('../middleware/errorHandling/validators');
+const logger = require('../configs/winston');
+const { Deck } = require('../models');
+const { CardInDeck } = require('../models/Card');
 // !--------------------------! DECKS !--------------------------!
 const findUserDeck = (user, deckId) =>
   user.allDecks.find((d) => d.id.toString() === deckId.toString());
 exports.getAllDecksForUser = async (req, res, next) => {
   const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['decks']);
   validateContextEntityExists(populatedUser, 'User not found', 404, res);
-  // const decks = populatedUser.allDecks;
-  // const deckIds = decks.map((d) => d._id);
-  // const populatedDecks = await Deck.find({ _id: { $in: deckIds } });
-  // logger.info(`Fetched all decks for user ${req.params.userId} ${deckIds.red}`);
   sendJsonResponse(res, 200, `Fetched decks for user ${req.params.userId}`, populatedUser.allDecks);
 };
 exports.getDeckById = async (req, res, next) => {
@@ -34,7 +26,7 @@ exports.updateDeckDetails = async (req, res, next) => {
   validateContextEntityExists(deck, 'Deck not found', 404, res);
   Object.assign(deck, { name, description, tags, color });
   await deck.save();
-  console.log(deck);
+  logger.info(deck);
   sendJsonResponse(res, 200, `Deck updated successfully.`, deck);
 };
 exports.createNewDeck = async (req, res, next) => {
@@ -91,7 +83,6 @@ exports.addCardsToDeck = async (req, res, next) => {
     'Deck',
     CardInDeck,
   );
-
   // logger.info(
   //   `Cards added to deck ${req.params.deckId} successfully. ${updatedDeck?.cards?.find((c) => c.id?.toString() === cardsArray[0]?.id?.toString())}`,
   // );
@@ -108,7 +99,7 @@ exports.removeCardsFromDeck = async (req, res, next) => {
   const populatedUser = await fetchPopulatedUserContext(userId, ['decks']);
   const deck = findUserDeck(populatedUser, deckId);
   validateContextEntityExists(deck, 'Deck not found', 404, res);
-  await removeCards(deck, cards, 'deck', CardInDeck);
+  await removeCards(deck, deck._id, cards, 'deck', CardInDeck);
   sendJsonResponse(res, 200, 'Cards removed from deck successfully.', {
     data: deck,
   });

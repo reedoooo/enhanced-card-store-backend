@@ -7,7 +7,7 @@
 // // const endpointSecret = process.env.STRIPE_SECRET_TEST_KEY;
 
 // router.post('/checkout', async (req, res) => {
-//   console.log('Request', req.body);
+//   logger.info('Request', req.body);
 //   const { id, amount } = req.body;
 
 //   // Check if id and amount are provided
@@ -29,14 +29,14 @@
 //       confirm: true,
 //     });
 
-//     console.log('Payment', payment);
+//     logger.info('Payment', payment);
 
 //     res.json({
 //       message: 'Payment successful',
 //       success: true,
 //     });
 //   } catch (error) {
-//     console.log('Error', error);
+//     logger.info('Error', error);
 
 //     res.json({
 //       message: 'Payment failed',

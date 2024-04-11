@@ -1,6 +1,6 @@
 const { now } = require('mongoose');
 const { fetchCardPrices } = require('../controllers/Cards/helpers');
-const { populateUserDataByContext } = require('../controllers/dataUtils');
+const { populateUserDataByContext } = require('../controllers/utils/dataUtils');
 const { handleError } = require('../middleware/errorHandling/errorHandler');
 const { logFunctionSteps } = require('../middleware/loggers/logFunctionSteps');
 const { infoLogger } = require('../middleware/loggers/logInfo');
@@ -34,10 +34,10 @@ const processCardPriceChange = async (cardData, collectionName, userId) => {
     handleWarning(`Card not found: ${cardData?._id}`);
     return null;
   }
-  logFunctionSteps(
-    '3',
-    `Price:  ${card.price} CurrentLatestPrice:  ${card.latestPrice.num} for card: ${card.name}`,
-  );
+  // logFunctionSteps(
+  //   '3',
+  //   `Price:  ${card.price} CurrentLatestPrice:  ${card.latestPrice.num} for card: ${card.name}`,
+  // );
 
   const apiPricesArray = await fetchCardPrices(card.name);
   if (!apiPricesArray) {
@@ -46,18 +46,18 @@ const processCardPriceChange = async (cardData, collectionName, userId) => {
   }
   const newPrice = apiPricesArray[0]?.tcgplayer_price;
   const newPrice2 = card.price;
-  logFunctionSteps(
-    '3',
-    `Price:  ${newPrice2}` +
-      ' | '.green +
-      `CurrentLatestPrice:  ${card.latestPrice.num}` +
-      ' | '.green +
-      `NewPrice:  ${newPrice}` +
-      ' | '.green +
-      `Difference:  ${newPrice - newPrice2}` +
-      ' | '.green +
-      `for card: ${card.name}`,
-  );
+  // logFunctionSteps(
+  //   '3',
+  //   `Price:  ${newPrice2}` +
+  //     ' | '.green +
+  //     `CurrentLatestPrice:  ${card.latestPrice.num}` +
+  //     ' | '.green +
+  //     `NewPrice:  ${newPrice}` +
+  //     ' | '.green +
+  //     `Difference:  ${newPrice - newPrice2}` +
+  //     ' | '.green +
+  //     `for card: ${card.name}`,
+  // );
   if (card.latestPrice.num !== newPrice) {
     const oldPrice = card.latestPrice.num;
     const oldTimestamp = card.latestPrice.timestamp;
@@ -101,7 +101,7 @@ const processCardPriceChange = async (cardData, collectionName, userId) => {
           num: parseFloat(newPrice),
         });
         logFunctionSteps(
-          '5',
+          '[1]',
           `Daily Price History Updated for card: ${card.name} with new price: ${newPrice} and price difference: ${priceDifference.toFixed(2)}`,
         );
       }
@@ -132,11 +132,11 @@ const updatedCollectionCron = async () => {
     const users = await User.find({}).select('_id');
     logFunctionSteps('1', `${users.length} users found`);
     for (const user of users) {
-      const userPopulated = await populateUserDataByContext(user._id, ['collections']);
-      if (!userPopulated?.allCollections) {
-        handleWarning(`No collections found for user ID: ${user._id}`);
-        continue;
-      }
+      const userPopulated = await populateUserDataByContext(user?._id, ['collections']);
+      // if (!userPopulated?.allCollections) {
+      //   handleWarning(`No collections found for user ID: ${user._id}`);
+      //   continue;
+      // }
 
       for (const collection of userPopulated.allCollections) {
         let collectionPriceChanges = []; // Store changes for this collection
@@ -181,8 +181,17 @@ const updatedCollectionCron = async () => {
     }
 
     if (globalPriceChanges.length > 0) {
-      logger.info(globalPriceChanges.length);
-      // logPriceChangesToFile(globalPriceChanges);
+      infoLogger('PRICE CHANGES DETECTED'.green);
+      logFunctionSteps(
+        '[X]',
+        ' | '.green +
+          `PRICE CHANGES DETECTED  ${
+            globalPriceChanges?.length > 1 ? globalPriceChanges?.length : globalPriceChanges[0]
+          }` +
+          ' | '.green,
+      );
+      // logger.info(globalPriceChanges.length);
+      logPriceChangesToFile(globalPriceChanges);
     } else {
       infoLogger('No price changes detected.'.red);
     }
@@ -191,3 +200,15 @@ const updatedCollectionCron = async () => {
   }
 };
 exports.updatedCollectionCron = updatedCollectionCron;
+// logFunctionSteps(
+//   '3',
+//   `Price:  ${newPrice2}` +
+//     ' | '.green +
+//     `CurrentLatestPrice:  ${card.latestPrice.num}` +
+//     ' | '.green +
+//     `NewPrice:  ${newPrice}` +
+//     ' | '.green +
+//     `Difference:  ${newPrice - newPrice2}` +
+//     ' | '.green +
+//     `for card: ${card.name}`,
+// );
