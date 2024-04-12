@@ -1,5 +1,6 @@
 const path = require('path');
 const webpack = require('webpack');
+const logger = require('./configs/winston');
 
 const environment = process.env.ENVIRONMENT;
 

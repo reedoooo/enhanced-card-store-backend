@@ -1,5 +1,5 @@
 const { fetchPopulatedUserContext } = require('./utils/dataUtils');
-const { addOrUpdateCards, removeCards } = require('./utils/helpers2');
+const { addOrUpdateCards, removeCards } = require('./utils/helpers');
 const { sendJsonResponse } = require('../utils/utils');
 const { validateContextEntityExists } = require('../middleware/errorHandling/validators');
 const logger = require('../configs/winston');

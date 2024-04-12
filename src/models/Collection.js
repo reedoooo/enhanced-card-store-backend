@@ -51,10 +51,16 @@ const CollectionSchema = new Schema(
     },
     selectedChartDataKey: {
       type: String,
-      default: '24h',
+      default: '24hr',
     },
     selectedChartData: {
-      type: [chartDataSchema],
+      type: Object,
+      default: {
+        id: '24hr',
+        color: 'blue',
+        data: [{ x: Date, y: Number }],
+        growth: 0,
+      },
     },
     selectedStatDataKey: {
       type: String,
@@ -112,10 +118,13 @@ CollectionSchema.pre('save', async function (next) {
       Object.entries(safeAggregatedMap).forEach(([key, value]) => {
         this.averagedChartData?.set(key, value);
       });
+      Object.entries(safeAggregatedMap).forEach(([key, value]) => {
+        this.selectedChartData?.set(this.selectedChartDataKey, value);
+      });
 
       this.averagedChartData = safeAggregatedMap;
       // safeAggregatedMap.get will return undefined if the key is not found
-      this.selectedChartData = safeAggregatedMap[this.selectedChartDataKey];
+      // this.selectedChartData = safeAggregatedMap[this.selectedChartDataKey];
       const nivoChartArray = convertChartDataToArray(this.averagedChartData);
       this.newNivoChartData = [nivoChartArray];
     }
@@ -135,6 +144,7 @@ CollectionSchema.pre('save', async function (next) {
   this.markModified('collectionValueHistory');
   this.markModified('nivoChartData');
   this.markModified('averagedChartData');
+  this.markModified('selectedChartData');
   this.markModified('newNivoChartData');
   this.markModified('collectionStatistics');
   this.markModified('lastUpdated');

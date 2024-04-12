@@ -9,7 +9,7 @@ const {
 const { setupDefaultCollectionsAndCards, fetchAllCollectionIds } = require('./utils/helpers');
 const logger = require('../configs/winston');
 const { sendJsonResponse } = require('../utils/utils');
-const { addOrUpdateCards, removeCards } = require('./utils/helpers2');
+const { addOrUpdateCards, removeCards } = require('./utils/helpers');
 const { validateContextEntityExists } = require('../middleware/errorHandling/validators');
 const { handleError } = require('../middleware/errorHandling/errorHandler');
 const { infoLogger } = require('../middleware/loggers/logInfo');
@@ -109,8 +109,6 @@ exports.addCardsToCollection = async (req, res, next) => {
   const cardsArray = Array.isArray(cards) ? cards : [cards];
   const populatedUser = await fetchPopulatedUserContext(userId, ['collections']);
   const collection = findUserContextItem(populatedUser, 'allCollections', collectionId);
-
-  // Utilize addOrUpdateCards utility
   const updatedCollection = await addOrUpdateCards(
     collection,
     cardsArray,
@@ -118,8 +116,6 @@ exports.addCardsToCollection = async (req, res, next) => {
     'Collection',
     CardInCollection,
   );
-
-  // Send back the updated collection data
   await populatedUser.save();
   // await collection.populate({ path: 'cards', model: 'CardInCollection' });
 
