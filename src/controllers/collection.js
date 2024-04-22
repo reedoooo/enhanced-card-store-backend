@@ -11,8 +11,6 @@ const logger = require('../configs/winston');
 const { sendJsonResponse } = require('../utils/utils');
 const { addOrUpdateCards, removeCards } = require('./utils/helpers');
 const { validateContextEntityExists } = require('../middleware/errorHandling/validators');
-const { handleError } = require('../middleware/errorHandling/errorHandler');
-const { infoLogger } = require('../middleware/loggers/logInfo');
 
 // ! COLLECTION ROUTES (GET, CREATE, UPDATE, DELETE) !
 /**
@@ -68,27 +66,28 @@ exports.updateExistingCollection = async (req, res, next) => {
   sendJsonResponse(res, 200, 'Collection updated successfully', collection);
 };
 /**
- * Deletes a collection for a user and removes the collection from the user's collections.
- * Optionally, you might want to delete the collection from the Collection model as well.
- * @param {Request} req - The request object
- * @param {Response} res - The response object
- * @param {NextFunction} next - The next middleware function
- * @returns {Promise<Response>} A promise that resolves to a response object
- * @todo Optionally, you might want to delete the collection from the Collection model as well.
- * @todo Update this to use the new CardInCollection schema
+ * Deletes an existing collection for a user.
+ * This function fetches the user's context, logs the deletion attempt, filters out the collection to be deleted from the user's list of collections,
+ * deletes the collection from the database, saves the updated user context, and finally logs the successful deletion.
+ * It then sends a JSON response indicating the successful deletion of the collection.
+ * 
+ * @param {Request} req - The request object, containing the user ID in `req.params.userId` and the collection ID in `req.params.collectionId`.
+ * @param {Response} res - The response object used to send back a JSON response.
+ * @param {NextFunction} next - The next middleware function in the stack.
+ * @returns {Promise<void>} A promise that resolves with no value, indicating the function has completed its execution.
  */
 exports.deleteExistingCollection = async (req, res, next) => {
   const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
-  infoLogger(`Deleting collection: ${req.params.collectionId}`, req.params.collectionId);
+  logger.info(`Deleting collection: ${req.params.collectionId}`, req.params.collectionId);
   populatedUser.allCollections = populatedUser.allCollections.filter(
     (c) => c._id.toString() !== req.params.collectionId,
   );
   await Collection.findByIdAndDelete(req.params.collectionId);
   await populatedUser.save();
 
-  infoLogger('Collection deleted successfully:', req.params.collectionId);
+  logger.info('Collection deleted successfully:', req.params.collectionId);
   // const { collectionIds } = fetchAllCollectionIds(populatedUser._id);
-  // infoLogger(`All Collection IDS: ${collectionIds}`, collectionIds);
+  // logger.info(`All Collection IDS: ${collectionIds}`, collectionIds);
   // sendJsonResponse(res, 200, 'Collection deleted successfully', collectionIds);
   sendJsonResponse(res, 200, 'Collection deleted successfully', {
     data: req.params.collectionId,
@@ -172,40 +171,35 @@ exports.removeCardsFromCollection = async (req, res) => {
  * @returns {Promise<Response>} A promise that resolves to a response object
  */
 exports.deleteCardFromCollection = async (req, res, next) => {
-  try {
-    const { userId, collectionId, cardId } = req.params;
-    // Fetch the user and the specified collection
-    const populatedUser = await fetchPopulatedUserContext(userId, ['collections']);
-    const collection = findUserContextItem(populatedUser, 'allCollections', collectionId);
+  const { userId, collectionId, cardId } = req.params;
+  // Fetch the user and the specified collection
+  const populatedUser = await fetchPopulatedUserContext(userId, ['collections']);
+  const collection = findUserContextItem(populatedUser, 'allCollections', collectionId);
 
-    if (!collection) {
-      return res.status(404).json({ message: 'Collection not found.' });
-    }
-
-    // Assuming cards are stored as an array of references or subdocuments in the collection
-    const cardIndex = collection.cards.findIndex((c) => c._id.toString() === cardId);
-    if (cardIndex === -1) {
-      return res.status(404).json({ message: 'Card not found in collection.' });
-    }
-
-    // Remove the card from the collection
-    collection.cards.splice(cardIndex, 1);
-    await collection.save();
-
-    // Optionally, you might want to delete the card from the CardInCollection model as well
-    await CardInCollection.findByIdAndDelete(cardId);
-
-    // Log the operation
-    logger.info(`Card ${cardId} removed from collection ${collectionId} for user ${userId}`);
-
-    return res.status(200).json({
-      message: 'Card deleted from collection successfully.',
-      data: { collectionId, cardId },
-    });
-  } catch (error) {
-    handleError(error, res);
-    next(error);
+  if (!collection) {
+    return res.status(404).json({ message: 'Collection not found.' });
   }
+
+  // Assuming cards are stored as an array of references or subdocuments in the collection
+  const cardIndex = collection.cards.findIndex((c) => c._id.toString() === cardId);
+  if (cardIndex === -1) {
+    return res.status(404).json({ message: 'Card not found in collection.' });
+  }
+
+  // Remove the card from the collection
+  collection.cards.splice(cardIndex, 1);
+  await collection.save();
+
+  // Optionally, you might want to delete the card from the CardInCollection model as well
+  await CardInCollection.findByIdAndDelete(cardId);
+
+  // Log the operation
+  logger.info(`Card ${cardId} removed from collection ${collectionId} for user ${userId}`);
+
+  return res.status(200).json({
+    message: 'Card deleted from collection successfully.',
+    data: { collectionId, cardId },
+  });
 };
 /**
  * Decrements the quantity of a specific card in a collection for a user.

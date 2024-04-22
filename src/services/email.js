@@ -2,6 +2,7 @@ require('dotenv').config();
 const nodemailer = require('nodemailer');
 const cron = require('node-cron');
 const express = require('express');
+const logger = require('../configs/winston');
 const router = express.Router();
 
 const transporter = nodemailer.createTransport({

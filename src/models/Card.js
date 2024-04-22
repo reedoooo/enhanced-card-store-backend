@@ -13,9 +13,7 @@ const {
   createDataPoint,
 } = require('./schemas/CommonSchemas');
 const logger = require('../configs/winston');
-const { infoLogger } = require('../middleware/loggers/logInfo');
 // COMMON FIELD SCHEMAS: this data comes straight from the API
-// SAVE FUNCTION: fetchAndTransformCardData
 const commonFields_API_Data = {
   name: { type: String, required: false }, // AUTOSET: false || required: true
   id: { type: String, required: false, unique: false }, // AUTOSET: false || required: true
@@ -148,7 +146,7 @@ const randomCardSchema = new Schema({
 });
 
 const RandomCard = model('RandomCard', randomCardSchema);
-const RandomCardData = mongoose.model('RandomCardData', randomCardSchema);
+const RandomCardData = model('RandomCardData', randomCardSchema);
 const genericCardSchema = new Schema(
   {
     ...commonFields_API_Data,
@@ -163,7 +161,7 @@ const genericCardSchema = new Schema(
 );
 genericCardSchema.pre('save', async function (next) {
   // logger.info(`SAVING ${this.name}`, this.name); // this?.chart_datasets?.data?.push(
-  infoLogger('[Pre-save hook for card:]'.red, this.name);
+  logger.info('[Pre-save hook for card:]'.red, this.name);
 
   // if (!this.isModified('price') && !this.isModified('quantity')) return next();
   if (!this.refId) {
@@ -181,6 +179,7 @@ genericCardSchema.pre('save', async function (next) {
   if (!this.nivoValueHistory) {
     this.nivoValueHistory = [];
   }
+  
   if (this.cardVariants && this.cardVariants.length > 0) {
     const variantIsInCardVariants = this.cardVariants.includes(this.variant);
     if (!this.variant || !variantIsInCardVariants) {
@@ -326,9 +325,9 @@ genericCardSchema.pre('save', async function (next) {
 const CardSet = model('CardSet', cardSetSchema);
 // const Variant = model('Variant', variantSchema);
 const CardVariant = model('CardVariant', cardVariantSchema);
-const CardInCollection = mongoose.model('CardInCollection', genericCardSchema);
-const CardInDeck = mongoose.model('CardInDeck', genericCardSchema);
-const CardInCart = mongoose.model('CardInCart', genericCardSchema);
+const CardInCollection = model('CardInCollection', genericCardSchema);
+const CardInDeck = model('CardInDeck', genericCardSchema);
+const CardInCart = model('CardInCart', genericCardSchema);
 
 module.exports = {
   CardInCollection,

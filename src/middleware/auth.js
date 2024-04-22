@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const logger = require('../configs/winston');
+const { User } = require('../models/User');
 let invalidRefreshTokens = new Set();
 
 const validatePassword = async (password, hashedPassword) => {
@@ -44,13 +45,18 @@ async function generateToken(userId, isRefreshToken = false) {
 async function saveToken(userId, token, isRefreshToken = false) {
   const user = await fetchUserById(userId);
   if (isRefreshToken) {
+    user.refreshToken = token;
     user.userSecurityData.refreshToken = token;
   } else {
+    user.accessToken = token;
     user.userSecurityData.accessToken = token;
   }
   await user.save();
 }
 async function saveTokens(userId, accessToken, refreshToken) {
+  if (!userId || !accessToken || !refreshToken) {
+    throw new Error('Invalid userId or token');
+  }
   await saveToken(userId, accessToken, false); // false for access token
   await saveToken(userId, refreshToken, true); // true for refresh token
   return { savedAccessToken: accessToken, savedRefreshToken: refreshToken };

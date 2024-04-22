@@ -1,37 +1,67 @@
 const { now } = require('mongoose');
-const { fetchCardPrices } = require('../controllers/Cards/helpers');
 const { populateUserDataByContext } = require('../controllers/utils/dataUtils');
-const { handleError } = require('../middleware/errorHandling/errorHandler');
 const { logFunctionSteps } = require('../middleware/loggers/logFunctionSteps');
-const { infoLogger } = require('../middleware/loggers/logInfo');
-const { handleWarning } = require('../middleware/loggers/logWarning');
-const { User, CardInCollection } = require('../models');
 const { createDataPoint } = require('../models/schemas/CommonSchemas');
-const { formatDate, removeDuplicatePriceHistoryFromCollection } = require('../utils/utils');
+const mongoose = require('mongoose');
+const {
+  formatDate,
+  removeDuplicatePriceHistoryFromCollection,
+  fetchCardPrices,
+} = require('../utils/utils');
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-
+const logger = require('../configs/winston');
+const { CardInCollection } = require('../models/Card');
+const { User } = require('../models/User');
+const isValidObjectId = (id) => {
+  return mongoose.Types.ObjectId.isValid(id) && new mongoose.Types.ObjectId(id).toString() === id;
+};
+const findDocumentById = async (id) => {
+  try {
+    const document = await CardInCollection.findById(id);
+    return document;
+  } catch (error) {
+    logger.error(`Error fetching document with ID ${id}: ${error}`);
+    return null;
+  }
+};
+/**
+ * Logs the price changes to a file.
+ *
+ * @param {Array} priceChanges - An array of price changes.
+ */
 const logPriceChangesToFile = (priceChanges) => {
   const filePath = path.join(__dirname, 'priceChangesLog.txt');
   const logMessages = priceChanges.map((change) => `${change.message}\n`).join('');
-  // infoLogger('Logging price changes to file...', logMessages);
+  // logger.info('Logging price changes to file...', logMessages);
   fs.appendFile(filePath, logMessages, (err) => {
-    if (err) {
-      handleError(err, 'Error saving price changes to file:');
-    } else {
-      infoLogger('Price changes logged to file successfully.');
+    if (!err) {
+      logger.info('Successfully logged price changes to file');
     }
   });
 };
 const processCardPriceChange = async (cardData, collectionName, userId) => {
+  // if (!isValidObjectId(cardData?._id)) {
+  //   logger.warn(`Invalid ObjectId, cardId: ${cardData?._id} of type: ${typeof cardData?._id}`);
+  //   return null;
+  // }
+  // if (!isValidObjectId(userId)) {
+  //   logger.error(`Invalid ObjectId, userId: ${userId} of type: ${typeof userId}`);
+  //   return null;
+  // }
+  logger.info(`Processing price change for card: ${cardData?._id}`);
+
+  if (!mongoose.Types.ObjectId.isValid(cardData?._id)) {
+    logger.error(`Invalid ID format: ${cardData?._id}`);
+    return null;
+  }
   const userPopulated = await populateUserDataByContext(userId, ['collections']);
-  // const collection = userPopulated.allCollections.find(
-  //   (coll) => coll._id.toString() === collectionName
-  // );
-  const card = await CardInCollection.findById(cardData?._id);
+  const card = await findDocumentById(cardData._id);
+
+  // const card = await CardInCollection.findById(cardData?._id);
   if (!card) {
-    handleWarning(`Card not found: ${cardData?._id}`);
+    logger.warn(`Card not found: ${cardData?._id}`);
     return null;
   }
   // logFunctionSteps(
@@ -40,9 +70,9 @@ const processCardPriceChange = async (cardData, collectionName, userId) => {
   // );
 
   const apiPricesArray = await fetchCardPrices(card.name);
-  if (!apiPricesArray) {
-    handleWarning(`No price found for card: ${cardData.name}`);
-    return null; // Return null to indicate no update needed
+  if (!apiPricesArray || apiPricesArray.length === 0) {
+    logger.warn(`No price found for card: ${cardData.name}`);
+    return null;
   }
   const newPrice = apiPricesArray[0]?.tcgplayer_price;
   const newPrice2 = card.price;
@@ -59,6 +89,10 @@ const processCardPriceChange = async (cardData, collectionName, userId) => {
   //     `for card: ${card.name}`,
   // );
   if (card.latestPrice.num !== newPrice) {
+    let messageCover = '';
+
+    let message = '';
+    let fullMessage = '';
     const oldPrice = card.latestPrice.num;
     const oldTimestamp = card.latestPrice.timestamp;
     const priceDifference = newPrice - oldPrice;
@@ -72,12 +106,12 @@ const processCardPriceChange = async (cardData, collectionName, userId) => {
         priceDifference,
       };
       card?.priceChangeHistory?.push(priceChangeEntry);
-      let messageCover = '-------------------'.green;
-      let message = `Collection: ${collectionName} | Card: ${card.name}, Old Price: ${oldPrice}, New Price: ${newPrice} Difference: ${priceDifference.toFixed(2)}`;
-      let fullMessage = `${messageCover} ${message} ${messageCover}`;
+      messageCover = '-------------------'.green;
+      message = `Collection: ${collectionName} | Card: ${card.name}, Old Price: ${oldPrice}, New Price: ${newPrice} Difference: ${priceDifference.toFixed(2)}`;
+      fullMessage = `${messageCover} ${message} ${messageCover}`;
       logFunctionSteps('4', message);
 
-      infoLogger(`Price change detected for card: ${card.name}`, fullMessage);
+      logger.info(`Price change detected for card: ${card.name}`, fullMessage);
       card.latestPrice.num = newPrice;
       card.latestPrice.timestamp = new Date();
       card.lastSavedPrice.num = oldPrice;
@@ -105,98 +139,115 @@ const processCardPriceChange = async (cardData, collectionName, userId) => {
           `Daily Price History Updated for card: ${card.name} with new price: ${newPrice} and price difference: ${priceDifference.toFixed(2)}`,
         );
       }
+      // logger.info(`Price change detected for card: ${card.name}`);
       await card.save(); // Assuming card.save() is a valid method to persist changes
-
-      return {
-        collectionName,
-        cardName: card.name,
-        oldPrice,
-        newPrice,
-        priceDifference,
-        message,
-      };
     }
+    return {
+      changeStatus: true,
+      oldPrice: oldPrice,
+      newPrice: newPrice,
+      priceDifference: priceDifference,
+      message: fullMessage,
+    };
+  } else {
+    return {
+      changeStatus: false,
+      message: `No price change detected for card: ${card.name}`,
+    };
   }
-
-  return null;
 };
 function formatPriceChangeMessage(change) {
   // Format the price change message here based on the change object
-  return `[Time: ${formatDate(new Date())}], [Collection: ${change.collectionName}] | [Card: ${change.cardName}, Old Price: ${change.oldPrice}, New Price: ${change.newPrice}] Difference: ${change.priceDifference.toFixed(2)}`;
+  return `[Time: ${formatDate(new Date())}], [Collection: ${change.collectionName}] | [Card: ${change.cardName}, Old Price: ${change.oldPrice}, New Price: ${change.newPrice}] Difference: ${change.priceDifference}`;
 }
 const updatedCollectionCron = async () => {
-  try {
-    infoLogger('STARTING COLLECTION UPDATE CRON JOB...');
-    let globalPriceChanges = []; // To store all changes for logging later
+  logger.info('STARTING COLLECTION UPDATE CRON JOB...');
+  let globalPriceChanges = []; // To store all changes for logging later
 
-    const users = await User.find({}).select('_id');
-    logFunctionSteps('1', `${users.length} users found`);
-    for (const user of users) {
-      const userPopulated = await populateUserDataByContext(user?._id, ['collections']);
-      // if (!userPopulated?.allCollections) {
-      //   handleWarning(`No collections found for user ID: ${user._id}`);
-      //   continue;
-      // }
+  const users = await User.find({});
+  logFunctionSteps('1', `${users.length} users found`);
+  for (const user of users) {
+    const userPopulated = await populateUserDataByContext(user?._id, ['collections']);
+    for (const collection of userPopulated.allCollections) {
+      let collectionPriceChanges = []; // Store changes for this collection
+      logFunctionSteps(
+        '2',
+        `${collection.cards.length} cards found in collection ${collection.name}`,
+      );
+      if (!collection.cards) {
+        logger.warn(`No cards found in collection: ${collection.name}`);
+        continue;
+      }
 
-      for (const collection of userPopulated.allCollections) {
-        let collectionPriceChanges = []; // Store changes for this collection
-        logFunctionSteps(
-          '2',
-          `${collection.cards.length} cards found in collection ${collection.name}`,
-        );
-
-        for (const card of collection.cards) {
-          const priceChange = await processCardPriceChange(
-            card,
-            collection.name,
-            userPopulated?._id,
-          );
-          if (priceChange) {
-            collectionPriceChanges.push(priceChange);
-            globalPriceChanges.push(formatPriceChangeMessage(priceChange)); // Format and add to global changes
-          }
+      for (const card of collection.cards) {
+        const { changeStatus, oldPrice, newPrice, priceDifference, message } =
+          await processCardPriceChange(card, collection.name, userPopulated?._id);
+        if (changeStatus === false) {
+          continue;
         }
-        collection.cards = removeDuplicatePriceHistoryFromCollection(collection.cards);
-        if (collectionPriceChanges.length > 0) {
-          collection?.collectionPriceChangeHistory?.push({
+        if (changeStatus === true) {
+          collectionPriceChanges.push({
             timestamp: new Date(),
-            priceChanges: collectionPriceChanges,
+            difference: priceDifference,
+            collectionName: collection.name,
+            cardName: card.name,
+            oldPrice: oldPrice,
+            newPrice: newPrice,
+            priceDifference: priceDifference,
+            message: message,
           });
-          // collection?.collectionPriceChangeHistory?.timestamp = new Date();
-          await collection.save();
-        } else {
-          // Check if over an hour has passed since the last price history update
-          const lastUpdate = collection?.collectionPriceHistory?.slice(-1)[0]?.timestamp;
-          const now = new Date();
-          if (lastUpdate && now - new Date(lastUpdate) > 3600000) {
-            collection?.collectionPriceChangeHistory?.push({
-              timestamp: now,
-              priceChanges: [],
-            });
-            await collection.save();
-            collectionUpdated = true;
-          }
+          globalPriceChanges.push({
+            timestamp: new Date(),
+            difference: priceDifference,
+            collectionName: collection.name,
+            cardName: card.name,
+            oldPrice: oldPrice,
+            newPrice: newPrice,
+            priceDifference: priceDifference,
+            message: message,
+          }); // Format and add to global changes
+        }
+      }
+      collection.cards = removeDuplicatePriceHistoryFromCollection(collection.cards);
+      if (collectionPriceChanges.length > 0) {
+        collection?.collectionPriceChangeHistory?.push({
+          timestamp: new Date(),
+          difference: collectionPriceChanges.reduce((acc, curr) => acc + curr.difference, 0),
+          priceChanges: collectionPriceChanges,
+        });
+        // collection?.collectionUpdated = true;
+        // logger.info(`Price change detected for collection: ${collection.name}`);
+        // await collection.save(); // Assuming collection.save() is a valid method to persist changes
+      } else {
+        // Check if over an hour has passed since the last price history update
+        const lastUpdate = collection?.collectionPriceChangeHistory?.slice(-1)?.[0]?.timestamp;
+        const now = new Date();
+        if (lastUpdate && now - new Date(lastUpdate) > 3600000) {
+          collection?.collectionPriceChangeHistory?.push({
+            timestamp: now,
+            priceChanges: [],
+          });
+          logger.info(`No price changes detected for collection: ${collection.name}`);
+          collection.collectionUpdated = true;
         }
       }
     }
+  }
 
-    if (globalPriceChanges.length > 0) {
-      infoLogger('PRICE CHANGES DETECTED'.green);
-      logFunctionSteps(
-        '[X]',
-        ' | '.green +
-          `PRICE CHANGES DETECTED  ${
-            globalPriceChanges?.length > 1 ? globalPriceChanges?.length : globalPriceChanges[0]
-          }` +
-          ' | '.green,
-      );
-      // logger.info(globalPriceChanges.length);
-      logPriceChangesToFile(globalPriceChanges);
-    } else {
-      infoLogger('No price changes detected.'.red);
-    }
-  } catch (error) {
-    // handleError(error, 'Error in cron job:');
+  if (globalPriceChanges.length > 0) {
+    logger.info('PRICE CHANGES DETECTED');
+    logFunctionSteps(
+      '[X]',
+      ' | '.green +
+        `PRICE CHANGES DETECTED  ${
+          globalPriceChanges?.length > 1 ? globalPriceChanges?.length : globalPriceChanges[0]
+        }` +
+        ' | '.green,
+    );
+    // logger.info(globalPriceChanges.length);
+    logPriceChangesToFile(globalPriceChanges);
+  } else {
+    logger.info('No price changes detected.'.red);
   }
 };
 exports.updatedCollectionCron = updatedCollectionCron;

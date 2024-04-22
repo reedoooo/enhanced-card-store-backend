@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
-const User = require('../../models/User');
 const bcrypt = require('bcrypt');
 const { sendJsonResponse } = require('../../utils/utils');
+const logger = require('../../configs/winston');
+const { User } = require('../../models/User');
 const ensureNumber = (value) => Number(value);
 const ensureString = (value) => String(value);
 const ensureBoolean = (value) => Boolean(value);
@@ -49,67 +50,15 @@ function validateSignupInput(username, password, email) {
     throw new Error('Missing required fields');
   }
 }
-async function checkForExistingUser(username, email) {
-  const existingUser = await User.findOne({
-    $or: [{ username }, { 'userSecurityData.email': email }],
-  });
-
-  if (existingUser) {
-    throw new Error('Username or Email already exists');
-  }
-}
-function handleSignupError(error, res, next) {
-  2;
-  logger.error('Signup Error:', error);
-
-  if (error.code === 11000) {
-    return res.status(409).json({ message: 'Duplicate key error', details: error.keyValue });
-  }
-
-  // For other errors, you might want to pass them to an error handling middleware
-  next(error);
-}
 function validateSigninInput(username, password) {
   if (!username || !password) {
     throw new Error('Missing required fields');
   }
 }
-async function findAndValidateUser(username, password) {
-  // Using findOne to ensure we're getting a single user document
-  const user = await User.findOne({ username })
-    .populate('userSecurityData')
-    .populate('userBasicData');
-
-  // Check if the user document was found
-  if (!user) {
-    throw new Error('User not found');
-  }
-
-  // Ensuring userSecurityData and the password field exist
-  if (!user.userSecurityData || typeof user.userSecurityData.password !== 'string') {
-    throw new Error('User security data is incomplete');
-  }
-
-  // Now, safely comparing the password
-  const isPasswordValid = await bcrypt.compare(password, user.userSecurityData.password);
-  if (!isPasswordValid) {
-    throw new Error('Invalid password');
-  }
-
-  return user;
-}
-function handleSigninError(error, res, next) {
-  logger.error('Signin Error:', error);
-  // Log the error and send an appropriate response
-  res
-    .status(error.status || 500)
-    .json({ message: error.message || 'An unexpected error occurred' });
-}
 const isValidObjectId = (id) => {
   const ObjectIdRegEx = /^[0-9a-fA-F]{24}$/;
   return ObjectIdRegEx.test(id);
 };
-
 const validateInput = (userId, pricingData) => {
   try {
     if (!isValidObjectId(userId)) {
@@ -130,6 +79,78 @@ const validateInput = (userId, pricingData) => {
     // return undefined;
   }
 };
+async function findAndValidateUser(username, password) {
+  const user = await User.findOne({ username })
+    .populate('userSecurityData')
+    .populate('userBasicData');
+  if (!user) {
+    throw new Error('User not found');
+  }
+  // if (!user.userSecurityData || typeof user.userSecurityData.password !== 'string') {
+  //   throw new Error('User security data is incomplete');
+  // }
+
+  // Now, safely comparing the password
+  const isPasswordValid = await bcrypt.compare(password, user.userSecurityData.password);
+  if (!isPasswordValid) {
+    throw new Error('Invalid password');
+  }
+
+  return user;
+}
+async function checkForExistingUser(username, email) {
+  const existingUser = await User.findOne({
+    $or: [{ username }, { 'userBasicData.email': email }],
+  });
+  if (!existingUser) {
+    logger.info('[SUCCESS]'.green + 'User does not exist');
+    return;
+  }
+  if (existingUser?.username === username) {
+    throw new Error('Username already exists');
+  }
+  if (existingUser['userBasicData.email'] === email) {
+    throw new Error('Email already exists');
+  }
+}
+function handleSigninError(error, res, next) {
+  logger.error('Signin Error:', error);
+  // Log the error and send an appropriate response
+  res
+    .status(error.status || 500)
+    .json({ message: error.message || 'An unexpected error occurred' });
+}
+function handleSignupError(error, res, next) {
+  2;
+  logger.error('Signup Error:', error);
+
+  if (error.code === 11000) {
+    return res.status(409).json({ message: 'Duplicate key error', details: error.keyValue });
+  }
+
+  // For other errors, you might want to pass them to an error handling middleware
+  next(error);
+}
+// function handleMongoError(err, req, res, next) {
+//   if (err.name === 'MongoServerError' && err.code === 11000) {
+//     const field = Object.keys(err.keyPattern)[0]; // 'login_data.username' or 'login_data.email'
+//     const value = err.keyValue[field];
+//     const message = `${field.split('.')[1]} '${value}' is already in use.`;
+//     return res.status(409).json({ success: false, message });
+//   }
+//   next(err);
+// }
+function handleDuplicateKeyError(err, res) {
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyValue)[0];
+    const value = err.keyValue[field];
+    const message = `${field.charAt(0).toUpperCase() + field.slice(1)} '${value}' is already in use.`;
+    logger.error(`Duplicate key error: ${message}`, err);
+    res.status(409).json({ success: false, message });
+    return true;
+  }
+  return false;
+}
 
 module.exports = {
   validateCardData,
@@ -150,4 +171,5 @@ module.exports = {
   validateObjectId,
   validateInput,
   isValidObjectId,
+  // handleMongoError,
 };

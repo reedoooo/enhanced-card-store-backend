@@ -56,7 +56,6 @@ exports.createNewDeck = async (req, res, next) => {
 };
 exports.deleteDeck = async (req, res, next) => {
   const { userId, deckId } = req.params;
-
   const user = await fetchPopulatedUserContext(userId, ['decks']);
   const deckIndex = user.allDecks.findIndex((d) => d._id.toString() === deckId);
   validateContextEntityExists(deckIndex !== -1, 'Deck not found', 404, res);

@@ -1,5 +1,9 @@
-const { User } = require('../../models');
+const { User } = require('../../models/User');
 
+/**
+ * Returns an array of fields to be populated when deep populating card data.
+ * @returns {Array} An array of fields to be populated.
+ */
 function deepPopulateCardFields() {
   return [
     { path: 'card_sets', model: 'CardSet' },
@@ -14,6 +18,13 @@ function deepPopulateCardFields() {
     { path: 'variant', model: 'CardVariant' },
   ];
 }
+/**
+ * Returns the populate path for a given context.
+ *
+ * @param {string} context - The context for which to get the populate path.
+ * @returns {Object} - The populate path object.
+ * @throws {Error} - If an invalid context is provided.
+ */
 function getPopulatePathForContext(context) {
   switch (context) {
     case 'decks':
@@ -54,10 +65,10 @@ function getPopulatePathForContext(context) {
  * @returns Populated user data
  */
 async function populateUserDataByContext(userId, contexts) {
-  let query = User.findById(userId)
-    .populate('userSecurityData', 'username email role_data')
-    .populate('userBasicData', 'firstName lastName')
-    .populate('generalUserStats', 'totalDecks totalCollections totalCardsInCollections');
+  let query = User.findById(userId).populate('userSecurityData').populate('userBasicData');
+  // .populate('userSecurityData', 'username email role_data')
+  // .populate('userBasicData', 'firstName lastName')
+  // .populate('generalUserStats', 'totalDecks totalCollections totalCardsInCollections');
   contexts?.forEach((context) => {
     const populatePath = getPopulatePathForContext(context);
     query = query?.populate(populatePath);

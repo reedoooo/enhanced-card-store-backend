@@ -1,6 +1,7 @@
 const fs = require('fs');
 const download = require('image-downloader');
 const { UPLOADED_IMAGES_PATH } = require('../configs/constants');
+const logger = require('../configs/winston');
 const rawData = fs.readFileSync('cardinfo.php.json');
 const data = JSON.parse(rawData).data;
 if (!fs.existsSync(UPLOADED_IMAGES_PATH)) {

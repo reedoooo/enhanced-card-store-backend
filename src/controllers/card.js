@@ -1,15 +1,10 @@
-const {
-  queryBuilder,
-  fetchCardPrices,
-  fetchAndGenerateRandomCardData,
-} = require('./Cards/helpers');
-const User = require('../models/User');
 const logger = require('../configs/winston');
 const {
   axiosInstance,
-  extractRawTCGPlayerData,
-  constructInitialCardData,
+  fetchCardPrices,
+  queryBuilder,
 } = require('../utils/utils');
+const { fetchAndGenerateRandomCardData } = require('./utils/helpers');
 const cardController = {
   fetchPriceData: async (cardName) => {
     const card_prices = await fetchCardPrices(cardName);
@@ -19,7 +14,9 @@ const cardController = {
   fetchDataForRandomCards: async () => {
     const cardPromises = [];
     for (let i = 0; i < 40; i++) {
-      cardPromises.push(fetchAndGenerateRandomCardData());
+      cardPromises.push(
+        await fetchAndGenerateRandomCardData(),
+      );
     }
     const cardsData = await Promise.all(cardPromises);
     return cardsData; // This will be an array of the data for each card fetched and saved
@@ -30,8 +27,12 @@ const cardController = {
    * @returns {array} - The transformed card data.
    */
   fetchAndTransformCardData: async (data) => {
+    // const response = await axiosInstance.get(
+    //   `/cardinfo.php?${queryBuilder(data.name, data.race, data.type, data.level, data.attribute)}`,
+    // );
+    logger.info(`RAW INCOMING DATA: ${data}`);
     const response = await axiosInstance.get(
-      `/cardinfo.php?${queryBuilder(data.name, data.race, data.type, data.level, data.attribute)}`,
+      `/cardinfo.php?${queryBuilder(data)}`,
     );
     const fetchedCards = response?.data?.data?.slice(0, 90); // Limiting to 30 cards
     const cardNames = fetchedCards?.map((card) => card.name);

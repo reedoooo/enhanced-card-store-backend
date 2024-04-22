@@ -1,5 +1,4 @@
 const morgan = require("morgan");
-const logger = require("../../configs/winston");
 require("colors");
 
 // morgan.token("coloredMethod", (req) => req.method.yellow);
