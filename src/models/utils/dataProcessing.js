@@ -1,8 +1,7 @@
-const { formatISO } = require("date-fns");
-const logger = require("../../configs/winston");
+const { formatISO } = require('date-fns');
+const logger = require('../../configs/winston');
 const roundToNearestHundredth = (num) => Math.round(num * 100) / 100;
-exports.convertChartDataToArray = (averagedChartData) =>
-  Object.values(averagedChartData);
+exports.convertChartDataToArray = (averagedChartData) => Object.values(averagedChartData);
 exports.recalculatePriceHistory = (cardDataPoints) => {
   let totalValue = 0;
   return cardDataPoints.map((dataPoint) => {
@@ -12,7 +11,7 @@ exports.recalculatePriceHistory = (cardDataPoints) => {
 };
 const getLabelsAndThresholds = () => [
   {
-    label: "24hr",
+    label: '24hr',
     threshold: 1,
     points: 24,
     defaultFirst: 0,
@@ -20,7 +19,7 @@ const getLabelsAndThresholds = () => [
     defaultPrevious: 0,
   },
   {
-    label: "7d",
+    label: '7d',
     threshold: 7,
     points: 7,
     defaultFirst: 0,
@@ -28,7 +27,7 @@ const getLabelsAndThresholds = () => [
     defaultPrevious: 31.2,
   },
   {
-    label: "30d",
+    label: '30d',
     threshold: 30,
     points: 30,
     defaultFirst: 0,
@@ -36,7 +35,7 @@ const getLabelsAndThresholds = () => [
     defaultPrevious: 65.1,
   },
   {
-    label: "90d",
+    label: '90d',
     threshold: 90,
     points: 90,
 
@@ -45,7 +44,7 @@ const getLabelsAndThresholds = () => [
     defaultPrevious: 129.9,
   },
   {
-    label: "180d",
+    label: '180d',
     threshold: 180,
     points: 180,
     defaultFirst: 0,
@@ -53,7 +52,7 @@ const getLabelsAndThresholds = () => [
     defaultPrevious: 284.8,
   },
   {
-    label: "270d",
+    label: '270d',
     threshold: 270,
     points: 270,
     defaultFirst: 0,
@@ -61,7 +60,7 @@ const getLabelsAndThresholds = () => [
     defaultPrevious: 449.7,
   },
   {
-    label: "365d",
+    label: '365d',
     threshold: 365,
     points: 365,
     defaultFirst: 0,
@@ -95,19 +94,17 @@ const getRequiredDataPoints = (data, requiredPoints) => {
 };
 const interpolateValues = (start, end, length) => {
   const step = (end - start) / (length - 1);
-  return Array.from({ length }, (_, index) =>
-    roundToNearestHundredth(start + step * index)
-  );
+  return Array.from({ length }, (_, index) => roundToNearestHundredth(start + step * index));
 };
 const interpolateTimeValues = (start, end, count) => {
   const step = (end - start) / (count - 1);
   return Array.from({ length: count }, (_, index) =>
-    new Date(start.getTime() + step * index).toISOString()
+    new Date(start.getTime() + step * index).toISOString(),
   );
 };
 const seedChartData = (chart, range) => {
   if (!chart || !Array.isArray(chart.data)) {
-    logger.error("Invalid chart data provided to seedChartData.");
+    logger.error('Invalid chart data provided to seedChartData.');
     return chart;
   }
   chart.data.sort((a, b) => new Date(a.x) - new Date(b.x));
@@ -121,15 +118,11 @@ const seedChartData = (chart, range) => {
         ? new Date(chart.data[chart.data.length - 1].x)
         : new Date();
       endTime.setDate(startTime.getDate() + range.threshold);
-      const interpolatedXValues = interpolateTimeValues(
-        startTime,
-        endTime,
-        range.points
-      );
+      const interpolatedXValues = interpolateTimeValues(startTime, endTime, range.points);
       const interpolatedValues = interpolateValues(
         range.defaultFirst,
         range.defaultLast,
-        range.points
+        range.points,
       );
 
       chart.data = interpolatedXValues.map((x, index) => ({
@@ -144,14 +137,14 @@ const seedChartData = (chart, range) => {
 };
 exports.processAndSortTimeData = (cardDataArray) => {
   if (!Array.isArray(cardDataArray)) {
-    logger.error("Invalid cardDataArray provided to processAndSortTimeData.");
+    logger.error('Invalid cardDataArray provided to processAndSortTimeData.');
     return {};
   }
   const labelsAndThresholds = getLabelsAndThresholds();
   let timeRangeDataMap = {};
   cardDataArray?.forEach((item) => {
     if (!item.timestamp || isNaN(new Date(item.timestamp).getTime())) {
-      logger.error("Invalid timestamp detected", item);
+      logger.error('Invalid timestamp detected', item);
       return;
     }
     const itemDate = new Date(item.timestamp);
@@ -165,10 +158,9 @@ exports.processAndSortTimeData = (cardDataArray) => {
             timeRangeDataMap[label] = {
               id: label,
               name: `Last ${label.toUpperCase()}`,
-              color: "#2e7c67",
+              color: '#2e7c67',
               data: [],
-              points: labelsAndThresholds.find((lt) => lt.label === label)
-                .points,
+              points: labelsAndThresholds.find((lt) => lt.label === label).points,
               config: {
                 defaultFirst,
                 defaultLast,
@@ -182,13 +174,11 @@ exports.processAndSortTimeData = (cardDataArray) => {
             y: roundToNearestHundredth(item?.num),
           });
         }
-      }
+      },
     );
   });
   Object.entries(timeRangeDataMap).forEach(([label, chart]) => {
-    const rangeConfig = labelsAndThresholds.find(
-      (range) => range.label === label
-    );
+    const rangeConfig = labelsAndThresholds.find((range) => range.label === label);
     timeRangeDataMap[label] = seedChartData(chart, rangeConfig);
   });
   return timeRangeDataMap;
@@ -203,9 +193,7 @@ exports.aggregateAndValidateTimeRangeMap = (timeRangeDataMap) => {
       : [];
 
     if (relevantData) {
-      const nonZeroCount = relevantData?.filter(
-        (item) => item?.y !== 0
-      )?.length;
+      const nonZeroCount = relevantData?.filter((item) => item?.y !== 0)?.length;
       const thresholdForInterpolation = Math?.ceil(0.75 * relevantData?.length);
 
       // Interpolate data if necessary
@@ -213,7 +201,7 @@ exports.aggregateAndValidateTimeRangeMap = (timeRangeDataMap) => {
         const interpolatedValues = interpolateData(
           labelThreshold.defaultFirst,
           labelThreshold.defaultLast,
-          relevantData.length
+          relevantData.length,
         );
 
         relevantData.forEach((item, index) => {
@@ -228,15 +216,11 @@ exports.aggregateAndValidateTimeRangeMap = (timeRangeDataMap) => {
       if (labelThreshold.defaultPrevious !== undefined) {
         const previousRangeLabel =
           labelsAndThresholds[
-            labelsAndThresholds.findIndex(
-              (lt) => lt.label === labelThreshold.label
-            ) - 1
+            labelsAndThresholds.findIndex((lt) => lt.label === labelThreshold.label) - 1
           ]?.label;
         if (previousRangeLabel && timeRangeDataMap[previousRangeLabel]) {
           const lastItemOfPreviousRange =
-            timeRangeDataMap[previousRangeLabel][
-              timeRangeDataMap[previousRangeLabel].length - 1
-            ];
+            timeRangeDataMap[previousRangeLabel][timeRangeDataMap[previousRangeLabel].length - 1];
           if (lastItemOfPreviousRange) {
             lastItemOfPreviousRange.y = labelThreshold.defaultPrevious;
           }
@@ -254,7 +238,7 @@ exports.generateCardDataPoints = (cards) =>
       Array.from({ length: card.quantity }, () => ({
         num: card.price,
         timestamp: new Date(card.addedAt).toISOString(),
-      }))
+      })),
     );
 exports.processTimeSeriesData = (data) => {
   const now = new Date();
@@ -291,18 +275,25 @@ exports.processTimeSeriesData = (data) => {
 
   return hourlyDataPoints;
 };
-exports.updateCollectionStatistics = (
-  currentStats,
-  totalPrice,
-  totalQuantity
-) => ({
-  totalQuantity: totalQuantity,
-  totalPrice: totalPrice,
-  highPoint: Math.max(currentStats.highPoint, totalPrice),
-  lowPoint: Math.min(currentStats.lowPoint || Infinity, totalPrice),
-  avgPrice: totalQuantity ? totalPrice / totalQuantity : 0,
-  priceChange: totalPrice - currentStats.highPoint,
-  percentageChange: currentStats.lowPoint
-    ? ((totalPrice - currentStats.lowPoint) / currentStats.lowPoint) * 100
-    : 0,
-});
+exports.updateCollectionStatistics = (data) => {
+  const {
+    newTotal,
+    oldTotal,
+    newQuantity,
+    oldQuantity,
+    oldHighPoint,
+    oldLowPoint,
+    oldAvgPrice,
+    oldPercentageChange,
+  } = data;
+
+  return {
+    totalQuantity: newTotal,
+    totalPrice: newTotal * newQuantity,
+    highPoint: Math.max(oldHighPoint, newTotal),
+    lowPoint: Math.min(oldLowPoint || Infinity, newTotal),
+    avgPrice: newQuantity ? newTotal / newQuantity : 0,
+    priceChange: newTotal - oldTotal, // Assuming price change is between new and old total
+    percentageChange: oldLowPoint ? ((newTotal - oldLowPoint) / oldLowPoint) * 100 : 0,
+  };
+};

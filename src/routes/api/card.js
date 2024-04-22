@@ -1,5 +1,6 @@
 const express = require('express');
 const { cardController } = require('../../controllers/card');
+const logger = require('../../configs/winston');
 const router = express.Router();
 router.get('/', async (req, res, next) => {
   cardController
@@ -19,7 +20,7 @@ router.get('/randomCardData', async (req, res, next) => {
 });
 router.post('/ygopro', async (req, res, next) => {
   const { searchParams, user, searchTerm } = req.body;
-  console.log('searchTerm', searchTerm);
+  logger.info('searchTerm', searchTerm);
 
   cardController
     .fetchAndTransformCardData({
@@ -32,6 +33,6 @@ router.post('/ygopro', async (req, res, next) => {
     })
     .then((transformedCards) => {
       res.json({ data: transformedCards });
-    })
+    });
 });
 module.exports = router;

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
-const { Schema } = mongoose;
-
+const logger = require('../configs/winston');
+const { Schema, model } = mongoose;
+require('colors');
 const UserSchema = new Schema(
   {
     username: { type: String, required: true, unique: true },
@@ -41,5 +42,19 @@ const UserSchema = new Schema(
   },
   { timestamps: true },
 );
+UserSchema.pre('save', async function (next) {
+  logger.info('[Pre-save hook for user:]'.red, this.username);
+  // IF THIS IS THE FIRST TIME THE USER IS SAVED, LOG THE ENTIRE USER OBJECT
+  if (this.isNew) {
+    logger.info('[New User:]', this);
+  }
+  this.lastUpdated = new Date();
 
-module.exports = mongoose.model('User', UserSchema);
+  next();
+});
+
+// module.exports = model('User', UserSchema);
+module.exports = {
+  User: model('User', UserSchema),
+  userSchema: UserSchema,
+};

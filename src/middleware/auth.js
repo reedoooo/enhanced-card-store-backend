@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const logger = require('../configs/winston');
+const { User } = require('../models/User');
 let invalidRefreshTokens = new Set();
 
 const validatePassword = async (password, hashedPassword) => {
@@ -34,25 +35,28 @@ async function generateToken(userId, isRefreshToken = false) {
       payload.role_data = user.userSecurityData.role_data; // Only for access token
     }
     const options = { expiresIn: isRefreshToken ? '7d' : '1h' };
-    const secret = isRefreshToken
-      ? process.env.REFRESH_TOKEN_SECRET
-      : process.env.SECRET_KEY;
+    const secret = isRefreshToken ? process.env.REFRESH_TOKEN_SECRET : process.env.SECRET_KEY;
     return generateJWT(payload, secret, options);
   } catch (error) {
-    console.error('Error generating token:', error);
+    logger.error('Error generating token:', error);
     throw error;
   }
 }
 async function saveToken(userId, token, isRefreshToken = false) {
   const user = await fetchUserById(userId);
   if (isRefreshToken) {
+    user.refreshToken = token;
     user.userSecurityData.refreshToken = token;
   } else {
+    user.accessToken = token;
     user.userSecurityData.accessToken = token;
   }
   await user.save();
 }
 async function saveTokens(userId, accessToken, refreshToken) {
+  if (!userId || !accessToken || !refreshToken) {
+    throw new Error('Invalid userId or token');
+  }
   await saveToken(userId, accessToken, false); // false for access token
   await saveToken(userId, refreshToken, true); // true for refresh token
   return { savedAccessToken: accessToken, savedRefreshToken: refreshToken };
@@ -67,10 +71,8 @@ module.exports = {
   validatePassword,
   generateToken: (userId) => generateToken(userId, false), // false for access token
   generateRefreshToken: (userId) => generateToken(userId, true), // true for refresh token
-  saveRefreshToken: (userId, refreshToken) =>
-    saveToken(userId, refreshToken, true),
-  saveAccessToken: (userId, accessToken) =>
-    saveToken(userId, accessToken, false),
+  saveRefreshToken: (userId, refreshToken) => saveToken(userId, refreshToken, true),
+  saveAccessToken: (userId, accessToken) => saveToken(userId, accessToken, false),
   saveTokens,
   invalidateToken,
   isRefreshTokenValid,

@@ -1,30 +1,31 @@
-const fs = require("fs");
-const download = require("image-downloader");
-const { UPLOADED_IMAGES_PATH } = require("../configs/constants");
-const rawData = fs.readFileSync("cardinfo.php.json");
+const fs = require('fs');
+const download = require('image-downloader');
+const { UPLOADED_IMAGES_PATH } = require('../configs/constants');
+const logger = require('../configs/winston');
+const rawData = fs.readFileSync('cardinfo.php.json');
 const data = JSON.parse(rawData).data;
 if (!fs.existsSync(UPLOADED_IMAGES_PATH)) {
   fs.mkdirSync(UPLOADED_IMAGES_PATH, { recursive: true });
 }
 function downloadCard(card) {
-  if (typeof card.card_images[0].image_url != "undefined") {
-    const name = card.name.replace(/[/\\?%*:|"<>]/g, "");
+  if (typeof card.card_images[0].image_url != 'undefined') {
+    const name = card.name.replace(/[/\\?%*:|"<>]/g, '');
 
-    let folderA = "public";
-    let folderB = "cards";
+    let folderA = 'public';
+    let folderB = 'cards';
 
     const url = card.card_images[0].image_url;
-    const n = url.lastIndexOf(".");
+    const n = url.lastIndexOf('.');
     const extension = url.substring(n + 1);
 
     download
       .image({
         url: url,
         dest: `${folderA}/${folderB}/${name}_${card.race}_${card.type}${
-          card.level ? "_lvl" + card.level : ""
-        }${card.attribute ? "_" + card.attribute : ""}.${extension}`,
+          card.level ? '_lvl' + card.level : ''
+        }${card.attribute ? '_' + card.attribute : ''}.${extension}`,
       })
-      .catch((err) => console.log(err));
+      .catch((err) => logger.info(err));
   }
 }
 /**
@@ -44,9 +45,9 @@ async function downloadImage(imageUrl, imageName) {
   try {
     const { filename } = await download.image(options);
 
-    console.log("Saved to", filename); // Saved to public/images/imageName
+    logger.info('Saved to', filename); // Saved to public/images/imageName
   } catch (error) {
-    console.error("Failed to download image:", error);
+    logger.error('Failed to download image:', error);
   }
 }
 

@@ -1,7 +1,6 @@
 'use strict';
 
 // 1. Environment and Dependencies
-// Core Dependencies
 const express = require('express');
 const helmet = require('helmet');
 const mongoose = require('mongoose');
@@ -10,16 +9,15 @@ const cors = require('cors');
 const http = require('http');
 const path = require('path');
 const compression = require('compression');
-require('./services/runCron');
+const sdk = require('api')('@tcgplayer/v1.39.0#1mld74kq6w82u3');
 
-// Middleware and Routes
+require('./services/runCron');
 const routes = require('./routes');
 const handleStripePayment = require('./middleware/handleStripePayment');
 const { morganMiddleware } = require('./middleware/loggers/morganMiddleware');
-const { unifiedErrorHandler } = require('./middleware/loggers/logErrors');
-const logUnhandledErrors = require('./middleware/loggers/logUnhandlerErrors');
+const { unifiedErrorHandler } = require('./middleware/errorHandling/unifiedErrorHandler');
+const logger = require('./configs/winston');
 
-// Load environment variables
 require('dotenv').config({
   path: path.join(__dirname, 'configs', '.env'),
 });
@@ -28,21 +26,23 @@ require('dotenv').config({
 const app = express();
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/myapp';
 const environment = process.env.NODE_ENV || 'development';
-
 const PORT = process.env.PORT || 3001;
+
 process.env.TZ = 'America/Seattle';
 
 // 3. Middleware Configuration
-// CORS options
 const corsOptions = {
   origin: '*',
   methods: 'GET,POST,PUT,DELETE',
-  allowedHeaders: 'Content-Type,Authorization',
+  allowedHeaders: 'Content-Type, Authorization',
   credentials: true,
   optionsSuccessStatus: 200,
 };
 
-logUnhandledErrors();
+sdk
+  .app_AuthorizeApplication({ authCode: 'authCode' })
+  .then(({ data }) => console.log(data))
+  .catch((err) => console.error(err));
 
 app.use(cors(corsOptions));
 app.use(helmet());
@@ -53,29 +53,30 @@ app.use(cookieParser());
 app.use(morganMiddleware);
 app.use(express.static(path.join(__dirname, '../public')));
 
-// 4. Route Definitions
-// Stripe Payment Route
-app.post('/api/stripe/checkout', handleStripePayment);
-
-// API Routes
-app.use('/api', routes);
-
-// Basic route
-app.get('/', (req, res) => res.send('Welcome to the API.'));
-
-// 5. Error Handling
-app.use((error, req, res, next) => {
-  if (res.headersSent) {
-    return next(error);
+// 4. Route Check Middleware
+app.use((req, res, next) => {
+  const path = req.originalUrl;
+  if (!path.startsWith('/api') && path !== '/') {
+    logger.error(`Endpoint not found for ${req.url}`);
+    return res.status(404).send('Endpoint not found');
   }
-  
-  unifiedErrorHandler(error, req, res, next);
+  next();
 });
 
-// 6. Server and Database Initialization
+// 5. Route Definitions
+app.post('/api/stripe/checkout', handleStripePayment);
+app.use('/api', routes);
+// app.use(handleMongoError);
+app.get('/', (req, res) => {
+  res.send('Welcome to the API.');
+});
+
+// 6. Error Handling Middleware
+app.use(unifiedErrorHandler);
+
+// 7. Server and Database Initialization
 const server = http.createServer(app);
 
-// Connect to MongoDB
 mongoose
   .connect(MONGO_URI, {
     useNewUrlParser: true,
@@ -84,20 +85,16 @@ mongoose
   .then(() => {
     // Different behavior based on environment
     if (environment === 'production') {
-      // In production, just start the server
-      server.listen(PORT, () =>
-        console.log(`Server running on port ${PORT} in production mode`),
-      );
+      server.listen(PORT, () => logger.info(`Server running on port ${PORT} in production mode`));
     } else {
-      // In development or other environments, additional logs or actions can be implemented
       server.listen(PORT, () => {
-        console.log(`Server running on port ${PORT} in ${environment} mode`);
-        // For example, in development, you might want to automatically open the browser
+        logger.info(`Server running on port ${PORT} in ${environment} mode`);
         if (environment === 'development') {
-          console.log('Starting in development mode with additional logging.');
+          logger.info('Starting in development mode with additional logging.');
         }
       });
     }
   })
-  .catch((error) => console.error('MongoDB connection error:', error));
-module.exports = { app };
+  .catch((error) => logger.error('MongoDB connection error:', error));
+
+module.exports = { app, server };

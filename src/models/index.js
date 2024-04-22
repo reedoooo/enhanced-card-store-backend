@@ -1,14 +1,12 @@
 // INDEX FOR MODEL LAYOUT
 // =============================================================
-const User = require("./User");
-const UserBasicData = require("./schemas/UserBasicData");
-const UserSecurityData = require("./schemas/UserSecurityData");
-const GeneralUserStats = require("./schemas/GeneralUserStats");
 const Card = require("./Card");
 const { CardInCart, CardInDeck, CardInCollection, CardSet, CardVariant } = Card;
 const CollectionModels = require("./Collection");
+const { User } = require("./User");
 const { Deck, Cart, Collection } = CollectionModels;
 const CommonSchemas = require("./schemas/CommonSchemas");
+const { UserSecurityData, UserBasicData } = require("./schemas/UserSchemas");
 const {
   priceEntrySchema,
   cardSetSchema,
@@ -23,11 +21,10 @@ module.exports = {
   User,
   UserBasicData,
   UserSecurityData,
-  GeneralUserStats,
-  Card,
   CardInCart,
   CardInDeck,
   CardInCollection,
+  // Card,
   CardSet,
   CardVariant,
   CollectionModels,

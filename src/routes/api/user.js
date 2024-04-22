@@ -13,6 +13,7 @@ const {
   deleteDeck,
   addCardsToDeck,
   removeCardsFromDeck,
+  getDeckById,
 } = deckController;
 const {
   getAllCollectionsForUser,
@@ -21,6 +22,8 @@ const {
   deleteExistingCollection,
   addCardsToCollection,
   removeCardsFromCollection,
+  deleteCardFromCollection,
+  decrementCardQuantityInCollection,
 } = collectionController;
 const {
   getUserCart,
@@ -51,6 +54,7 @@ router.put('/:userId/userData/update', updateUserData);
 
 // DECK ROUTES
 router.get('/:userId/decks/allDecks', getAllDecksForUser);
+router.get('/:userId/decks/:deckId', getDeckById);
 router.post('/:userId/decks/create', createNewDeck);
 router.put('/:userId/decks/:deckId/deckDetails', updateDeckDetails);
 router.delete('/:userId/decks/:deckId/delete', deleteDeck);
@@ -78,7 +82,14 @@ router.put(
   '/:userId/collections/:collectionId/cards/remove',
   removeCardsFromCollection,
 );
-
+router.put(
+  '/:userId/collections/:collectionId/cards/:cardId/deleteCardFromCollection',
+  deleteCardFromCollection,
+);
+router.put(
+  '/:userId/collections/:collectionId/cards/:cardId/decrementCardQuantity',
+  decrementCardQuantityInCollection,
+);
 // CART ROUTES
 router.get('/:userId/cart', getUserCart);
 router.post('/:userId/cart/create', createEmptyCart);

@@ -2,7 +2,7 @@
 const mongoose = require('mongoose');
 const logger = require('../../configs/winston');
 const { Schema, Types } = mongoose;
-// Enhanced DRY approach: Common field configurations
+const { v4: uuidv4 } = require('uuid');
 const requiredString = { type: String, required: true };
 const requiredDecimal128 = { type: Types.Decimal128, required: true };
 const commonSchemaOptions = { timestamps: true };
@@ -76,7 +76,6 @@ const createSchemaWithCommonFields = (cardsRef, schemaName) => {
         of: String,
         default: ['tags'],
       },
-
       color: {
         type: String,
         enum: ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink'],
@@ -139,10 +138,10 @@ cardSetSchema.index({ set_code: 1 }); // Index for performance
 const cardVariantSchema = new Schema(
   {
     set_name: String,
-    set_code: requiredString,
+    set_code: String,
     rarity: String,
     rarity_code: String,
-    price: requiredDecimal128,
+    price: { type: Types.Decimal128, default: 0 },
     selected: { type: Boolean, default: false },
     alt_art_image_url: String,
     set: requiredObjectId('CardSet'),
@@ -152,6 +151,7 @@ const cardVariantSchema = new Schema(
 );
 const collectionPriceChangeHistorySchema = new Schema({
   timestamp: Date,
+  difference: Number,
   priceChanges: [
     {
       timestamp: Date,
@@ -164,14 +164,13 @@ const collectionPriceChangeHistorySchema = new Schema({
       message: String,
     },
   ],
-  difference: Number,
 });
 const collectionStatisticsSchema = new Schema({
   highPoint: { type: Number, min: 0 },
   lowPoint: { type: Number, min: 0 },
   average: { type: Number, min: 0 },
-  percentageChange: { type: Number, min: 0 },
-  priceChange: { type: Number, min: 0 },
+  percentageChange: { type: Number },
+  priceChange: { type: Number },
   avgPrice: { type: Number, min: 0 },
   volume: { type: Number, min: 0 },
   volatility: { type: Number, min: 0 },
@@ -195,8 +194,10 @@ const dataPointSchema = createSchema(
   { _id: false },
 );
 const createDataPoint = (x, y, stringVal) => ({
-  label: `${stringVal}: [${y}] [${x}]`,
-  id: `${Date.now()}`,
+  label: `${Date.now()}`,
+  // label: `${stringVal}: [${y}] [${x}]`,
+  id: uuidv4(),  // Generates a unique identifier
+  // id: `${Date.now()}`,
   x,
   y,
   // x: new Date(),

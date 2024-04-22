@@ -1,8 +1,58 @@
-const { default: axios } = require('axios');
+// const { default: axios } = require('axios');
+const axios = require('axios'); // Additional axios import
+const logger = require('../configs/winston');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
+// !--------------------! Utility Functions !--------------------!
+function queryBuilder(data) {
+  logger.info(
+    `[SEARCH QUERY CONTENTS][${data.searchTerm}, ${data.race}, ${data.type}, ${data.level}, ${data.attribute}, ${data.id}]`,
+  );
 
+  const queryParts = [
+    (data && `fname=${encodeURIComponent(data)}`) ||
+      (data.searchTerm && `fname=${encodeURIComponent(data.searchTerm)}`),
+    data.race && `race=${encodeURIComponent(data.race)}`,
+    data.type && `type=${encodeURIComponent(data.type)}`,
+    data.level && `level=${encodeURIComponent(data.level)}`,
+    data.attribute && `attribute=${encodeURIComponent(data.attribute)}`,
+    data.id && `id=${encodeURIComponent(data.id)}`,
+  ].filter(Boolean);
+
+  const fullQuery = queryParts.join('&');
+  logger.info(`[SEARCH QUERY][${fullQuery}]`);
+  return fullQuery;
+}
+function generateFluctuatingPriceData(days, basePrice) {
+  const priceData = [];
+  let currentDate = new Date();
+  currentDate.setDate(currentDate.getDate() - days);
+
+  for (let i = 0; i < days; i++) {
+    const fluctuation = (Math.random() - 0.5) * 10; // Random fluctuation between -5 and 5
+    const price = Math.max(basePrice + fluctuation, 1); // Ensure price doesn't go below 1
+
+    priceData.push({
+      x: new Date(currentDate),
+      y: price,
+    });
+
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  return priceData;
+}
+/**
+ * Fetches the prices of a card from the server.
+ * @param {string} cardName - The name of the card.
+ * @returns {Promise<Array>} - A promise that resolves to an array of card prices.
+ */
+async function fetchCardPrices(cardName) {
+  const { data } = await axiosInstance.get(`cardinfo.php?fname=${encodeURIComponent(cardName)}`);
+  const cardPrices = data?.data[0]?.card_prices;
+  logger.info(`CARD PRICES: ${JSON.stringify(cardPrices)}`);
+  return cardPrices;
+}
 /**
  * Handles errors in async functions.
  * @param {function} fn - The async function to be wrapped.
@@ -93,10 +143,10 @@ function removeDuplicatePriceHistoryFromCollection(cards) {
 const getCardInfo = async (cardName) => {
   try {
     const { data } = await axiosInstance.get(`/cardinfo.php?name=${encodeURIComponent(cardName)}`);
-    // console.log('Card info:', data?.data[0]);
+    // logger.info('Card info:', data?.data[0]);
     return data?.data[0];
   } catch (error) {
-    console.error(`Error fetching card info for card NAME ${cardName}:`, error);
+    logger.error(`Error fetching card info for card NAME ${cardName}:`, error);
     throw error;
   }
 };
@@ -154,6 +204,12 @@ const calculateCollectionValue = (cards) => {
     return totalValue + cardPrice * cardQuantity;
   }, 0);
 };
+/**
+ * Extracts the necessary data from the provided cardData object.
+ *
+ * @param {Object} cardData - The card data object.
+ * @returns {Object} - The extracted card data.
+ */
 const extractRawTCGPlayerData = (cardData) => {
   const {
     id,
@@ -170,8 +226,6 @@ const extractRawTCGPlayerData = (cardData) => {
     card_images,
     card_prices,
   } = cardData;
-
-  // Return the destructured card object (or directly return cardData for the entire object as is)
   return {
     id,
     name,
@@ -188,6 +242,12 @@ const extractRawTCGPlayerData = (cardData) => {
     card_prices,
   };
 };
+/**
+ * Constructs initial card data based on the raw TCGPlayer data.
+ *
+ * @param {Object} rawTcgPlayerData - The raw TCGPlayer data.
+ * @returns {Object} - The constructed initial card data.
+ */
 const constructInitialCardData = (rawTcgPlayerData) => {
   let card_set = null;
   if (rawTcgPlayerData?.card_sets && rawTcgPlayerData?.card_sets?.length > 0) {
@@ -195,7 +255,8 @@ const constructInitialCardData = (rawTcgPlayerData) => {
   }
   return {
     price: rawTcgPlayerData?.card_prices[0]?.tcgplayer_price || 0,
-    image: rawTcgPlayerData?.card_images.length > 0 ? rawTcgPlayerData.card_images[0].image_url : '',
+    image:
+      rawTcgPlayerData?.card_images.length > 0 ? rawTcgPlayerData.card_images[0].image_url : '',
     rarity: card_set?.set_rarity || '',
     rarities: rawTcgPlayerData?.card_sets?.reduce((acc, set) => {
       acc[set.set_name] = set.set_rarity;
@@ -284,5 +345,8 @@ module.exports = {
   sendJsonResponse,
   extractRawTCGPlayerData,
   constructInitialCardData,
+  queryBuilder,
+  generateFluctuatingPriceData,
+  fetchCardPrices,
   axiosInstance,
 };

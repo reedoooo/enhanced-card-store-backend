@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 const { Schema, model } = mongoose;
 const {
   priceEntrySchema,
@@ -11,10 +11,9 @@ const {
   createNewPriceEntry,
   dataPointSchema,
   createDataPoint,
-} = require("./schemas/CommonSchemas");
-const logger = require("../configs/winston");
+} = require('./schemas/CommonSchemas');
+const logger = require('../configs/winston');
 // COMMON FIELD SCHEMAS: this data comes straight from the API
-// SAVE FUNCTION: fetchAndTransformCardData
 const commonFields_API_Data = {
   name: { type: String, required: false }, // AUTOSET: false || required: true
   id: { type: String, required: false, unique: false }, // AUTOSET: false || required: true
@@ -27,7 +26,7 @@ const commonFields_API_Data = {
   race: String, // AUTOSET: false
   attribute: String, // AUTOSET: false
   archetype: [String], // AUTOSET: false
-  card_sets: [{ type: Schema.Types.ObjectId, ref: "CardSet" }], // Reference to CardSet
+  card_sets: [{ type: Schema.Types.ObjectId, ref: 'CardSet' }], // Reference to CardSet
   card_images: [cardImageSchema], // AUTOSET: false
   card_prices: [cardPriceSchema], // AUTOSET: false
 };
@@ -79,9 +78,9 @@ const uniqueFields_Custom_Dynamic_Data = {
 // UNIQUE FIELD SCHEMAS: this data is set initially by server (cardVariants) and then updated by user (variant), but the default value is automatically set to first cardVariant
 // SAVE FUNCTION: fetchAndTransformCardData
 const uniqueVariantFields = {
-  cardVariants: [{ type: Schema.Types.ObjectId, ref: "CardVariant" }], // Reference to CardSet
+  cardVariants: [{ type: Schema.Types.ObjectId, ref: 'CardVariant' }], // Reference to CardSet
   cardModel: String, // AUTOSET: true
-  variant: { type: Schema.Types.ObjectId, ref: "CardVariant" }, // Reference to CardSet
+  variant: { type: Schema.Types.ObjectId, ref: 'CardVariant' }, // Reference to CardSet
   rarity: String, // AUTOSET: true
   contextualQuantity: {
     SearchHistory: Number,
@@ -146,8 +145,8 @@ const randomCardSchema = new Schema({
   updatedAt: { type: Date, default: Date.now }, // AUTOSET: true
 });
 
-const RandomCard = model("RandomCard", randomCardSchema);
-const RandomCardData = mongoose.model("RandomCardData", randomCardSchema);
+const RandomCard = model('RandomCard', randomCardSchema);
+const RandomCardData = model('RandomCardData', randomCardSchema);
 const genericCardSchema = new Schema(
   {
     ...commonFields_API_Data,
@@ -158,9 +157,12 @@ const genericCardSchema = new Schema(
     // Unified refs field to store all references
     refs: allRefsSchema,
   },
-  { timestamps: { createdAt: "addedAt", updatedAt: "updatedAt" } }
+  { timestamps: { createdAt: 'addedAt', updatedAt: 'updatedAt' } },
 );
-genericCardSchema.pre("save", async function (next) {
+genericCardSchema.pre('save', async function (next) {
+  // logger.info(`SAVING ${this.name}`, this.name); // this?.chart_datasets?.data?.push(
+  logger.info('[Pre-save hook for card:]'.red, this.name);
+
   // if (!this.isModified('price') && !this.isModified('quantity')) return next();
   if (!this.refId) {
     this.refId = this._id;
@@ -169,7 +171,7 @@ genericCardSchema.pre("save", async function (next) {
     this.cardModel = this.constructor.modelName;
   }
   if (!this.image) {
-    this.image = this.card_images[0]?.image_url || "";
+    this.image = this.card_images[0]?.image_url || '';
   }
   if (!this.valueHistory) {
     this.valueHistory = [];
@@ -177,6 +179,7 @@ genericCardSchema.pre("save", async function (next) {
   if (!this.nivoValueHistory) {
     this.nivoValueHistory = [];
   }
+  
   if (this.cardVariants && this.cardVariants.length > 0) {
     const variantIsInCardVariants = this.cardVariants.includes(this.variant);
     if (!this.variant || !variantIsInCardVariants) {
@@ -187,14 +190,14 @@ genericCardSchema.pre("save", async function (next) {
     logger.info(`[WARNING] No variants available for card: ${this.name}`);
     return next();
   }
-  if (this.isModified("quantity") || this.isModified("price")) {
-    logger.info("quantity modified", this.quantity); // this?.chart_datasets?.data?.push(
+  if (this.isModified('quantity') || this.isModified('price')) {
+    logger.info(`quantity modified ${this.quantity}`, this.quantity); // this?.chart_datasets?.data?.push(
     //   createNivoXYValue(this.addedAt, this.totalPrice)
     // );
     const newPriceEntry = createNewPriceEntry(this.price); // Your existing function
     this.priceHistory.push(newPriceEntry);
     const newChartDataEntry = {
-      label: "Your Label",
+      label: 'Your Label',
       data: [{ x: new Date(), y: this.totalPrice }],
     };
     this.chart_datasets.push(newChartDataEntry);
@@ -218,45 +221,37 @@ genericCardSchema.pre("save", async function (next) {
       num: this.totalPrice,
     }; // Your existing function
     this.valueHistory.push(valueEntry);
-    this.nivoValueHistory.push(
-      createDataPoint(valueEntry?.timestamp, valueEntry?.num, "Data: ")
-    );
-    this.tag = "" || "default";
+    this.nivoValueHistory.push(createDataPoint(valueEntry?.timestamp, valueEntry?.num, 'Data: '));
+    this.tag = '' || 'default';
 
     // Update contextual quantities and total prices
-    const contextKeys = ["Deck", "Collection", "Cart"];
+    const contextKeys = ['Deck', 'Collection', 'Cart'];
     contextKeys.forEach((context) => {
       if (context === this.collectionModel) {
-        this.contextualQuantity[context] = calculateContextualQuantity(
-          this,
-          context
-        );
-        this.contextualTotalPrice[context] =
-          this.contextualQuantity[context] * this.price;
+        this.contextualQuantity[context] = calculateContextualQuantity(this, context);
+        this.contextualTotalPrice[context] = this.contextualQuantity[context] * this.price;
       }
     });
   }
 
   if (!this.totalPrice) {
     if (!this.quantity) {
-      logger.info("quantity not set, setting to 1");
+      logger.info('quantity not set, setting to 1');
       this.quantity = 1;
     }
     if (!this.price) {
-      logger.info("price not set, destructuring tcgPrice");
+      logger.info('price not set, destructuring tcgPrice');
       this.price = this.card_prices[0]?.tcgplayer_price || 0;
     }
-    logger.info("totalPrice not set, attempting update");
+    logger.info('totalPrice not set, attempting update');
     this.totalPrice = this.quantity * this.price;
-    logger.info("totalPrice updated", this.totalPrice.green);
+    logger.info('totalPrice updated', this.totalPrice.green);
   }
   if (this.updateRefs) {
     // Handle deck references
     if (this.updateRefs.deckRefs) {
       this.updateRefs.deckRefs.forEach((updateRef) => {
-        const index = this.deckRefs.findIndex((ref) =>
-          ref.deckId.equals(updateRef.deckId)
-        );
+        const index = this.deckRefs.findIndex((ref) => ref.deckId.equals(updateRef.deckId));
         if (index > -1) {
           // Update existing reference
           this.deckRefs[index].quantity = updateRef.quantity;
@@ -271,7 +266,7 @@ genericCardSchema.pre("save", async function (next) {
     if (this.updateRefs.collectionRefs) {
       this.updateRefs.collectionRefs.forEach((updateRef) => {
         const index = this.collectionRefs.findIndex((ref) =>
-          ref.collectionId.equals(updateRef.collectionId)
+          ref.collectionId.equals(updateRef.collectionId),
         );
         if (index > -1) {
           // Update existing reference
@@ -286,9 +281,7 @@ genericCardSchema.pre("save", async function (next) {
     // Handle cart references
     if (this.updateRefs.cartRefs) {
       this.updateRefs.cartRefs.forEach((updateRef) => {
-        const index = this.cartRefs.findIndex((ref) =>
-          ref.cartId.equals(updateRef.cartId)
-        );
+        const index = this.cartRefs.findIndex((ref) => ref.cartId.equals(updateRef.cartId));
         if (index > -1) {
           // Update existing reference
           this.cartRefs[index].quantity = updateRef.quantity;
@@ -303,7 +296,7 @@ genericCardSchema.pre("save", async function (next) {
     this.updateRefs = null;
   }
   try {
-    await this.populate("variant");
+    await this.populate('variant');
 
     // Set rarity after successful population
     if (this.variant) {
@@ -317,24 +310,24 @@ genericCardSchema.pre("save", async function (next) {
   }
 
   const modifiedFields = [
-    "image",
-    "latestPrice",
-    "lastSavedPrice",
-    "totalPrice",
-    "priceHistory",
-    "rarity",
+    'image',
+    'latestPrice',
+    'lastSavedPrice',
+    'totalPrice',
+    'priceHistory',
+    'rarity',
   ];
   modifiedFields.forEach((field) => this.markModified(field));
 
   next();
 });
 
-const CardSet = model("CardSet", cardSetSchema);
+const CardSet = model('CardSet', cardSetSchema);
 // const Variant = model('Variant', variantSchema);
-const CardVariant = model("CardVariant", cardVariantSchema);
-const CardInCollection = mongoose.model("CardInCollection", genericCardSchema);
-const CardInDeck = mongoose.model("CardInDeck", genericCardSchema);
-const CardInCart = mongoose.model("CardInCart", genericCardSchema);
+const CardVariant = model('CardVariant', cardVariantSchema);
+const CardInCollection = model('CardInCollection', genericCardSchema);
+const CardInDeck = model('CardInDeck', genericCardSchema);
+const CardInCart = model('CardInCart', genericCardSchema);
 
 module.exports = {
   CardInCollection,
