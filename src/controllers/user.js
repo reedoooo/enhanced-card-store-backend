@@ -1,10 +1,9 @@
 const { STATUS, MESSAGES } = require('../configs/constants');
 const jwt = require('jsonwebtoken');
 const {
-  validateSignupInput,
   checkForExistingUser,
   findAndValidateUser,
-  validateSigninInput,
+  validateUserCredentials,
 } = require('../middleware/errorHandling/validators');
 const { registerUser } = require('./utils/helpers2');
 const { populateUserDataByContext } = require('./utils/dataUtils');
@@ -51,7 +50,7 @@ exports.signup = async (req, res, next) => {
       `ALL EXFTRACTED DATA: ${username}, ${password}, ${email}, ${firstName}, ${lastName}`,
     );
     // Validate input and check for existing user
-    validateSignupInput(username, password, email);
+    validateUserCredentials(username, password, email);
     await checkForExistingUser(username, email);
 
     // Register user and get verified user details
@@ -94,7 +93,7 @@ exports.signup = async (req, res, next) => {
 };
 exports.signin = async (req, res, next) => {
   const { username, password } = req.body.userSecurityData;
-  validateSigninInput(username, password);
+  validateUserCredentials(username, password);
   const user = await findAndValidateUser(username, password);
   const populatedUser = await populateUserDataByContext(user._id, ['decks', 'collections', 'cart']);
   const accessToken = await generateToken(populatedUser._id, false);

@@ -74,23 +74,24 @@ async function reFetchForSave(card, collectionId, collectionModel, cardModel) {
   const response = await getCardInfo(card?.name);
   // const cardData = response.data;
   // return await createAndSaveCard(response, collectionId, collectionModel, cardModel, 'refetch');
-  return await createAndSaveCardInContext(
-    response,
-    collectionId,
-    cardModel,
-    collectionModel, // Ensures contextual data is passed
-  );
-  // return await createAndSaveCard(response, {
+  // return await createAndSaveCardInContext(
+  //   response,
   //   collectionId,
-  //   collectionModel,
   //   cardModel,
-  //   tag: 'random',
-  // });
+  //   collectionModel, // Ensures contextual data is passed
+  // );
+  return await createAndSaveCard(response, {
+    collectionId,
+    collectionModel,
+    cardModel,
+    tag: 'random',
+  });
 }
 async function fetchAndSaveRandomCard(collectionId, collectionModel, cardModel) {
   const endpoint = 'randomcard.php';
   const response = await axiosInstance.get(endpoint);
   const cardData = response.data;
+  // const cardData = response.data;
   return await createAndSaveCard(cardData, {
     collectionId,
     collectionModel,
@@ -120,6 +121,16 @@ async function deDuplicate(entity, cardModel) {
     }
   }
 }
+/**
+ * Adds or updates cards for an entity.
+ *
+ * @param {Object} entity - The entity to add or update cards for.
+ * @param {Array} cards - The array of card data to add or update.
+ * @param {string} entityId - The ID of the entity.
+ * @param {string} entityType - The type of the entity.
+ * @param {Object} cardModel - The card model to use for querying and updating cards.
+ * @returns {Promise<Object>} - The updated entity.
+ */
 async function addOrUpdateCards(entity, cards, entityId, entityType, cardModel) {
   for (const cardData of cards) {
     logger.info(`Processing card: ${cardData.id}`);
@@ -255,39 +266,51 @@ const fetchAllCollectionIds = async (userId) => {
   logger.info(`${allIds}`.yellow, allIds);
   return allIds;
 };
-async function fetchAndGenerateRandomCardData() {
-  const endpoint = 'randomcard.php';
-  const response = await axiosInstance.get(endpoint);
-  const tcgplayerPrice = response?.data?.card_prices[0]?.tcgplayer_price || 0;
-  const chartData = {
-    id: '30d',
-    color: '#ff0000',
-    data: generateFluctuatingPriceData(31, 100), // Assuming this function generates your chart data
-  };
-  let newCardData = {
-    image: response?.data?.card_images.length > 0 ? response?.data.card_images[0].image_url : '',
-    quantity: 1,
-    price: tcgplayerPrice,
-    totalPrice: tcgplayerPrice,
-    id: response?.data?.id?.toString() || '',
-    name: response?.data?.name,
-    priceHistory: [],
-    dailyPriceHistory: [],
-    type: response?.data?.type,
-    frameType: response?.data?.frameType,
-    desc: response?.data?.desc,
-    atk: response?.data?.atk,
-    def: response?.data?.def,
-    level: response?.data?.level,
-    race: response?.data?.race,
-    attribute: response?.data?.attribute,
-    averagedChartData: {},
-  };
-  newCardData.averagedChartData['30d'] = chartData;
-  const newCard = new RandomCard(newCardData);
-  await newCard.save();
-  return newCard; // Return the saved card data
-}
+// async function fetchAndGenerateRandomCardData() {
+//   const endpoint = 'randomcard.php';
+//   const response = await axiosInstance.get(endpoint);
+//   const tcgplayerPrice = response?.data?.card_prices[0]?.tcgplayer_price || 0;
+//   const chartData24h = {
+//     id: '24h',
+//     color: '#00f00f',
+//     data: generateFluctuatingPriceData(1, 100), // Assuming this function generates your chart data
+//   };
+//   const chartData7d = {
+//     id: '7d',
+//     color: '#bb0000',
+//     data: generateFluctuatingPriceData(8, 100), // Assuming this function generates your chart data
+//   };
+//   const chartData30d = {
+//     id: '30d',
+//     color: '#0000ff',
+//     data: generateFluctuatingPriceData(31, 100), // Assuming this function generates your chart data
+//   };
+//   let newCardData = {
+//     image: response?.data?.card_images.length > 0 ? response?.data.card_images[0].image_url : '',
+//     quantity: 1,
+//     price: tcgplayerPrice,
+//     totalPrice: tcgplayerPrice,
+//     id: response?.data?.id?.toString() || '',
+//     name: response?.data?.name,
+//     priceHistory: [],
+//     dailyPriceHistory: [],
+//     type: response?.data?.type,
+//     frameType: response?.data?.frameType,
+//     desc: response?.data?.desc,
+//     atk: response?.data?.atk,
+//     def: response?.data?.def,
+//     level: response?.data?.level,
+//     race: response?.data?.race,
+//     attribute: response?.data?.attribute,
+//     averagedChartData: {},
+//   };
+//   newCardData.averagedChartData['30d'] = chartData30d;
+//   newCardData.averagedChartData['7d'] = chartData7d;
+//   newCardData.averagedChartData['24h'] = chartData24h;
+//   const newCard = new RandomCard(newCardData);
+//   await newCard.save();
+//   return newCard; // Return the saved card data
+// }
 module.exports = {
   createDefaultCollectionsAndCards,
   // selectFirstVariant,
@@ -297,7 +320,7 @@ module.exports = {
   fetchAllCollectionIds,
   addOrUpdateCards,
   removeCards,
-  fetchAndGenerateRandomCardData,
+  // fetchAndGenerateRandomCardData,
   // fetchAndSaveRandomCard,
   // fetchAndSaveRandomDeck,
   // fetchAndSaveRandomCollection,

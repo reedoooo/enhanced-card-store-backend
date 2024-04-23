@@ -20,17 +20,17 @@ router.get('/randomCardData', async (req, res, next) => {
 });
 router.post('/ygopro', async (req, res, next) => {
   const { searchParams, user, searchTerm } = req.body;
-  logger.info('searchTerm', searchTerm);
-
+  logger.info(`SEARCH TERM: ${JSON.stringify(searchTerm)}`);
+    // {
+    //   name: searchTerm,
+    //   race: searchParams?.race,
+    //   type: searchParams?.type,
+    //   level: searchParams?.level,
+    //   attribute: searchParams?.attribute,
+    //   userId: user,
+    // }
   cardController
-    .fetchAndTransformCardData({
-      name: searchTerm,
-      race: searchParams?.race,
-      type: searchParams?.type,
-      level: searchParams?.level,
-      attribute: searchParams?.attribute,
-      userId: user,
-    })
+    .fetchAndTransformCardData(searchTerm.searchTerm)
     .then((transformedCards) => {
       res.json({ data: transformedCards });
     });

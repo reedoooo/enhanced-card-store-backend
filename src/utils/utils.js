@@ -6,13 +6,12 @@ const axiosInstance = axios.create({
 });
 // !--------------------! Utility Functions !--------------------!
 function queryBuilder(data) {
-  logger.info(
-    `[SEARCH QUERY CONTENTS][${data.searchTerm}, ${data.race}, ${data.type}, ${data.level}, ${data.attribute}, ${data.id}]`,
-  );
+  // logger.info(
+  //   `[SEARCH QUERY CONTENTS][${data.searchTerm}, ${data.race}, ${data.type}, ${data.level}, ${data.attribute}, ${data.id}]`,
+  // );
 
   const queryParts = [
-    (data && `fname=${encodeURIComponent(data)}`) ||
-      (data.searchTerm && `fname=${encodeURIComponent(data.searchTerm)}`),
+    data && `fname=${encodeURIComponent(data)}`,
     data.race && `race=${encodeURIComponent(data.race)}`,
     data.type && `type=${encodeURIComponent(data.type)}`,
     data.level && `level=${encodeURIComponent(data.level)}`,
@@ -143,7 +142,7 @@ function removeDuplicatePriceHistoryFromCollection(cards) {
 const getCardInfo = async (cardName) => {
   try {
     const { data } = await axiosInstance.get(`/cardinfo.php?name=${encodeURIComponent(cardName)}`);
-    // logger.info('Card info:', data?.data[0]);
+    logger.info('Card info:', data?.data[0]);
     return data?.data[0];
   } catch (error) {
     logger.error(`Error fetching card info for card NAME ${cardName}:`, error);

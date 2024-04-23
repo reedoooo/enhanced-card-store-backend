@@ -130,7 +130,7 @@ CollectionSchema.pre('save', async function (next) {
         });
 
         this.newNivoChartData = nivoChartArray;
-        this.selectedChartData = nivoChartArray[0];
+        this.selectedChartData = nivoChartArray[this.selectedChartDataKey];
       }
     }
     this.totalPrice = newTotalPrice;

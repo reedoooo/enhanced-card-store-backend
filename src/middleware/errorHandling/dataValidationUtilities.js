@@ -15,11 +15,7 @@ const validateVarType = (value, type) => {
   }
 };
 
-const isValidObjectId = (id) => {
-  const ObjectIdRegEx = /^[0-9a-fA-F]{24}$/;
-  return ObjectIdRegEx.test(id);
-};
-
+const isValidObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
 const validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 export default {
