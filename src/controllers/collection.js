@@ -10,7 +10,7 @@ const { setupDefaultCollectionsAndCards, fetchAllCollectionIds } = require('./ut
 const logger = require('../configs/winston');
 const { sendJsonResponse } = require('../utils/utils');
 const { addOrUpdateCards, removeCards } = require('./utils/helpers');
-const { validateContextEntityExists } = require('../middleware/errorHandling/validators');
+const { validateEntityPresence } = require('../middleware/errorHandling/validators');
 
 // ! COLLECTION ROUTES (GET, CREATE, UPDATE, DELETE) !
 /**
@@ -21,7 +21,7 @@ const { validateContextEntityExists } = require('../middleware/errorHandling/val
  */
 exports.getAllCollectionsForUser = async (req, res, next) => {
   const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
-  validateContextEntityExists(populatedUser, 'User not found', 404, res);
+  validateEntityPresence(populatedUser, 'User not found', 404, res);
 
   sendJsonResponse(
     res,
@@ -70,7 +70,7 @@ exports.updateExistingCollection = async (req, res, next) => {
  * This function fetches the user's context, logs the deletion attempt, filters out the collection to be deleted from the user's list of collections,
  * deletes the collection from the database, saves the updated user context, and finally logs the successful deletion.
  * It then sends a JSON response indicating the successful deletion of the collection.
- * 
+ *
  * @param {Request} req - The request object, containing the user ID in `req.params.userId` and the collection ID in `req.params.collectionId`.
  * @param {Response} res - The response object used to send back a JSON response.
  * @param {NextFunction} next - The next middleware function in the stack.
