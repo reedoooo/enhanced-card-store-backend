@@ -60,8 +60,10 @@ exports.createNewCollection = async (req, res, next) => {
 exports.updateExistingCollection = async (req, res, next) => {
   const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
   const collection = findUserContextItem(populatedUser, 'allCollections', req.params.collectionId);
-  Object.assign(collection, req.body.updatedCollectionData);
+  Object.assign(collection, req.body);
   await collection.save();
+
+  await populatedUser.save();
 
   sendJsonResponse(res, 200, 'Collection updated successfully', collection);
 };

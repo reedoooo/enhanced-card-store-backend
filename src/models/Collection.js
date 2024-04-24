@@ -124,13 +124,13 @@ CollectionSchema.pre('save', async function (next) {
 
         this.averagedChartData = safeAggregatedMap;
         // safeAggregatedMap.get will return undefined if the key is not found
-        // this.selectedChartData = safeAggregatedMap[this.selectedChartDataKey];
+        this.selectedChartData = safeAggregatedMap[this.selectedChartDataKey];
         const nivoChartArray = Object.keys(safeAggregatedMap).map((key) => {
           return safeAggregatedMap[key];
         });
 
         this.newNivoChartData = nivoChartArray;
-        this.selectedChartData = nivoChartArray[this.selectedChartDataKey];
+        // this.selectedChartData = nivoChartArray[this.selectedChartDataKey];
       }
     }
     this.totalPrice = newTotalPrice;
