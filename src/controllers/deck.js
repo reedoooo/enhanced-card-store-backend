@@ -19,6 +19,12 @@ exports.getDeckById = async (req, res, next) => {
   validateEntityPresence(deck, 'Deck not found', 404, res);
   sendJsonResponse(res, 200, `Fetched deck for user ${req.params.userId}`, deck);
 };
+exports.getCardsFromDeck = async (req, res, next) => {
+  const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['decks']);
+  const deck = findUserDeck(populatedUser, req.params.deckId);
+  validateEntityPresence(deck, 'Deck not found', 404, res);
+  sendJsonResponse(res, 200, `Fetched cards for deck ${req.params.deckId}`, deck.cards);
+};
 exports.updateDeckDetails = async (req, res, next) => {
   const { name, description, tags, color } = req.body;
   const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['decks']);
@@ -71,7 +77,7 @@ exports.addCardsToDeck = async (req, res, next) => {
   let cardsArray = [];
   !Array.isArray(req.body.cards)
     ? cardsArray.push(req.body.cards)
-    : logger.info('Cards array received:', cardsArray);
+    : (cardsArray = req.body.cards);
 
   const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['decks']);
   const deck = findUserDeck(populatedUser, req.params.deckId);
@@ -85,7 +91,7 @@ exports.addCardsToDeck = async (req, res, next) => {
   // logger.info(
   //   `Cards added to deck ${req.params.deckId} successfully. ${updatedDeck?.cards?.find((c) => c.id?.toString() === cardsArray[0]?.id?.toString())}`,
   // );
-  // await updatedDeck.save();
+  await updatedDeck.save();
   await populatedUser.save();
   sendJsonResponse(res, 200, 'Cards added to deck successfully.', {
     data: updatedDeck,

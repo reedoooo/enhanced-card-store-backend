@@ -174,7 +174,38 @@ const FILE_CONSTANTS = {
       ? path.join(__dirname, '..', 'public', 'images', 'cards')
       : path.join(__dirname, '..', 'data', 'cards'),
 };
-
+let BASE_STAT_CONFIGS = [
+  { name: 'highPoint', statKey: 'highPoint', label: 'High Point' },
+  { name: 'lowPoint', statKey: 'lowPoint', label: 'Low Point' },
+  { name: 'average', statKey: 'average', label: 'Average' },
+  { name: 'percentageChange', statKey: 'percentageChange', label: 'Percentage Change' },
+  { name: 'priceChange', statKey: 'priceChange', label: 'Price Change' },
+  { name: 'avgPrice', statKey: 'avgPrice', label: 'Average Price' },
+  { name: 'volume', statKey: 'volume', label: 'Volume' },
+  { name: 'volatility', statKey: 'volatility', label: 'Volatility' },
+];
+const DATE_RANGES = [
+  { id: '7d', points: 7, color: '#FF8473', type: 'date', config: BASE_STAT_CONFIGS },
+  { id: '30d', points: 30, color: '#FF8473', type: 'date', config: BASE_STAT_CONFIGS },
+  { id: '90d', points: 90, color: '#FF8473', type: 'date', config: BASE_STAT_CONFIGS },
+  { id: '180d', points: 180, color: '#FF8473', type: 'date', config: BASE_STAT_CONFIGS },
+  { id: '270d', points: 270, color: '#FF8473', type: 'date', config: BASE_STAT_CONFIGS },
+  { id: '365d', points: 365, color: '#FF8473', type: 'date', config: BASE_STAT_CONFIGS },
+];
+const TIME_RANGES = [
+  { label: '24hr', points: 24, color: '#FF8473', type: 'time', config: BASE_STAT_CONFIGS },
+];
+const DATE_TIME_RANGES = DATE_RANGES.concat(TIME_RANGES);
+/**
+ * Helper function to dynamically generate statistic configurations with labels.
+ */
+const generateRangeStatConfigWithLabels = (range) => {
+  return BASE_STAT_CONFIGS.map((config) => ({
+    ...config,
+    label: `${config.label} in last ${range.points} ${range.type === 'date' ? 'Days' : 'Hours'}`,
+    color: range.color, // Assume color is passed correctly in `range`
+  }));
+};
 module.exports = {
   STATUS: STATUS,
   MESSAGES: MESSAGES,
@@ -183,4 +214,9 @@ module.exports = {
   ERROR_TYPES: ERROR_TYPES,
   LOG_TYPES: LOG_TYPES,
   FILE_CONSTANTS: FILE_CONSTANTS,
+  DATE_TIME_RANGES: DATE_TIME_RANGES,
+  DATE_RANGES: DATE_RANGES,
+  TIME_RANGES: TIME_RANGES,
+  BASE_STAT_CONFIGS: BASE_STAT_CONFIGS,
+  generateRangeStatConfigWithLabels,
 };

@@ -43,7 +43,7 @@ const UserSchema = new Schema(
   { timestamps: true },
 );
 UserSchema.pre('save', async function (next) {
-  logger.info('[Pre-save hook for user:]'.red, this.username);
+  logger.info(`[Pre-save hook for user: `.red + `${this.username}`.white + `]`.red);
   // IF THIS IS THE FIRST TIME THE USER IS SAVED, LOG THE ENTIRE USER OBJECT
   if (this.isNew) {
     logger.info('[New User:]', this);

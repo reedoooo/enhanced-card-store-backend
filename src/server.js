@@ -9,7 +9,8 @@ const cors = require('cors');
 const http = require('http');
 const path = require('path');
 const compression = require('compression');
-const sdk = require('api')('@tcgplayer/v1.39.0#1mld74kq6w82u3');
+const moment = require('moment-timezone');
+moment.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
 
 require('./services/runCron');
 const routes = require('./routes');
@@ -29,6 +30,7 @@ const environment = process.env.NODE_ENV || 'development';
 const PORT = process.env.PORT || 3001;
 
 process.env.TZ = 'America/Seattle';
+moment.tz.setDefault('America/Seattle');
 
 // 3. Middleware Configuration
 const corsOptions = {
@@ -38,11 +40,6 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 200,
 };
-
-sdk
-  .app_AuthorizeApplication({ authCode: 'authCode' })
-  .then(({ data }) => console.log(data))
-  .catch((err) => console.error(err));
 
 app.use(cors(corsOptions));
 app.use(helmet());

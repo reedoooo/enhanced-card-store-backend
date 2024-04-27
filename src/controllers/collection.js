@@ -59,9 +59,25 @@ exports.createNewCollection = async (req, res, next) => {
  */
 exports.updateExistingCollection = async (req, res, next) => {
   const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
-  const collection = findUserContextItem(populatedUser, 'allCollections', req.params.collectionId);
-  Object.assign(collection, req.body.updatedCollectionData);
+  let collection = populatedUser.allCollections.find(
+    (c) => c._id.toString() === req.params.collectionId,
+  );
+  if (!collection) {
+    return res.status(404).json({ error: 'Collection not found' });
+  }
+  logger.info(`UPDATING COLLECTION VALUES: ${JSON.stringify(req.body)}`);
+  Object.assign(collection, req.body);
+  // const updated collection = {
+  //   name: req.body.name,
+  //   description: req.body.description,
+  //   cards: req.body.cards,
+  //   selectedChartData: req.body.selectedChartData,
+  //   selectedChartDataKey: req.body.selectedChartDataKey,
+  // };
+  // collection = Object.assign(collection, 
   await collection.save();
+
+  await populatedUser.save();
 
   sendJsonResponse(res, 200, 'Collection updated successfully', collection);
 };

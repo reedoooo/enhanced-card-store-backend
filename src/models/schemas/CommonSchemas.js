@@ -34,8 +34,6 @@ function arrayLimit(val) {
     '270d': 270,
     '365d': 365,
   };
-
-  // Use 'this.id' to access the id of the chart and apply the appropriate limit
   return val.length <= (limits[this.id] || 0);
 }
 async function updateTotals(cardModel, cardsField) {
@@ -96,12 +94,6 @@ const priceEntrySchema = createSchema({
   num: { type: Number, min: 0 },
   timestamp: { type: Date, default: Date.now },
 });
-const createNewPriceEntry = (price) => {
-  return {
-    num: price,
-    timestamp: new Date(),
-  };
-};
 const cardImageSchema = createSchema({
   // id: { type: String, required: true },
   id: { type: Number, required: false },
@@ -165,44 +157,18 @@ const collectionPriceChangeHistorySchema = new Schema({
     },
   ],
 });
-const collectionStatisticsSchema = new Schema({
-  highPoint: { type: Number, min: 0 },
-  lowPoint: { type: Number, min: 0 },
-  average: { type: Number, min: 0 },
-  percentageChange: { type: Number },
-  priceChange: { type: Number },
-  avgPrice: { type: Number, min: 0 },
-  volume: { type: Number, min: 0 },
-  volatility: { type: Number, min: 0 },
-  twentyFourHourAverage: {
-    startDate: Date,
-    endDate: Date,
-    lowPoint: Number,
-    highPoint: Number,
-    priceChange: Number,
-    percentageChange: Number,
-    priceIncreased: Boolean,
-  },
-});
 const dataPointSchema = createSchema(
   {
     label: { type: String, required: false, default: 'Label' },
     id: { type: String, required: false },
-    x: { type: Date, required: false, default: Date.now },
+    x: { type: Date, required: false },
     y: { type: Number, min: 0, required: false, default: 0 },
   },
   { _id: false },
 );
-const createDataPoint = (x, y, stringVal) => ({
-  label: `${Date.now()}`,
-  // label: `${stringVal}: [${y}] [${x}]`,
-  id: uuidv4(),  // Generates a unique identifier
-  // id: `${Date.now()}`,
-  x,
-  y,
-  // x: new Date(),
-  // y: 0,
-});
+
+// const statDataMapSchema = new Schema({
+
 const chartDataSchema = new Schema({
   id: String,
   name: String,
@@ -211,6 +177,48 @@ const chartDataSchema = new Schema({
   data: {
     type: [dataPointSchema],
     validate: [arrayLimit, `{PATH} exceeds the limit of {VALUE}`],
+  },
+});
+const lineStyleSchema = new Schema(
+  {
+    stroke: { type: String, required: true },
+    strokeWidth: { type: Number, required: true },
+  },
+  { _id: false },
+);
+const collectionStatisticsSchema = new Schema({
+  id: { type: String, required: true },
+  name: { type: String, required: true },
+  color: { type: String, required: true },
+  data: {
+    type: Map,
+    of: new Schema({
+      name: {
+        type: String,
+        enum: [
+          'highPoint',
+          'lowPoint',
+          'average',
+          'percentageChange',
+          'priceChange',
+          'avgPrice',
+          'volume',
+          'volatility',
+        ],
+        required: true,
+      },
+      label: { type: String, required: true },
+      value: { type: Number, min: 0, required: true },
+      color: { type: String, required: true },
+      axis: { type: String, required: true },
+      lineStyle: lineStyleSchema,
+      legend: { type: String, required: true },
+      legendOrientation: {
+        type: String,
+        required: true,
+      },
+    }),
+    required: true,
   },
 });
 const averagedDataSchema = new Schema(
@@ -227,22 +235,6 @@ const averagedDataSchema = new Schema(
   },
   { _id: false },
 );
-function calculateContextualQuantity(card, context) {
-  logger.info('calculating contextual quantity for: ', card.name, 'in context: ', context);
-  switch (context) {
-    case 'SearchHistory':
-      return card.quantity;
-    case 'Deck':
-      return card.quantity;
-    case 'Collection':
-      return card.quantity;
-    case 'Cart':
-      return card.quantity;
-    default:
-      throw new Error('Invalid context');
-  }
-}
-
 module.exports = {
   priceEntrySchema,
   commonSchemaOptions,
@@ -259,7 +251,4 @@ module.exports = {
   createCommonFields,
   createSchemaWithCommonFields,
   updateTotals,
-  calculateContextualQuantity,
-  createNewPriceEntry,
-  createDataPoint,
 };

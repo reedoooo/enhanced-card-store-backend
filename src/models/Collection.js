@@ -9,17 +9,19 @@ const {
   createSchemaWithCommonFields,
   collectionPriceChangeHistorySchema,
   commonSchemaOptions,
+  dataPointSchema,
 } = require('./schemas/CommonSchemas');
+require('colors');
+
 const logger = require('../configs/winston');
 const { CardInCollection } = require('./Card');
+const { generateCardDataPoints, recalculatePriceHistory } = require('../utils/dataUtils.js');
 const {
-  updateCollectionStatistics,
-  generateCardDataPoints,
-  recalculatePriceHistory,
-  processAndSortTimeData,
-  aggregateAndValidateTimeRangeMap,
-} = require('./utils/dataProcessing');
-require('colors');
+  convertToDataPoints,
+  processDataForRanges,
+  generateStatisticsForRanges,
+} = require('../utils/dateUtils.js');
+const { validate } = require('node-cron');
 
 const DeckSchema = createSchemaWithCommonFields('cards', 'CardInDeck');
 const CartSchema = createSchemaWithCommonFields('items', 'CardInCart');
@@ -31,17 +33,15 @@ const CollectionSchema = new Schema(
     dailyPriceChange: Number,
     dailyPercentageChange: String,
     newTotalPrice: Number,
-    collectionStatistics: collectionStatisticsSchema,
-    latestPrice: priceEntrySchema,
-    lastSavedPrice: priceEntrySchema,
+
     dailyCollectionPriceHistory: [priceEntrySchema],
     collectionPriceChangeHistory: [collectionPriceChangeHistorySchema],
+
+    latestPrice: priceEntrySchema,
+    lastSavedPrice: priceEntrySchema,
     collectionPriceHistory: [priceEntrySchema],
+    allDataPoints: [dataPointSchema],
     collectionValueHistory: [priceEntrySchema],
-    nivoChartData: {
-      type: Map,
-      of: chartDataSchema,
-    },
     averagedChartData: {
       type: Map,
       of: chartDataSchema,
@@ -59,40 +59,70 @@ const CollectionSchema = new Schema(
         growth: 0,
       },
     },
+    collectionStatistics: {
+      type: Map,
+      of: collectionStatisticsSchema,
+      default: () =>
+        new Map([
+          [
+            '24hr',
+            {
+              id: '24hr',
+              name: '24 Hour Stats',
+              color: 'blue',
+              data: new Map([
+                [
+                  'highPoint',
+                  {
+                    name: 'highPoint',
+                    label: 'High Point',
+                    color: '#FF8473',
+                    axis: 'y',
+                    lineStyle: { stroke: '#FF8473', strokeWidth: 2 },
+                    value: 0,
+                    legend: 'High Point',
+                    legendOrientation: 'vertical',
+                  },
+                ],
+              ]),
+            },
+          ],
+        ]),
+    },
     selectedStatDataKey: {
       type: String,
       default: 'highpoint',
+    },
+    selectedStat: {
+      type: Object,
+      default: {
+        id: 'highpoint',
+        key: 'highPoint',
+        label: '24 Hour Stats',
+        color: '#FF8473',
+        axis: 'y',
+        lineStyle: { stroke: '#FF8473', strokeWidth: 2 },
+        // VALUE TYPES: STRING, NUMBER, PERCENTAGE
+        value: 0,
+        legend: `High Point`,
+        legendOrientation: 'vertical',
+      },
     },
     selectedColorDataKey: {
       type: String,
       default: 'blue',
     },
-    newNivoChartData: [
-      {
-        id: String,
-        color: String,
-        data: [{ x: Date, y: Number }],
-      },
-    ],
     cards: [{ type: Schema.Types.ObjectId, ref: 'CardInCollection' }],
   },
   commonSchemaOptions,
 );
 CollectionSchema.pre('save', async function (next) {
-  logger.info(`[Pre-save hook for collection:] ${this.name}`);
+  logger.info(`[Pre-save hook for collection: `.red + `${this.name}`.white + `]`.red);
+
   try {
-    // if (this.isNew) {
-    // Initialize selectedChartData based on the key
-    // const selectedData = this.averagedChartData.get(this.selectedChartDataKey);
-    //   if (selectedData) {
-    //     this.selectedChartData = selectedData;
-    //   }
-    // }
-    const prevTotal = this.totalPrice;
-    const prevQuantity = this.totalQuantity;
-    let newTotalPrice = 0;
-    let newTotalQuantity = 0;
     if (Array.isArray(this.cards) && this.cards.length > 0) {
+      let newTotalPrice = 0;
+      let newTotalQuantity = 0;
       const cardsInCollection = await CardInCollection.find({
         _id: { $in: this.cards.map((id) => id) },
       });
@@ -105,46 +135,49 @@ CollectionSchema.pre('save', async function (next) {
         this.collectionPriceHistory = cardDataPoints;
         const cumulativeDataPoints = recalculatePriceHistory(cardDataPoints);
         this.collectionValueHistory = cumulativeDataPoints;
-        const sortedData = processAndSortTimeData(cumulativeDataPoints);
-        this.nivoChartData = sortedData;
-        // Object.keys(sortedData).forEach((rangeKey, index) => {
-        //   if (rangeKey && sortedData[rangeKey]) {
-        //     // logger.info("[INFO] RANGE KEY: ", rangeKey);
-        //     // logger.info(`[INFO][${index + 1}]: `.red, sortedData[rangeKey]);
-        //     sortedData[rangeKey] = aggregateAndAverageData(sortedData[rangeKey]);
-        //   }
-        // });
-        const safeAggregatedMap = aggregateAndValidateTimeRangeMap(sortedData);
-        Object.entries(safeAggregatedMap).forEach(([key, value]) => {
-          this.averagedChartData?.set(key, value);
-        });
-        // Object.entries(safeAggregatedMap).forEach(([key, value]) => {
-        //   this.selectedChartData?.set(this.selectedChartDataKey, value);
-        // });
-
-        this.averagedChartData = safeAggregatedMap;
-        // safeAggregatedMap.get will return undefined if the key is not found
-        // this.selectedChartData = safeAggregatedMap[this.selectedChartDataKey];
-        const nivoChartArray = Object.keys(safeAggregatedMap).map((key) => {
-          return safeAggregatedMap[key];
-        });
-
-        this.newNivoChartData = nivoChartArray;
-        this.selectedChartData = nivoChartArray[this.selectedChartDataKey];
+        const formattedDataPoints = convertToDataPoints(cumulativeDataPoints);
+        this.allDataPoints = formattedDataPoints;
+        const averageData = processDataForRanges(formattedDataPoints);
+        this.averagedChartData = averageData;
       }
+      this.totalPrice = newTotalPrice;
+      this.totalQuantity = newTotalQuantity;
+      const generatedStatistics = generateStatisticsForRanges(this.allDataPoints);
+      if (generatedStatistics instanceof Map) {
+        logger.info(`[GENERATED STATISTICS] ${generatedStatistics.get('24hr')}`);
+        this.collectionStatistics = generatedStatistics;
+      } else {
+        logger.error('[INVALID TYPE] Expected a Map object.');
+      }
+      generatedStatistics.forEach((value, key) => {
+        if (typeof key !== 'string') {
+          logger.error(`Invalid key for key ${key}: Expected a string.`);
+        }
+        if (typeof value !== 'object') {
+          logger.error(`Invalid value for key ${key}: Expected an object.`);
+        }
+      });
+      // this.collectionStatistics = generatedStatistics;
+      // const statsAtSelectedTimeRange = this.collectionStatistics.get(this.selectedChartDataKey);
+      // if (statsAtSelectedTimeRange) {
+      //   logger.info(
+      //     `[STATS FOUND AT RANGE: ${this.selectedChartDataKey}][${statsAtSelectedTimeRange.name}]`
+      //       .green,
+      //   );
+      //   const selectedStatData = statsAtSelectedTimeRange.data.get(this.selectedStatDataKey);
+      //   if (selectedStatData) {
+      //     logger.info(
+      //       `[SELECTED STAT DATA FOUND: ${this.selectedStatDataKey}][${selectedStatData.name}]`
+      //         .green,
+      //     );
+      //     this.selectedStat = selectedStatData;
+      //   } else {
+      //     logger.error('Selected stat data key not found.');
+      //   }
+      // } else {
+      //   logger.error('Selected chart data key not found.');
+      // }
     }
-    this.totalPrice = newTotalPrice;
-    this.totalQuantity = newTotalQuantity;
-    this.collectionStatistics = updateCollectionStatistics({
-      newTotal: newTotalPrice,
-      oldTotal: prevTotal,
-      newQuantity: newTotalQuantity,
-      oldQuantity: prevQuantity,
-      oldHighPoint: this.collectionStatistics?.highPoint || 0,
-      oldLowPoint: this.collectionStatistics?.lowPoint || 0,
-      oldAvgPrice: this.collectionStatistics?.avgPrice || 0,
-      oldPercentageChange: this.collectionStatistics?.percentageChange || 0,
-    });
 
     this.lastUpdated = new Date();
     logger.info('[INFO][ 6 ]'.green, 'all values updated');
@@ -152,11 +185,11 @@ CollectionSchema.pre('save', async function (next) {
     this.markModified('totalQuantity');
     this.markModified('collectionPriceHistory');
     this.markModified('collectionValueHistory');
-    this.markModified('nivoChartData');
-    this.markModified('averagedChartData');
+    // this.markModified('nivoChartData');
+    // this.markModified('averagedChartData');
     this.markModified('selectedChartData');
-    this.markModified('newNivoChartData');
-    this.markModified('collectionStatistics');
+    // this.markModified('newNivoChartData');
+    // this.markModified('collectionStatistics');
     this.markModified('lastUpdated');
 
     next();

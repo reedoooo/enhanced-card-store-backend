@@ -2,13 +2,6 @@ const { formatISO } = require('date-fns');
 const logger = require('../../configs/winston');
 const roundToNearestHundredth = (num) => Math.round(num * 100) / 100;
 exports.convertChartDataToArray = (averagedChartData) => Object.values(averagedChartData);
-exports.recalculatePriceHistory = (cardDataPoints) => {
-  let totalValue = 0;
-  return cardDataPoints.map((dataPoint) => {
-    totalValue += dataPoint.num;
-    return { num: totalValue, timestamp: dataPoint.timestamp };
-  });
-};
 const getLabelsAndThresholds = () => [
   {
     label: '24hr',
@@ -135,6 +128,16 @@ const seedChartData = (chart, range) => {
 
   return chart;
 };
+/**
+ * Processes and sorts time series data for card transactions.
+ * This function takes an array of card data objects, each containing a timestamp and a numerical value (e.g., price),
+ * and organizes them into time range categories defined in `getLabelsAndThresholds`. Each category (e.g., '24hr', '7d')
+ * will contain data points that fall within its respective time threshold. Data points are then processed to ensure
+ * they match the expected number of points per category, either by sampling or interpolating data as necessary.
+ *
+ * @param {Array} cardDataArray - An array of objects representing card data, each with a `timestamp` and a `num` property.
+ * @returns {Object} An object mapping each time range label to its processed chart data, including metadata and an array of data points.
+ */
 exports.processAndSortTimeData = (cardDataArray) => {
   if (!Array.isArray(cardDataArray)) {
     logger.error('Invalid cardDataArray provided to processAndSortTimeData.');
@@ -231,15 +234,6 @@ exports.aggregateAndValidateTimeRangeMap = (timeRangeDataMap) => {
 
   return timeRangeDataMap;
 };
-exports.generateCardDataPoints = (cards) =>
-  cards
-    .sort((a, b) => new Date(a.addedAt) - new Date(b.addedAt))
-    .flatMap((card) =>
-      Array.from({ length: card.quantity }, () => ({
-        num: card.price,
-        timestamp: new Date(card.addedAt).toISOString(),
-      })),
-    );
 exports.processTimeSeriesData = (data) => {
   const now = new Date();
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -274,26 +268,4 @@ exports.processTimeSeriesData = (data) => {
   }, hourlyDataPoints[0].y || 0);
 
   return hourlyDataPoints;
-};
-exports.updateCollectionStatistics = (data) => {
-  const {
-    newTotal,
-    oldTotal,
-    newQuantity,
-    oldQuantity,
-    oldHighPoint,
-    oldLowPoint,
-    oldAvgPrice,
-    oldPercentageChange,
-  } = data;
-
-  return {
-    totalQuantity: newTotal,
-    totalPrice: newTotal * newQuantity,
-    highPoint: Math.max(oldHighPoint, newTotal),
-    lowPoint: Math.min(oldLowPoint || Infinity, newTotal),
-    avgPrice: newQuantity ? newTotal / newQuantity : 0,
-    priceChange: newTotal - oldTotal, // Assuming price change is between new and old total
-    percentageChange: oldLowPoint ? ((newTotal - oldLowPoint) / oldLowPoint) * 100 : 0,
-  };
 };

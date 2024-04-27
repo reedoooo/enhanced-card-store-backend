@@ -100,28 +100,24 @@ exports.removeCardsFromCart = async (req, res, next) => {
   }
 };
 exports.addCardsToCart = async (req, res, next) => {
-  const { userId, cartUpdates, method, type } = req.body; // Assuming cartUpdates contains the updates for the cart
+  const { items, type } = req.body; // Assuming cartUpdates contains the updates for the cart
   // logger.info('cartUpdates', cartUpdates);
-  logger.info('method', method);
-  logger.info('type', type);
 
-  if (!Array.isArray(cartUpdates)) {
+  if (!Array.isArray(items)) {
     return res.status(400).json({ error: 'Cart updates must be an array' });
   }
 
-  const populatedUser = await populateUserDataByContext(userId, ['cart']);
+  const populatedUser = await populateUserDataByContext(req.params.userId, ['cart']);
   if (!populatedUser || !populatedUser.cart) {
     return res.status(404).json({ error: 'Cart not found' });
   }
 
   let { cart } = populatedUser; // Using let since we might modify the cart
   logger.info('cart', cart);
-  for (const update of cartUpdates) {
-    logger.info('update', update);
-    logger.info('cartUpdatescartUpdatescartUpdates', cartUpdates);
+  for (const update of items) {
+    logger.info('CART ITEM TO UPDATE: ' + `${update.name}`.yellow);
     const existingCardIndex = cart.items.findIndex((c) => c.id === update.id);
     if (existingCardIndex !== -1) {
-      // Card exists, so update it
       const existingCard = cart.items[existingCardIndex];
       updateCardQuantity(existingCard, update.quantity, type); // Assume this is your logic to update quantity
     } else {
