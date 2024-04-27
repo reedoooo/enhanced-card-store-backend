@@ -147,7 +147,7 @@ async function addOrUpdateCards(entity, cards, entityId, entityType, cardModel) 
       }
       if (cardInEntity) {
         logger.info(
-          `Updating existing card: ${cardInEntity.name} with quantity: ${cardInEntity.quantity.yellow}`,
+          `Updating existing card: ${cardInEntity.name} with quantity: ${cardInEntity.quantity}`.yellow,
           cardInEntity,
         );
         cardInEntity.quantity = cardInEntity.quantity + 1;
@@ -155,7 +155,7 @@ async function addOrUpdateCards(entity, cards, entityId, entityType, cardModel) 
         cardInEntity.totalPrice = cardInEntity.quantity * cardInEntity.price;
         await cardInEntity.save();
         logger.info(
-          `Updated card: ${cardInEntity.name} with quantity: ${cardData.quantity.green}`,
+          `Updated card: ${cardInEntity.name} with quantity: ${cardData.quantity}`.green,
           cardData.quantity,
         );
         entity.totalQuantity += cardData.quantity;

@@ -19,6 +19,12 @@ exports.getDeckById = async (req, res, next) => {
   validateEntityPresence(deck, 'Deck not found', 404, res);
   sendJsonResponse(res, 200, `Fetched deck for user ${req.params.userId}`, deck);
 };
+exports.getCardsFromDeck = async (req, res, next) => {
+  const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['decks']);
+  const deck = findUserDeck(populatedUser, req.params.deckId);
+  validateEntityPresence(deck, 'Deck not found', 404, res);
+  sendJsonResponse(res, 200, `Fetched cards for deck ${req.params.deckId}`, deck.cards);
+};
 exports.updateDeckDetails = async (req, res, next) => {
   const { name, description, tags, color } = req.body;
   const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['decks']);

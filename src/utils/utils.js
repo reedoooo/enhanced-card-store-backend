@@ -1,6 +1,7 @@
 // const { default: axios } = require('axios');
 const axios = require('axios'); // Additional axios import
 const logger = require('../configs/winston');
+const { createNewPriceEntry } = require('./dataUtils');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
@@ -47,9 +48,9 @@ function generateFluctuatingPriceData(days, basePrice) {
  * @returns {Promise<Array>} - A promise that resolves to an array of card prices.
  */
 async function fetchCardPrices(cardName) {
-  const { data } = await axiosInstance.get(`cardinfo.php?fname=${encodeURIComponent(cardName)}`);
+  const { data } = await axiosInstance.get(`cardinfo.php?name=${encodeURIComponent(cardName)}`);
   const cardPrices = data?.data[0]?.card_prices;
-  logger.info(`CARD PRICES: ${JSON.stringify(cardPrices)}`);
+  // logger.info(`[FETCHED CARD PRICES][${cardName}][PRICE: ` + `${cardPrices[0].tcgplayer_price}`.blue + `]`);
   return cardPrices;
 }
 /**
@@ -61,7 +62,7 @@ function sendJsonResponse(res, status, message, data) {
   res.status(status).json({ message, data });
 }
 /**
- * Formats a date object to the format "DD/MM/YYYY, HH:MM".
+ * Formats a date object with previous format "DD/MM, HH:MMam/pm" and returns new formatted date string in the format "DD/MM, HH:MMam/pm".
  * @param {Date} date - The date object to be formatted.
  * @returns {string} - The formatted date string.
  * */
@@ -90,50 +91,39 @@ const formatDate = (date) => {
   return `${day}/${month}, ${hours}:${minutes}${ampm}`;
 };
 /**
- * Creates a new price entry object.
- * @param {number} price - The price to be added to the price entry.
- * @returns {object} - The new price entry object.
- * */
-const createNewPriceEntry = (price) => {
-  return {
-    num: price,
-    timestamp: new Date(),
-  };
-};
-/**
  * Removes duplicate price history entries from a collection of cards.
  * @param {object[]} cards - The collection of cards to be deduplicated.
  * @returns {object[]} - The collection of cards with deduplicated price history.
  * */
-function removeDuplicatePriceHistoryFromCollection(cards) {
-  // Iterate over each card in the collection
-  return cards.map((card) => {
-    const { priceHistory } = card;
-    const uniquePriceHistory = priceHistory.reduce((unique, currentEntry) => {
-      const duplicate = unique.find((entry) => entry.num === currentEntry.num);
-      if (!duplicate) {
-        unique.push(currentEntry); // If it's not a duplicate, add to the result
-      } else {
-        // If it is a duplicate, keep the entry with the earliest timestamp
-        const currentTimestamp = new Date(currentEntry.timestamp).getTime();
-        const duplicateTimestamp = new Date(duplicate.timestamp).getTime();
+// function removeDuplicatePriceHistoryFromCollection(cards) {
+//   // Iterate over each card in the collection
+//   return cards.map((card) => {
+//     const { priceHistory } = card;
+//     const uniquePriceHistory = priceHistory.reduce((unique, currentEntry) => {
+//       const duplicate = unique.find((entry) => entry.num === currentEntry.num);
+//       if (!duplicate) {
+//         unique.push(currentEntry); // If it's not a duplicate, add to the result
+//       } else {
+//         // If it is a duplicate, keep the entry with the earliest timestamp
+//         const currentTimestamp = new Date(currentEntry.timestamp).getTime();
+//         const duplicateTimestamp = new Date(duplicate.timestamp).getTime();
 
-        if (currentTimestamp < duplicateTimestamp) {
-          // Replace the duplicate with the current entry if it's earlier
-          const duplicateIndex = unique.indexOf(duplicate);
-          unique[duplicateIndex] = currentEntry;
-        }
-      }
-      return unique;
-    }, []);
+//         if (currentTimestamp < duplicateTimestamp) {
+//           // Replace the duplicate with the current entry if it's earlier
+//           const duplicateIndex = unique.indexOf(duplicate);
+//           unique[duplicateIndex] = currentEntry;
+//         }
+//       }
+//       return unique;
+//     }, []);
 
-    // Return the card with the updated (deduplicated) price history
-    return {
-      ...card,
-      priceHistory: uniquePriceHistory,
-    };
-  });
-}
+//     // Return the card with the updated (deduplicated) price history
+//     return {
+//       ...card,
+//       priceHistory: uniquePriceHistory,
+//     };
+//   });
+// }
 /**
  * Fetches card info from the YGOProDeck API.
  * @param {string} cardName - The ID of the card to fetch.
@@ -337,9 +327,8 @@ module.exports = {
   extractData,
   formatDateTime,
   calculateCollectionValue,
-  createNewPriceEntry,
   formatDate,
-  removeDuplicatePriceHistoryFromCollection,
+  // removeDuplicatePriceHistoryFromCollection,
   constructCardDataObject,
   sendJsonResponse,
   extractRawTCGPlayerData,

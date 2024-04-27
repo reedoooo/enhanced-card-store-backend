@@ -8,11 +8,18 @@ const {
   cardSetSchema,
   averagedDataSchema,
   chartDatasetEntrySchema,
-  createNewPriceEntry,
   dataPointSchema,
-  createDataPoint,
 } = require('./schemas/CommonSchemas');
 const logger = require('../configs/winston');
+const moment = require('moment-timezone');
+const { extendMoment } = require('moment-range');
+const { generateSingleCardDataPoints, createNewPriceEntry } = require('../utils/dataUtils');
+
+const momentWithRange = extendMoment(moment);
+momentWithRange.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
+const timezone = 'America/Seattle';
+const now = momentWithRange().tz(timezone);
+moment.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
 // COMMON FIELD SCHEMAS: this data comes straight from the API
 const commonFields_API_Data = {
   name: { type: String, required: false }, // AUTOSET: false || required: true
@@ -34,7 +41,7 @@ const commonFields_API_Data = {
 // SAVE FUNCTION: fetchAndTransformCardData
 const commonFields_User_Input_Data = {
   tag: String, // AUTOSET: false
-  watchList: Boolean, // AUTOSET: false
+  watchlist: Boolean, // AUTOSET: false
 };
 // COMMON FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
 // SAVE FUNCTION: fetchAndTransformCardData
@@ -63,9 +70,11 @@ const uniqueFields_Custom_Dynamic_Data = {
   priceChangeHistory: [
     {
       timestamp: Date,
-      oldPrice: Number,
-      newPrice: Number,
+      previousPrice: Number,
+      updatedPrice: Number,
       priceDifference: Number,
+      increased: Boolean,
+      decreasded: Boolean,
     },
   ],
   chart_datasets: [chartDatasetEntrySchema],
@@ -156,159 +165,78 @@ const genericCardSchema = new Schema(
     ...uniqueVariantFields,
     // Unified refs field to store all references
     refs: allRefsSchema,
+    dateAdded: { type: Date },
   },
   { timestamps: { createdAt: 'addedAt', updatedAt: 'updatedAt' } },
 );
 genericCardSchema.pre('save', async function (next) {
-  // logger.info(`SAVING ${this.name}`, this.name); // this?.chart_datasets?.data?.push(
-  logger.info('[Pre-save hook for card:]'.red, this.name);
-
-  // if (!this.isModified('price') && !this.isModified('quantity')) return next();
-  if (!this.refId) {
+  logger.info(`[Pre-save hook for card: `.red + `${this.name}`.white + `]`.red);
+  if (this.isNew) {
+    logger.info(`[NEW CARD] `.green + `[${this.name}`.white + `]`.green);
+    this.addedAt = now.toDate();
+    this.dateAdded = now.toDate();
+    this.quantity = 1;
+    this.lastSavedPrice = createNewPriceEntry(this.price); // Your existing function
+    this.latestPrice = createNewPriceEntry(this.price); // Your existing function
+    this.totalPrice = this.quantity * this.price;
+    const newDataPoint = generateSingleCardDataPoints(this);
+    logger.info(`[NEW DATAPOINT] `.green + `[${newDataPoint[0]}`.white);
+  }
+  if (!this.isNew) {
+    logger.info(`[UPDATED CARD] `.blue + `[${this.name}`.white + `]`.blue);
+    this.updatedAt = now.toDate();
     this.refId = this._id;
   }
+  // if (!this.isModified('price') && !this.isModified('quantity')) return next();
+  // if (!this.refId) {
+
+  //   this.refId = this._id;
+  // }
   if (!this.cardModel) {
+    logger.info(`[MISSING MODEL REQUIRES SET] ${this.cardModel}`.red);
     this.cardModel = this.constructor.modelName;
   }
   if (!this.image) {
+    logger.info(`[MISSING IMAGE REQUIRES SET] ${this.image}`.red);
     this.image = this.card_images[0]?.image_url || '';
   }
   if (!this.valueHistory) {
+    logger.info(`[MISSING VALUE HISTORY REQUIRES SET] ${this.valueHistory}`.red);
     this.valueHistory = [];
   }
-  if (!this.nivoValueHistory) {
-    this.nivoValueHistory = [];
-  }
-  
-  if (this.cardVariants && this.cardVariants.length > 0) {
-    const variantIsInCardVariants = this.cardVariants.includes(this.variant);
-    if (!this.variant || !variantIsInCardVariants) {
-      this.variant = this.cardVariants[0];
-    }
-  } else {
-    // If no variants available, log and skip setting rarity
-    logger.info(`[WARNING] No variants available for card: ${this.name}`);
-    return next();
-  }
-  if (this.isModified('quantity') || this.isModified('price')) {
-    logger.info(`quantity modified ${this.quantity}`, this.quantity); // this?.chart_datasets?.data?.push(
-    //   createNivoXYValue(this.addedAt, this.totalPrice)
-    // );
-    const newPriceEntry = createNewPriceEntry(this.price); // Your existing function
-    this.priceHistory.push(newPriceEntry);
-    const newChartDataEntry = {
-      label: 'Your Label',
-      data: [{ x: new Date(), y: this.totalPrice }],
-    };
-    this.chart_datasets.push(newChartDataEntry);
-
-    // Check if there's an existing entry for today's date (or whichever key you're using)
-    // const chartKey = new Date().toISOString().split("T")[0]; // Example key: 'YYYY-MM-DD'
-    // if (!this.chart_datasets?.has(chartKey)) {
-    //   this.chart_datasets?.set(chartKey, [newChartDataEntry]); // Initialize with an array containing the new entry
-    // } else {
-    //   const existingEntries = this.chart_datasets.get(chartKey);
-    //   existingEntries.push(newChartDataEntry);
-    //   this.chart_datasets.set(chartKey, existingEntries);
-    // }
-    const oldTotal = this.totalPrice;
-    this.lastSavedPrice = createNewPriceEntry(oldTotal); // Your existing function
+  if (this.isModified('quantity')) {
+    logger.info(`QUANTITY MODIFIED] ${this.quantity}`.red);
     this.totalPrice = this.quantity * this.price;
-    this.latestPrice = createNewPriceEntry(this.quantity * this.price); // Your existing function
-    // this.lastSavedPrice = this.valueHistory[this?.valueHistory?.length - 1];
-    const valueEntry = {
-      timestamp: new Date(),
-      num: this.totalPrice,
-    }; // Your existing function
+    const valueEntry = createNewPriceEntry(this.totalPrice); // Your existing function
     this.valueHistory.push(valueEntry);
-    this.nivoValueHistory.push(createDataPoint(valueEntry?.timestamp, valueEntry?.num, 'Data: '));
-    this.tag = '' || 'default';
-
-    // Update contextual quantities and total prices
-    const contextKeys = ['Deck', 'Collection', 'Cart'];
-    contextKeys.forEach((context) => {
-      if (context === this.collectionModel) {
-        this.contextualQuantity[context] = calculateContextualQuantity(this, context);
-        this.contextualTotalPrice[context] = this.contextualQuantity[context] * this.price;
+    const contextTypeMap = {
+      CardInDeck: 'Deck',
+      CardInCollection: 'Collection',
+      CardInCart: 'Cart',
+    };
+    const cardContextKeys = Object.keys(contextTypeMap);
+    const cardContextValues = Object.values(contextTypeMap);
+    cardContextKeys.forEach((context) => {
+      if (context === this.cardModel) {
+        this.contextualQuantity[cardContextValues[context]] = this.quantity;
+        this.contextualTotalPrice[cardContextValues[context]] = this.totalPrice;
       }
     });
   }
-
-  if (!this.totalPrice) {
-    if (!this.quantity) {
-      logger.info('quantity not set, setting to 1');
-      this.quantity = 1;
-    }
-    if (!this.price) {
-      logger.info('price not set, destructuring tcgPrice');
-      this.price = this.card_prices[0]?.tcgplayer_price || 0;
-    }
-    logger.info('totalPrice not set, attempting update');
+  if (this.isModified('price')) {
+    logger.info(`[CARD PRICE MODIFIED] ${this.price}`.red); // this?.chart_datasets?.data?.push(
+    this.lastSavedPrice = createNewPriceEntry(this.latestPrice); // Your existing function
+    this.latestPrice = createNewPriceEntry(this.price); // Your existing function
     this.totalPrice = this.quantity * this.price;
-    logger.info('totalPrice updated', this.totalPrice.green);
+    const valueEntry = createNewPriceEntry(this.totalPrice); // Your existing function
+    this.valueHistory.push(valueEntry);
+    const newPriceEntry = createNewPriceEntry(this.price); // Your existing function
+    this.priceHistory.push(newPriceEntry);
   }
-  if (this.updateRefs) {
-    // Handle deck references
-    if (this.updateRefs.deckRefs) {
-      this.updateRefs.deckRefs.forEach((updateRef) => {
-        const index = this.deckRefs.findIndex((ref) => ref.deckId.equals(updateRef.deckId));
-        if (index > -1) {
-          // Update existing reference
-          this.deckRefs[index].quantity = updateRef.quantity;
-        } else {
-          // Add new reference
-          this.deckRefs.push(updateRef);
-        }
-      });
-    }
-
-    // Handle collection references
-    if (this.updateRefs.collectionRefs) {
-      this.updateRefs.collectionRefs.forEach((updateRef) => {
-        const index = this.collectionRefs.findIndex((ref) =>
-          ref.collectionId.equals(updateRef.collectionId),
-        );
-        if (index > -1) {
-          // Update existing reference
-          this.collectionRefs[index].quantity = updateRef.quantity;
-        } else {
-          // Add new reference
-          this.collectionRefs.push(updateRef);
-        }
-      });
-    }
-
-    // Handle cart references
-    if (this.updateRefs.cartRefs) {
-      this.updateRefs.cartRefs.forEach((updateRef) => {
-        const index = this.cartRefs.findIndex((ref) => ref.cartId.equals(updateRef.cartId));
-        if (index > -1) {
-          // Update existing reference
-          this.cartRefs[index].quantity = updateRef.quantity;
-        } else {
-          // Add new reference
-          this.cartRefs.push(updateRef);
-        }
-      });
-    }
-
-    // Clear the updateRefs to prevent reprocessing
-    this.updateRefs = null;
+  if (this.isModified('watchlist')) {
+    logger.info(`[WATCHLIST MODIFIED] ${this.watchlist}`.red); // this?.chart_datasets?.data?.push(
   }
-  try {
-    await this.populate('variant');
-
-    // Set rarity after successful population
-    if (this.variant) {
-      this.rarity = this.variant.rarity;
-    } else {
-      logger.info(`[WARNING] Variant not populated for card: ${this.name}`);
-    }
-  } catch (error) {
-    logger.info(`[GENERIC CARD: ${this.name}] PRE SAVE ERROR: `, error);
-    return next(error);
-  }
-
+  this.tag = '' || 'default';
   const modifiedFields = [
     'image',
     'latestPrice',
@@ -316,6 +244,12 @@ genericCardSchema.pre('save', async function (next) {
     'totalPrice',
     'priceHistory',
     'rarity',
+    'price',
+    'quantity',
+    'tag',
+    'watchlist',
+    'cardModel',
+    'cardVariants',
   ];
   modifiedFields.forEach((field) => this.markModified(field));
 
@@ -338,3 +272,64 @@ module.exports = {
   RandomCard,
   RandomCardData,
 };
+// if (this.updateRefs) {
+//   // Handle deck references
+//   if (this.updateRefs.deckRefs) {
+//     this.updateRefs.deckRefs.forEach((updateRef) => {
+//       const index = this.deckRefs.findIndex((ref) => ref.deckId.equals(updateRef.deckId));
+//       if (index > -1) {
+//         // Update existing reference
+//         this.deckRefs[index].quantity = updateRef.quantity;
+//       } else {
+//         // Add new reference
+//         this.deckRefs.push(updateRef);
+//       }
+//     });
+//   }
+
+//   // Handle collection references
+//   if (this.updateRefs.collectionRefs) {
+//     this.updateRefs.collectionRefs.forEach((updateRef) => {
+//       const index = this.collectionRefs.findIndex((ref) =>
+//         ref.collectionId.equals(updateRef.collectionId),
+//       );
+//       if (index > -1) {
+//         // Update existing reference
+//         this.collectionRefs[index].quantity = updateRef.quantity;
+//       } else {
+//         // Add new reference
+//         this.collectionRefs.push(updateRef);
+//       }
+//     });
+//   }
+
+//   // Handle cart references
+//   if (this.updateRefs.cartRefs) {
+//     this.updateRefs.cartRefs.forEach((updateRef) => {
+//       const index = this.cartRefs.findIndex((ref) => ref.cartId.equals(updateRef.cartId));
+//       if (index > -1) {
+//         // Update existing reference
+//         this.cartRefs[index].quantity = updateRef.quantity;
+//       } else {
+//         // Add new reference
+//         this.cartRefs.push(updateRef);
+//       }
+//     });
+//   }
+
+//   // Clear the updateRefs to prevent reprocessing
+//   this.updateRefs = null;
+// }
+// try {
+//   await this.populate('variant');
+
+//   // Set rarity after successful population
+//   if (this.variant) {
+//     this.rarity = this.variant.rarity;
+//   } else {
+//     logger.info(`[WARNING] Variant not populated for card: ${this.name}`);
+//   }
+// } catch (error) {
+//   logger.info(`[GENERIC CARD: ${this.name}] PRE SAVE ERROR: `, error);
+//   return next(error);
+// }

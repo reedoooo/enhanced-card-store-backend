@@ -14,6 +14,7 @@ const {
   addCardsToDeck,
   removeCardsFromDeck,
   getDeckById,
+  getCardsFromDeck,
 } = deckController;
 const {
   getAllCollectionsForUser,
@@ -54,12 +55,13 @@ router.put('/:userId/userData/update', updateUserData);
 
 // DECK ROUTES
 router.get('/:userId/decks/all', getAllDecksForUser);
-router.get('/:userId/decks/:deckId', getDeckById);
+router.get('/:userId/decks/get/:deckId', getDeckById);
 router.post('/:userId/decks/create', createNewDeck);
 router.put('/:userId/decks/update/:deckId', updateDeckDetails);
 router.delete('/:userId/decks/delete/:deckId', deleteDeck);
 router.post('/:userId/decks/:deckId/cards/add', addCardsToDeck);
 router.put('/:userId/decks/:deckId/cards/remove', removeCardsFromDeck);
+router.get('/:userId/decks/:deckId/cards/get', getCardsFromDeck);
 
 // COLLECTION ROUTES
 router.get('/:userId/collections/all', getAllCollectionsForUser);
@@ -90,8 +92,9 @@ router.put(
   '/:userId/collections/:collectionId/cards/:cardId/decrementCardQuantity',
   decrementCardQuantityInCollection,
 );
+
 // CART ROUTES
-router.get('/:userId/cart', getUserCart);
+router.get('/:userId/cart/all', getUserCart);
 router.post('/:userId/cart/create', createEmptyCart);
 router.post('/:userId/cart/cards/add', addCardsToCart);
 router.delete('/:userId/cart/cards/remove', removeCardsFromCart);
