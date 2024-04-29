@@ -5741,3 +5741,32 @@ undefined
 
 
 
+[32m-------------------[39m Collection: Poop Collection | Card: Dark Magician Girl, Old Price: 0.33, New Price: 0.32 Difference: -0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.09, New Price: 1.07 Difference: -0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Libromancer Mystigirl, Old Price: 0.05, New Price: 0.04 Difference: -0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Kozmo Farmgirl, Old Price: 4.61, New Price: 4.58 Difference: -0.03 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.07, New Price: 1.09 Difference: 0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Libromancer Mystigirl, Old Price: 0.04, New Price: 0.05 Difference: 0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Libromancer Mystigirl, Old Price: 0.05, New Price: 0.04 Difference: -0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Kozmo Farmgirl, Old Price: 4.58, New Price: 4.61 Difference: 0.03 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.09, New Price: 1.07 Difference: -0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Kozmo Farmgirl, Old Price: 4.61, New Price: 4.58 Difference: -0.03 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.07, New Price: 1.09 Difference: 0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.09, New Price: 1.07 Difference: -0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Libromancer Mystigirl, Old Price: 0.04, New Price: 0.05 Difference: 0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.07, New Price: 1.09 Difference: 0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.09, New Price: 1.07 Difference: -0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.07, New Price: 1.09 Difference: 0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.09, New Price: 1.07 Difference: -0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Libromancer Mystigirl, Old Price: 0.05, New Price: 0.04 Difference: -0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.07, New Price: 1.09 Difference: 0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Libromancer Mystigirl, Old Price: 0.04, New Price: 0.05 Difference: 0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.07, New Price: 1.09 Difference: 0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.09, New Price: 1.07 Difference: -0.02 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Libromancer Mystigirl, Old Price: 0.04, New Price: 0.05 Difference: 0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Libromancer Mystigirl, Old Price: 0.05, New Price: 0.04 Difference: -0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Dark Magician Girl, Old Price: 0.32, New Price: 0.33 Difference: 0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Libromancer Mystigirl, Old Price: 0.04, New Price: 0.05 Difference: 0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Dark Magician Girl, Old Price: 0.33, New Price: 0.32 Difference: -0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Libromancer Mystigirl, Old Price: 0.05, New Price: 0.04 Difference: -0.01 [32m-------------------[39m
+[32m-------------------[39m Collection: Poop Collection | Card: Lemon Magician Girl, Old Price: 1.09, New Price: 1.07 Difference: -0.02 [32m-------------------[39m

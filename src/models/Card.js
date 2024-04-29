@@ -39,9 +39,10 @@ const commonFields_API_Data = {
 };
 // COMMON FIELD SCHEMAS: this data is set by the user
 // SAVE FUNCTION: fetchAndTransformCardData
-const commonFields_User_Input_Data = {
+const tag_Data = {
   tag: String, // AUTOSET: false
   watchlist: Boolean, // AUTOSET: false
+  updatedFromCron: Boolean, // AUTOSET: false
 };
 // COMMON FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
 // SAVE FUNCTION: fetchAndTransformCardData
@@ -160,7 +161,7 @@ const genericCardSchema = new Schema(
   {
     ...commonFields_API_Data,
     ...commonFields_Custom_Dynamic_Data,
-    ...commonFields_User_Input_Data,
+    ...tag_Data,
     ...uniqueFields_Custom_Dynamic_Data,
     ...uniqueVariantFields,
     // Unified refs field to store all references
@@ -171,6 +172,10 @@ const genericCardSchema = new Schema(
 );
 genericCardSchema.pre('save', async function (next) {
   logger.info(`[Pre-save hook for card: `.red + `${this.name}`.white + `]`.red);
+  if (this.updatedFromCron) {
+    logger.info(`[UPDATING CARD FROM CRON] `.green + `[${this.name}`.white + `]`.yellow);
+    this.updatedFromCron = false;
+  }
   if (this.isNew) {
     logger.info(`[NEW CARD] `.green + `[${this.name}`.white + `]`.green);
     this.addedAt = now.toDate();
@@ -180,6 +185,7 @@ genericCardSchema.pre('save', async function (next) {
     this.latestPrice = createNewPriceEntry(this.price); // Your existing function
     this.totalPrice = this.quantity * this.price;
     const newDataPoint = generateSingleCardDataPoints(this);
+    this.valueHistory = [createNewPriceEntry(this.price)];
     logger.info(`[NEW DATAPOINT] `.green + `[${newDataPoint[0]}`.white);
   }
   if (!this.isNew) {
@@ -187,11 +193,6 @@ genericCardSchema.pre('save', async function (next) {
     this.updatedAt = now.toDate();
     this.refId = this._id;
   }
-  // if (!this.isModified('price') && !this.isModified('quantity')) return next();
-  // if (!this.refId) {
-
-  //   this.refId = this._id;
-  // }
   if (!this.cardModel) {
     logger.info(`[MISSING MODEL REQUIRES SET] ${this.cardModel}`.red);
     this.cardModel = this.constructor.modelName;
@@ -200,15 +201,13 @@ genericCardSchema.pre('save', async function (next) {
     logger.info(`[MISSING IMAGE REQUIRES SET] ${this.image}`.red);
     this.image = this.card_images[0]?.image_url || '';
   }
-  if (!this.valueHistory) {
-    logger.info(`[MISSING VALUE HISTORY REQUIRES SET] ${this.valueHistory}`.red);
-    this.valueHistory = [];
-  }
   if (this.isModified('quantity')) {
-    logger.info(`QUANTITY MODIFIED] ${this.quantity}`.red);
+    let valHist = [];
+    logger.info(`[NEW QUANTITY] ${this.quantity}`.green);
     this.totalPrice = this.quantity * this.price;
     const valueEntry = createNewPriceEntry(this.totalPrice); // Your existing function
-    this.valueHistory.push(valueEntry);
+    valHist.push(valueEntry);
+    this.valueHistory = valHist;
     const contextTypeMap = {
       CardInDeck: 'Deck',
       CardInCollection: 'Collection',
@@ -224,12 +223,12 @@ genericCardSchema.pre('save', async function (next) {
     });
   }
   if (this.isModified('price')) {
-    logger.info(`[CARD PRICE MODIFIED] ${this.price}`.red); // this?.chart_datasets?.data?.push(
+    logger.info(`[CARD PRICE MODIFIED] ${this.price}`.green); // this?.chart_datasets?.data?.push(
     this.lastSavedPrice = createNewPriceEntry(this.latestPrice); // Your existing function
     this.latestPrice = createNewPriceEntry(this.price); // Your existing function
     this.totalPrice = this.quantity * this.price;
-    const valueEntry = createNewPriceEntry(this.totalPrice); // Your existing function
-    this.valueHistory.push(valueEntry);
+    // const valueEntry = createNewPriceEntry(this.totalPrice); // Your existing function
+    // this.valueHistory.push(valueEntry);
     const newPriceEntry = createNewPriceEntry(this.price); // Your existing function
     this.priceHistory.push(newPriceEntry);
   }
@@ -250,6 +249,7 @@ genericCardSchema.pre('save', async function (next) {
     'watchlist',
     'cardModel',
     'cardVariants',
+    'valueHistory',
   ];
   modifiedFields.forEach((field) => this.markModified(field));
 

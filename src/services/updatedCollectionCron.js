@@ -12,7 +12,16 @@ const { User } = require('../models/User');
 const moment = require('moment-timezone');
 const { extendMoment } = require('moment-range');
 const { createNewPriceEntry } = require('../utils/dataUtils');
-
+const { differenceInHours } = require('date-fns');
+const {
+  greenLogBracks,
+  redLogBracks,
+  yellowLogBracks,
+  blueLogBracks,
+  orangeLogBracks,
+  purpleLogBracks,
+  whiteLogBracks,
+} = require('../utils/logUtils');
 const momentWithRange = extendMoment(moment);
 momentWithRange.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
 const timezone = 'America/Seattle';
@@ -36,7 +45,7 @@ const logPriceChangesToFile = (priceChanges) => {
     }
   });
 };
-const processCardPriceChange = async (cardData, collectionName, userId) => {
+const processCardPriceChange = async (cardData, collectionName, username) => {
   if (!mongoose.Types.ObjectId.isValid(cardData?._id)) {
     logger.error(`Invalid ID format: ${cardData?._id}`);
     return null;
@@ -55,11 +64,16 @@ const processCardPriceChange = async (cardData, collectionName, userId) => {
   const newPrice = parseFloat(apiPricesArray[0]?.tcgplayer_price);
   const differenceDeteced = newPrice !== currentPrice;
   const addedMessage = differenceDeteced
-    ? `[PRICE CHANGE DETECTED]`.green
-    : `[NO PRICE CHANGE DETECTED]`.red;
+    ? `[PRICE CHANGE]`.green
+    : `[NO PRICE CHANGE]`.red;
   logger.info(
     `[CHECKING PRICES]` +
-      `[${collectionName}]`.yellow +
+      `[` +
+      `${username}`.yellow +
+      `]` +
+      `[` +
+      `${collectionName}`.yellow +
+      `]` +
       `[${card.name}]` +
       `[CURRENT PRICE: ` +
       `$${currentPrice}`.yellow +
@@ -78,7 +92,7 @@ const processCardPriceChange = async (cardData, collectionName, userId) => {
     const priceDifference = newPrice - oldPrice;
     if (Math.abs(priceDifference) >= 0.01) {
       const priceChangeEntry = {
-        timestamp: new Date(),
+        timestamp: now,
         previousPrice: oldPrice,
         updatedPrice: newPrice,
         priceDifference: priceDifference,
@@ -94,6 +108,7 @@ const processCardPriceChange = async (cardData, collectionName, userId) => {
       card.lastSavedPrice = createNewPriceEntry(oldPrice, oldTimestamp);
       card.latestPrice = newPriceEntry;
       card.price = newPrice;
+      card.updatedFromCron = true;
       if (differenceInHours(card.dailyPriceHistory.slice(-1)[0]?.timestamp.getDate(), now) > 24) {
         card.dailyPriceHistory.push(newPriceEntry);
         logger.info(
@@ -118,7 +133,7 @@ const processCardPriceChange = async (cardData, collectionName, userId) => {
   }
 };
 const updatedCollectionCron = async () => {
-  logger.info('STARTING COLLECTION UPDATE CRON JOB...');
+  logger.info(greenLogBracks('STARTING COLLECTION UPDATE CRON JOB...'));
   let globalPriceChanges = []; // To store all changes for logging later
   const users = await User.find({});
   logFunctionSteps('1', `${users.length} users found`);
@@ -133,13 +148,13 @@ const updatedCollectionCron = async () => {
 
       for (const card of collection.cards) {
         const { changeStatus, oldPrice, newPrice, priceDifference, message } =
-          await processCardPriceChange(card, collection.name, userPopulated?._id);
+          await processCardPriceChange(card, collection.name, userPopulated?.username);
         if (changeStatus === false) {
           continue;
         }
         if (changeStatus === true) {
           collectionPriceChanges.push({
-            timestamp: new Date(),
+            timestamp: now,
             difference: priceDifference,
             collectionName: collection.name,
             cardName: card.name,
@@ -149,7 +164,7 @@ const updatedCollectionCron = async () => {
             message: message,
           });
           globalPriceChanges.push({
-            timestamp: new Date(),
+            timestamp: now,
             difference: priceDifference,
             collectionName: collection.name,
             cardName: card.name,
@@ -161,30 +176,35 @@ const updatedCollectionCron = async () => {
         }
       }
       if (collectionPriceChanges.length > 0) {
-        collection?.collectionPriceChangeHistory?.push({
-          timestamp: new Date(),
-          difference: collectionPriceChanges.reduce((acc, curr) => acc + curr.difference, 0),
-          priceChanges: collectionPriceChanges,
-        });
-        logger.info(`Price change detected for collection: ${collection.name}`.red);
-        // await collection.save(); // Assuming collection.save() is a valid method to persist changes
-      } else {
         const lastUpdate = collection?.collectionPriceChangeHistory?.slice(-1)?.[0]?.timestamp;
-        const now = new Date();
+        // const now = new Date();
         if (lastUpdate && now - new Date(lastUpdate) > 3600000) {
           collection?.collectionPriceChangeHistory?.push({
             timestamp: now,
             priceChanges: [],
           });
-          logger.info(`No price changes detected for collection: ${collection.name}`);
+          logger.info(
+            purpleLogBracks('DAILY PRICE HISTORY UPDATED') + greenLogBracks(`${collection.name}`),
+          );
+
           collection.collectionUpdated = true;
         }
+        collection?.collectionPriceChangeHistory?.push({
+          timestamp: now,
+          difference: collectionPriceChanges.reduce((acc, curr) => acc + curr.difference, 0),
+          priceChanges: collectionPriceChanges,
+        });
+        logger.info(`Price change detected for collection: ${collection.name}`.red);
+        collection.updatedFromCron = true;
+        await collection.save(); // Assuming collection.save() is a valid method to persist changes
+      } else {
+        logger.info(`No price changes detected for collection: ${collection.name}`.red);
       }
     }
   }
 
   if (globalPriceChanges.length > 0) {
-    logger.info('PRICE CHANGES DETECTED');
+    logger.info(greenLogBracks(`[PRICE CHANGES DETECTED] ${globalPriceChanges?.length}`).green);
     logFunctionSteps(
       '[X]',
       ' | '.green +
@@ -195,7 +215,7 @@ const updatedCollectionCron = async () => {
     );
     logPriceChangesToFile(globalPriceChanges);
   } else {
-    logger.info('No price changes detected.'.red);
+    logger.info(whiteLogBracks('No price changes detected'.red));
   }
 };
 exports.updatedCollectionCron = updatedCollectionCron;

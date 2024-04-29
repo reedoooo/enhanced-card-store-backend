@@ -51,24 +51,6 @@ function convertToDataPoints(data) {
     };
   });
 }
-/**
- * Filters data within a specified date or time range.
- *
- * @param {Array} data - The array of objects to filter, each should have a 'timestamp' property.
- * @param {Date} startRange - The start of the date/time range.
- * @param {Date} endRange - The end of the date/time range.
- * @param {string} type - The type of range, 'date' for daily or 'time' for hourly.
- * @returns {Array} An array of objects that fall within the specified range.
- */
-function findDataInRange(data, startRange, endRange, type) {
-  const differenceFunction = type === 'date' ? differenceInDays : differenceInHours;
-  return data.filter((item) => {
-    const itemMoment = momentWithRange(item.x).tz(timezone);
-    const diffStart = differenceFunction(itemMoment, startRange);
-    const diffEnd = differenceFunction(itemMoment, endRange);
-    return diffStart >= 0 && diffEnd <= 0;
-  });
-}
 function mapDataByDateOrTime(data, type) {
   const formatString = type === 'date' ? 'YYYY-MM-DD' : 'HH:mm';
   let dataMap = new Map();
@@ -87,8 +69,8 @@ function processDataForRanges(data) {
   const results = {};
 
   DATE_TIME_RANGES.forEach((range) => {
-    const { id, points, color } = range;
-    const type = id.endsWith('d') ? 'date' : 'time';
+    const { id, points, color, type } = range;
+    // const type = id.endsWith('d') ? 'date' : 'time';
     let startRange = now.clone().subtract(points, type === 'date' ? 'days' : 'hours');
     let endRange = now.clone();
 
@@ -138,29 +120,44 @@ function processDataForRanges(data) {
 
   return results;
 }
-const findStatsInRange = (dataInRange) => {
-  if (!dataInRange.length) return null; // Return null or an empty object to signify no data
-
+const findStatsInRange = (dataInRange, totalPrice, firstNonZeroY, indexOfFirstNonZeroY) => {
+  if (!dataInRange.length) {
+    logger.info(`[NO DATA FOUND IN RANGE]`.red);
+    return new Map(); // Return an empty Map if no data
+  }
+  // logger.info(`[DATA] ${JSON.stringify(dataInRange)}`);
   const totalY = dataInRange.reduce((acc, item) => acc + item.y, 0);
-  const initialY = dataInRange[0].y;
-  return {
-    highPoint: Math.max(...dataInRange.map((item) => item.y)),
-    lowPoint: Math.min(...dataInRange.map((item) => item.y)),
-    average: totalY / dataInRange.length,
-    priceChange: totalY - initialY,
-    percentageChange: ((totalY - initialY) / initialY) * 100,
-    volume: totalY,
-    volatility: dataInRange.reduce((acc, item) => acc + Math.abs(item.y - initialY), 0),
-    avgPrice: totalY / dataInRange.length,
-  };
+  logger.info(`[TOTAL Y] ${totalY}`);
+  const initialY = dataInRange[1].y;
+  logger.info(`[INITIAL Y] ${initialY}`);
+  logger.info(`[FIRST NON ZERO Y] ${firstNonZeroY}`);
+  logger.info(`[INDEX OF FIRST NON ZERO Y] ${indexOfFirstNonZeroY}`);
+  const priceChange = totalY - initialY;
+  logger.info(`[PRICE CHANGE] ${priceChange}`);
+  logger.info(`[PERCENTAGE CHANGE] ${totalPrice / priceChange}`);
+  const statsMap = new Map([
+    ['highPoint', Math.max(...dataInRange.map((item) => item.y))],
+    ['lowPoint', Math.min(...dataInRange.map((item) => item.y))],
+    ['average', totalY / dataInRange.length],
+    ['priceChange', priceChange],
+    ['percentageChange', totalPrice / priceChange],
+    ['volume', totalY],
+    ['volatility', dataInRange.reduce((acc, item) => acc + Math.abs(item.y - initialY), 0)],
+    ['avgPrice', totalY / dataInRange.length],
+  ]);
+  return statsMap;
 };
 const mapStatisticsToFormat = (stats, config) => {
-  if (!stats) return null; // Return null if no statistics data is available
+  if (!stats || !stats.has(config.statKey)) {
+    logger.info(`[NO STATS FOUND] [${config.statKey}]`.red);
+    return null; // Return null if no statistic is found
+  }
 
   return {
     name: config.name,
+    id: config.id,
     label: config.label,
-    value: stats[config.statKey], // Correctly map the statistic value based on the stat key
+    value: stats.get(config.statKey), // Retrieve the statistic value from the Map based on the stat key
     color: config.color,
     axis: 'y',
     lineStyle: {
@@ -171,88 +168,55 @@ const mapStatisticsToFormat = (stats, config) => {
     legendOrientation: 'horizontal',
   };
 };
-// const generateStatisticsForRanges = (dataPoints) => {
-//   const results = {};
-//   logger.info('Generating statistics for ranges...');
-//   // const { newTotal, oldTotal, newQuantity, oldHighPoint, oldLowPoint } = newData;
-//   DATE_TIME_RANGES.forEach((range) => {
-//     const { id, points, color, type } = range;
-//     let startRange = now.clone().subtract(points, type === 'date' ? 'days' : 'hours');
-//     let endRange = now.clone();
-//     const stats = findStatsInRange(findDataInRange(dataPoints, startRange, endRange, type));
-//     logger.info(`Statistics for ${id}:`, stats);
-//     const statConfigs = generateRangeStatConfigWithLabels(range);
-//     logger.info(`Statistics configs for ${id}:`, statConfigs);
-//     // const mappedData = statConfigs.map((config) => ({
-//     //   ...config,
-//     //   value: stats[config.statKey],
-//     //   axis: 'y',
-//     //   lineStyle: { stroke: config.color, strokeWidth: 2 },
-//     //   legend: config.label,
-//     //   legendOrientation: 'horizontal',
-//     // }));
-//     // logger.info(`Mapped data for ${id}:`, mappedData);
-//     BASE_STAT_CONFIGS.map((config) => {
-//       const updatedConfig = {
-//         ...config,
-//         label: `${config.label} in last ${range.points} ${range.type === 'date' ? 'Days' : 'Hours'}`,
-//         color: range.color, // Assume color is passed correctly in `range`
-//         value: stats[config.statKey],
-//       };
-//       let collectionStats = new Map();
-//       collectionStats.set(config.name, mapStatisticsToFormat(stats, updatedConfig));
-//       const mappedData = mapStatisticsToFormat(stats, updatedConfig);
-//       logger.info(`Mapped data for ${id}:`, mappedData);
-//       results[id] = {
-//         id: id,
-//         color: '#2e7c67', // This could be dynamically set if needed
-//         name: `Last ${range.points} ${range.type === 'date' ? 'Days' : 'Hours'}`,
-//         data: mappedData,
-//       };
-//     });
-//     // results[id] = {
-//     //   id: id,
-//     //   color: '#2e7c67', // This could be dynamically set if needed
-//     //   name: `Last ${range.points} ${range.type === 'date' ? 'Days' : 'Hours'}`,
-//     //   data[]
-//     // };
-//   });
-
-//   return results;
-// };
-const generateStatisticsForRanges = (dataPoints) => {
+const generateStatisticsForRanges = (dataPoints, chartKey, totalPrice) => {
+  if (chartKey === undefined) {
+    chartKey = '24hr';
+  }
+  // if (!dataPoints || !dataPoints.length || !chartKey) {
+  //   logger.info(`[NO DATA OR NO CHART KEY PROVIDED] [${dataPoints.length}][${chartKey}]`.red);
+  //   return new Map(); // Return an empty Map if no data or no chartKey
+  // }
   const results = new Map(); // Use a Map to store results
+  // logger.info(`[KEY] ${chartKey}`);
+  const range = DATE_TIME_RANGES.find((r) => r.id === chartKey);
+  if (!range) {
+    logger.error(`No range found for the provided key: ${chartKey}`.red);
+    return results; // Exit if no range matches the chartKey
+  }
+  const startRange = now.clone().subtract(range.points, range.type === 'date' ? 'days' : 'hours');
+  const endRange = now.clone();
+  let allTimes = Array.from(
+    momentWithRange.range(startRange, endRange).by(range.type === 'date' ? 'day' : 'hour'),
+  );
+  let firstNonZeroY = null;
+  let indexOfFirstNonZeroY = null;
+  const dataInRange = allTimes.map((time) => {
+    const timeStr = time.format(range.format);
+    const found = dataPoints.find(
+      (d) => momentWithRange(d.x).tz(timezone).format(range.format) === timeStr,
+    );
 
-  DATE_TIME_RANGES.forEach((range) => {
-    const startRange = now.clone().subtract(range.points, range.type === 'date' ? 'days' : 'hours');
-    const endRange = now.clone();
-    const stats = findStatsInRange(findDataInRange(dataPoints, startRange, endRange, range.type));
-    logger.info(`[generateStatisticsForRanges] Statistics for ${range.id}: ${stats}`);
-    if (!stats) return; // Skip if no stats found
+    if (found && found.y !== 0 && firstNonZeroY === null) {
+      firstNonZeroY = found.y; // Set firstNonZeroY if not already set and current y is non-zero
+      indexOfFirstNonZeroY = allTimes.indexOf(time);
+    }
 
-    const rangeStats = new Map();
-    generateRangeStatConfigWithLabels(range).forEach((config) => {
-      (config.label = `${config.name} in last ${range.points} ${range.type === 'date' ? 'Days' : 'Hours'}`),
-        (config.color = range.color); // Assume color is passed correctly in `range`
-      const formattedStat = mapStatisticsToFormat(stats, config);
-      logger.info(`[generateStatisticsForRanges] FormattedStat for ${range.id}: ${formattedStat}`);
-      if (formattedStat) rangeStats.set(config.name, formattedStat);
-    });
-
-    results.set(range.id, {
-      id: range.id,
-      color: range.color,
-      name: `Last ${range.points} ${range.type === 'date' ? 'Days' : 'Hours'}`,
-      data: rangeStats,
-    });
+    return found ? { ...found } : { label: timeStr, id: uuidv4(), x: time.toISOString(), y: 0 };
   });
-
+  BASE_STAT_CONFIGS.forEach((config) => {
+    const formattedStat = mapStatisticsToFormat(findStatsInRange(dataInRange, totalPrice, firstNonZeroY, indexOfFirstNonZeroY), config);
+    // logger.info(
+    //   `[FORMATTED STAT][${formattedStat.label}]` + `[` + `${formattedStat.value}`.green + `]`,
+    // );
+    if (formattedStat) {
+      results.set(config.name, formattedStat);
+    }
+  });
   return results;
 };
 
 module.exports = {
   convertToDataPoints,
-  findDataInRange,
   mapDataByDateOrTime,
   processDataForRanges,
   generateStatisticsForRanges,

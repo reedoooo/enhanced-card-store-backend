@@ -5,6 +5,7 @@ const { createNewPriceEntry } = require('./dataUtils');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
+require('colors');
 // !--------------------! Utility Functions !--------------------!
 function queryBuilder(data) {
   // logger.info(
@@ -321,6 +322,22 @@ function constructCardDataObject(cardData, additionalData) {
     ...additionalData.contextualFields, // Merge any additional contextual fields
   };
 }
+// Assuming `collectionStatistics` is a Map
+const logMapData = (map) => {
+  if (map instanceof Map) {
+    map.forEach((value, key) => {
+      logger.info(`[Map Key: ${key}] [Map Value: ${JSON.stringify(value)}]`);
+    });
+  } else {
+    logger.error(`[ERROR] Invalid collectionStatistics type: ${typeof collectionStatistics}`.red);
+  }
+};
+
+// To log `collectionStatistics`
+// logMapData(this.collectionStatistics);
+
+// To log `collectionStatisticsAtRanges`
+// logMapData(this.collectionStatisticsAtRanges);
 
 module.exports = {
   getCardInfo,
@@ -336,5 +353,6 @@ module.exports = {
   queryBuilder,
   generateFluctuatingPriceData,
   fetchCardPrices,
+  logMapData,
   axiosInstance,
 };
