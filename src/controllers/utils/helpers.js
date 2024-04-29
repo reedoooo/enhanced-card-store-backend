@@ -1,10 +1,6 @@
 // !--------------------! Dependencies !--------------------!
 const { default: mongoose } = require('mongoose');
-const {
-  getCardInfo,
-  axiosInstance,
-  generateFluctuatingPriceData,
-} = require('../../utils/utils.js');
+const { getCardInfo, axiosInstance } = require('../../utils/utils.js');
 const { User } = require('../../models/User.js');
 
 const {
@@ -107,16 +103,12 @@ async function deDuplicate(entity, cardModel) {
   for (let i = entity?.cards?.length - 1; i >= 0; i--) {
     const cardId = entity?.cards[i]?.id?.toString();
     if (cardOccurrenceMap.has(cardId)) {
-      // Found a duplicate, remove it and update quantity of the original card
       let originalCard = await cardModel.findById(cardOccurrenceMap.get(cardId));
       originalCard.quantity += 1;
       originalCard.totalPrice = originalCard.quantity * originalCard.price;
       await originalCard.save();
-
-      // Remove the duplicate card from the entity's cards array
       entity?.cards?.splice(i, 1);
     } else {
-      // Not a duplicate, add to map with its database ID
       cardOccurrenceMap.set(cardId, entity.cards[i]._id);
     }
   }
@@ -132,55 +124,62 @@ async function deDuplicate(entity, cardModel) {
  * @returns {Promise<Object>} - The updated entity.
  */
 async function addOrUpdateCards(entity, cards, entityId, entityType, cardModel) {
-  for (const cardData of cards) {
-    logger.info(`Processing card: ${cardData.id}`);
-    logger.info(`NAME: ${cardData.name}`);
-    logger.info(`GEN: ${cardData}`, cardData.red);
-    let foundCard = entity?.cards?.find((c) => c.id.toString() === cardData.id);
+  try {
+    for (const cardData of cards) {
+      let foundCard = entity?.cards?.find((c) => c.id.toString() === cardData.id);
 
-    if (foundCard) {
-      let cardInEntity = await cardModel.findById(foundCard._id);
-      if (cardModel === 'CardInDeck' && cardInEntity.quantity === 3) {
-        throw new Error(
-          `Cannot add card ${cardInEntity?.name} to deck ${target.name} as this card is already at max quantity.`,
-        );
-      }
-      if (cardInEntity) {
-        logger.info(
-          `Updating existing card: ${cardInEntity.name} with quantity: ${cardInEntity.quantity}`.yellow,
-          cardInEntity,
-        );
-        cardInEntity.quantity = cardInEntity.quantity + 1;
-        // cardInEntity.quantity ++;
-        cardInEntity.totalPrice = cardInEntity.quantity * cardInEntity.price;
-        await cardInEntity.save();
-        logger.info(
-          `Updated card: ${cardInEntity.name} with quantity: ${cardData.quantity}`.green,
-          cardData.quantity,
-        );
-        entity.totalQuantity += cardData.quantity;
-        entity.totalPrice += cardData.quantity * cardInEntity.price;
-
-        // Update card totals for the new card
-        // entity.totalQuantity += 1;
-        // entity.totalPrice += cardData.price;
+      if (foundCard) {
+        let cardInEntity = await cardModel.findById(foundCard._id);
+        if (cardModel === 'CardInDeck' && cardInEntity.quantity === 3) {
+          throw new Error(
+            `Cannot add card ${cardInEntity?.name} to deck ${target.name} as this card is already at max quantity.`,
+          );
+        }
+        if (cardInEntity) {
+          logger.info(
+            `[UPDATING EXISTING CARD] ${cardInEntity.name} with quantity: ${cardInEntity.quantity}`
+              .yellow,
+            cardInEntity,
+          );
+          cardInEntity.quantity = cardInEntity.quantity + 1;
+          // cardInEntity.quantity ++;
+          cardInEntity.totalPrice = cardInEntity.quantity * cardInEntity.price;
+          await cardInEntity.save();
+          logger.info(
+            `[OLD QUANTITY] ${cardData.quantity}`.yellow,
+            cardData.quantity,
+          );
+          entity.totalQuantity += cardData.quantity;
+          entity.totalPrice += cardData.quantity * cardInEntity.price;
+        } else {
+          logger.info(`Card not found in ${entityType}:`, foundCard._id);
+        }
       } else {
-        logger.info(`Card not found in ${entityType}:`, foundCard._id);
-      }
-    } else {
-      if (!cardData.price) {
-        cardData.price = cardData.card_prices[0]?.tcgplayer_price;
-      }
+        if (!cardData.price) {
+          cardData.price = cardData.card_prices[0]?.tcgplayer_price;
+        }
 
-      // Assuming reFetchForSave is a utility that creates or updates a card instance based on the provided data
-      const reSavedCard = await reFetchForSave(cardData, entityId, entityType, cardModel.modelName);
-      entity?.cards?.push(reSavedCard?._id);
+        // Assuming reFetchForSave is a utility that creates or updates a card instance based on the provided data
+        const reSavedCard = await reFetchForSave(
+          cardData,
+          entityId,
+          entityType,
+          cardModel.modelName,
+        );
+        entity?.cards?.push(reSavedCard?._id);
+      }
     }
+    await deDuplicate(entity, cardModel);
+    // entity.collectionStatistics = new Map(
+    // logger.info(`ENTITY ${entity}`);
+    // logger.info(`Updated ${entityType} ${entity.name} with ${entity.cards.length} cards`);
+    await entity?.save();
+    logger.info(`Saved ${entityType} ${entity.name}`);
+    return entity;
+  } catch (error) {
+    logger.error(error);
+    throw error;
   }
-  await deDuplicate(entity, cardModel);
-
-  await entity?.save();
-  return entity;
 }
 async function removeCards(target, entityId, cardsToRemove, context, cardModel) {
   if (!Array.isArray(cardsToRemove)) {

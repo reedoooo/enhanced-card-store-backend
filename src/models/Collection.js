@@ -2,9 +2,7 @@ const mongoose = require('mongoose');
 const { Schema, model } = mongoose;
 const {
   priceEntrySchema,
-  collectionStatisticsSchema,
   chartDataSchema,
-  updateTotals,
   createCommonFields,
   createSchemaWithCommonFields,
   collectionPriceChangeHistorySchema,
@@ -12,19 +10,97 @@ const {
   dataPointSchema,
 } = require('./schemas/CommonSchemas');
 require('colors');
-
 const logger = require('../configs/winston');
 const { CardInCollection } = require('./Card');
-const { generateCardDataPoints, recalculatePriceHistory } = require('../utils/dataUtils.js');
+const {
+  generateCardDataPoints,
+  recalculatePriceHistory,
+  createNewPriceEntry,
+} = require('../utils/dataUtils.js');
 const {
   convertToDataPoints,
   processDataForRanges,
   generateStatisticsForRanges,
 } = require('../utils/dateUtils.js');
-const { validate } = require('node-cron');
 
+const lineStyleSchema = new Schema(
+  {
+    stroke: { type: String, required: true },
+    strokeWidth: { type: Number, required: true },
+  },
+  { _id: false },
+);
+// const statSchema = new Schema(
+//   {
+//     name: {
+//       type: String,
+//       enum: [
+//         'highPoint',
+//         'lowPoint',
+//         'average',
+//         'percentageChange',
+//         'priceChange',
+//         'avgPrice',
+//         'volume',
+//         'volatility',
+//       ],
+//       required: false,
+//     },
+//     id: { type: String, required: false },
+//     label: { type: String, required: false },
+//     statKey: { type: String, required: false },
+//     value: { type: Number, min: 0, required: false },
+//     color: { type: String, required: false },
+//     axis: { type: String, required: false },
+//     lineStyle: lineStyleSchema,
+//     legend: { type: String, required: false },
+//     legendOrientation: {
+//       type: String,
+//       required: false,
+//     },
+//   },
+//   { _id: false },
+// ); // Disable _id for each statData
+const statDataMapSchema = new Schema({
+  type: Map,
+  of: {
+    name: {
+      type: String,
+      enum: [
+        'highPoint',
+        'lowPoint',
+        'average',
+        'percentageChange',
+        'priceChange',
+        'avgPrice',
+        'volume',
+        'volatility',
+      ],
+      required: false,
+    },
+    id: { type: String, required: false },
+    label: { type: String, required: false },
+    statKey: { type: String, required: false },
+    value: { type: Number, min: 0, required: false },
+    color: { type: String, required: false },
+    axis: { type: String, required: false },
+    lineStyle: lineStyleSchema,
+    legend: { type: String, required: false },
+    legendOrientation: {
+      type: String,
+      required: false,
+    },
+  },
+  _id: false,
+});
 const DeckSchema = createSchemaWithCommonFields('cards', 'CardInDeck');
 const CartSchema = createSchemaWithCommonFields('items', 'CardInCart');
+// const collectionStatisticsSchema = new Schema({
+//   stats: {
+//     type: Map,
+//     of: statDataMapSchema,
+//   },
+// });
 const CollectionSchema = new Schema(
   {
     ...createCommonFields(),
@@ -33,10 +109,9 @@ const CollectionSchema = new Schema(
     dailyPriceChange: Number,
     dailyPercentageChange: String,
     newTotalPrice: Number,
-
+    updatedFromCron: Boolean,
     dailyCollectionPriceHistory: [priceEntrySchema],
     collectionPriceChangeHistory: [collectionPriceChangeHistorySchema],
-
     latestPrice: priceEntrySchema,
     lastSavedPrice: priceEntrySchema,
     collectionPriceHistory: [priceEntrySchema],
@@ -60,44 +135,24 @@ const CollectionSchema = new Schema(
       },
     },
     collectionStatistics: {
-      type: Map,
-      of: collectionStatisticsSchema,
-      default: () =>
-        new Map([
-          [
-            '24hr',
-            {
-              id: '24hr',
-              name: '24 Hour Stats',
-              color: 'blue',
-              data: new Map([
-                [
-                  'highPoint',
-                  {
-                    name: 'highPoint',
-                    label: 'High Point',
-                    color: '#FF8473',
-                    axis: 'y',
-                    lineStyle: { stroke: '#FF8473', strokeWidth: 2 },
-                    value: 0,
-                    legend: 'High Point',
-                    legendOrientation: 'vertical',
-                  },
-                ],
-              ]),
-            },
-          ],
-        ]),
+      type: Object,
+      default: () => ({}),
     },
+    collectionStatisticsAtRanges: new Schema({
+      data: {
+        type: Map,
+        of: statDataMapSchema,
+      },
+    }),
     selectedStatDataKey: {
       type: String,
       default: 'highpoint',
     },
-    selectedStat: {
+    selectedStatData: {
       type: Object,
       default: {
         id: 'highpoint',
-        key: 'highPoint',
+        statKey: 'highPoint',
         label: '24 Hour Stats',
         color: '#FF8473',
         axis: 'y',
@@ -108,7 +163,11 @@ const CollectionSchema = new Schema(
         legendOrientation: 'vertical',
       },
     },
-    selectedColorDataKey: {
+    selectedThemeDataKey: {
+      type: String,
+      default: 'blue',
+    },
+    selectedThemeData: {
       type: String,
       default: 'blue',
     },
@@ -120,12 +179,62 @@ CollectionSchema.pre('save', async function (next) {
   logger.info(`[Pre-save hook for collection: `.red + `${this.name}`.white + `]`.red);
 
   try {
+    if (this.isNew) {
+      logger.info(`[NEW COLLECTION] `.green + `[${this.name}`.white + `]`.green);
+      const initPrice = this.cards[0]?.price ? this.cards[0]?.price : 0;
+      const initPriceEntry = createNewPriceEntry(initPrice);
+      this.addedAt = new Date();
+      this.dateAdded = new Date();
+      // this.collectionStatistics = new Map();
+      this.selectedChartDataKey = '7d';
+      this.selectedChartData = {
+        id: '7d',
+        color: 'blue',
+        data: [{ x: Date, y: Number }],
+        growth: 0,
+      };
+      this.selectedStatDataKey = 'highpoint';
+      this.selectedStatData = {
+        id: 'highpoint',
+        statKey: 'highPoint',
+        label: '24 Hour Stats',
+        color: '#FF8473',
+        axis: 'y',
+        lineStyle: { stroke: '#FF8473', strokeWidth: 2 },
+        // VALUE TYPES: STRING, NUMBER, PERCENTAGE
+        value: 0,
+        legend: `High Point`,
+        legendOrientation:'vertical',
+      };
+      this.selectedThemeDataKey = 'blue';
+      this.selectedThemeData = 'blue';
+      this.dailyCollectionPriceHistory = [initPriceEntry];
+      this.collectionPriceHistory = [initPriceEntry];
+      this.collectionValueHistory = [initPriceEntry];
+    }
+    if (!this.isNew) {
+      logger.info(`[UPDATING COLLECTION] `.blue + `[${this.name}`.white + `]`.blue);
+    }
+    if (this.updatedFromCron) {
+      logger.info(`[UPDATED COLLECTION FROM CRON] `.green + `[${this.name}`.white + `]`.yellow);
+      this.updatedFromCron = false;
+    }
+    // SET/RESET COLLECTION DATA AND DEFAULT VALUES
+    let newTotalPrice = 0;
+    let newTotalQuantity = 0;
+    this.collectionPriceHistory = [];
+    this.collectionValueHistory = [];
+    this.dailyCollectionPriceHistory = [];
+    this.allDataPoints = [];
+    this.averagedChartData = new Map();
+    this.collectionStatistics = {}
     if (Array.isArray(this.cards) && this.cards.length > 0) {
-      let newTotalPrice = 0;
-      let newTotalQuantity = 0;
+      // let newTotalPrice = 0;
+      // let newTotalQuantity = 0;
       const cardsInCollection = await CardInCollection.find({
         _id: { $in: this.cards.map((id) => id) },
       });
+      // this.selectedChartDataKey = '7d';
       if (Array.isArray(cardsInCollection) && cardsInCollection.length > 0) {
         cardsInCollection.forEach((card) => {
           newTotalQuantity += card.quantity;
@@ -139,57 +248,35 @@ CollectionSchema.pre('save', async function (next) {
         this.allDataPoints = formattedDataPoints;
         const averageData = processDataForRanges(formattedDataPoints);
         this.averagedChartData = averageData;
-      }
-      this.totalPrice = newTotalPrice;
-      this.totalQuantity = newTotalQuantity;
-      const generatedStatistics = generateStatisticsForRanges(this.allDataPoints);
-      if (generatedStatistics instanceof Map) {
-        logger.info(`[GENERATED STATISTICS] ${generatedStatistics.get('24hr')}`);
-        this.collectionStatistics = generatedStatistics;
-      } else {
-        logger.error('[INVALID TYPE] Expected a Map object.');
-      }
-      generatedStatistics.forEach((value, key) => {
-        if (typeof key !== 'string') {
-          logger.error(`Invalid key for key ${key}: Expected a string.`);
+        const generatedStatistics = generateStatisticsForRanges(
+          formattedDataPoints,
+          this.selectedChartDataKey,
+          newTotalPrice,
+        );
+        this.selectedChartData = averageData[this.selectedChartDataKey];
+        // logger.info(`[GENERATING STATISTICS] `.green + `[${generatedStatistics}]`.green);
+        for (const [key, value] of generatedStatistics.entries()) {
+          this.collectionStatistics[key] = value;
+          // logger.info(`[GENERATING STATISTICS] `.green + `[${generatedStatistics[key]}][${generatedStatistics[key].value}]`.green);
         }
-        if (typeof value !== 'object') {
-          logger.error(`Invalid value for key ${key}: Expected an object.`);
-        }
-      });
-      // this.collectionStatistics = generatedStatistics;
-      // const statsAtSelectedTimeRange = this.collectionStatistics.get(this.selectedChartDataKey);
-      // if (statsAtSelectedTimeRange) {
-      //   logger.info(
-      //     `[STATS FOUND AT RANGE: ${this.selectedChartDataKey}][${statsAtSelectedTimeRange.name}]`
-      //       .green,
-      //   );
-      //   const selectedStatData = statsAtSelectedTimeRange.data.get(this.selectedStatDataKey);
-      //   if (selectedStatData) {
-      //     logger.info(
-      //       `[SELECTED STAT DATA FOUND: ${this.selectedStatDataKey}][${selectedStatData.name}]`
-      //         .green,
-      //     );
-      //     this.selectedStat = selectedStatData;
-      //   } else {
-      //     logger.error('Selected stat data key not found.');
-      //   }
-      // } else {
-      //   logger.error('Selected chart data key not found.');
-      // }
+        this.selectedStatData = generatedStatistics[this.selectedStatDataKey];
+        this.selectedThemeData = this.selectedThemeDataKey;
+        // this.markModified('collectionStatistics');
+        // console.log('Final collectionStatistics Object before save:', this.collectionStatistics[]
+      }
     }
-
+    this.totalPrice = newTotalPrice;
+    this.totalQuantity = newTotalQuantity;
     this.lastUpdated = new Date();
-    logger.info('[INFO][ 6 ]'.green, 'all values updated');
     this.markModified('totalPrice');
     this.markModified('totalQuantity');
     this.markModified('collectionPriceHistory');
     this.markModified('collectionValueHistory');
-    // this.markModified('nivoChartData');
-    // this.markModified('averagedChartData');
+    this.markModified('averagedChartData');
     this.markModified('selectedChartData');
-    // this.markModified('newNivoChartData');
-    // this.markModified('collectionStatistics');
+    this.markModified('collectionStatistics');
+    this.markModified('selectedStatData');
+    this.markModified('collectionStatisticsAtRanges');
     this.markModified('lastUpdated');
 
     next();

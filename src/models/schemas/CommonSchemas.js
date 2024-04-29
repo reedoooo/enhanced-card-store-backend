@@ -166,9 +166,6 @@ const dataPointSchema = createSchema(
   },
   { _id: false },
 );
-
-// const statDataMapSchema = new Schema({
-
 const chartDataSchema = new Schema({
   id: String,
   name: String,
@@ -179,48 +176,63 @@ const chartDataSchema = new Schema({
     validate: [arrayLimit, `{PATH} exceeds the limit of {VALUE}`],
   },
 });
-const lineStyleSchema = new Schema(
-  {
-    stroke: { type: String, required: true },
-    strokeWidth: { type: Number, required: true },
-  },
-  { _id: false },
-);
-const collectionStatisticsSchema = new Schema({
-  id: { type: String, required: true },
-  name: { type: String, required: true },
-  color: { type: String, required: true },
-  data: {
-    type: Map,
-    of: new Schema({
-      name: {
-        type: String,
-        enum: [
-          'highPoint',
-          'lowPoint',
-          'average',
-          'percentageChange',
-          'priceChange',
-          'avgPrice',
-          'volume',
-          'volatility',
-        ],
-        required: true,
-      },
-      label: { type: String, required: true },
-      value: { type: Number, min: 0, required: true },
-      color: { type: String, required: true },
-      axis: { type: String, required: true },
-      lineStyle: lineStyleSchema,
-      legend: { type: String, required: true },
-      legendOrientation: {
-        type: String,
-        required: true,
-      },
-    }),
-    required: true,
-  },
-});
+// const lineStyleSchema = new Schema(
+//   {
+//     stroke: { type: String, required: true },
+//     strokeWidth: { type: Number, required: true },
+//   },
+//   { _id: false },
+// );
+// const statSchema = new Schema(
+//   {
+//     name: {
+//       type: String,
+//       enum: [
+//         'highPoint',
+//         'lowPoint',
+//         'average',
+//         'percentageChange',
+//         'priceChange',
+//         'avgPrice',
+//         'volume',
+//         'volatility',
+//       ],
+//       required: false,
+//     },
+//     id: { type: String, required: false },
+//     label: { type: String, required: false },
+//     statKey: { type: String, required: false },
+//     value: { type: Number, min: 0, required: false },
+//     color: { type: String, required: false },
+//     axis: { type: String, required: false },
+//     lineStyle: lineStyleSchema,
+//     legend: { type: String, required: false },
+//     legendOrientation: {
+//       type: String,
+//       required: false,
+//     },
+//   },
+//   { _id: false },
+// ); // Disable _id for each statData
+// const statDataMapSchema = new Schema({
+//   type: Map,
+//   of: statSchema,
+//   _id: false,
+// });
+//   {
+//     type: Map,
+//     of: statSchema,
+//   },
+//   { _id: false },
+// );
+
+// const collectionStatisticsSchema = new Schema({
+//   stats: {
+//     type: Map,
+//     of: statDataMapSchema,
+//   },
+// });
+
 const averagedDataSchema = new Schema(
   {
     id: String,
@@ -242,12 +254,14 @@ module.exports = {
   cardImageSchema,
   cardPriceSchema,
   cardVariantSchema,
-  collectionStatisticsSchema,
   collectionPriceChangeHistorySchema,
   averagedDataSchema,
   chartDatasetEntrySchema,
   chartDataSchema,
   dataPointSchema,
+  // lineStyleSchema,
+  // statDataMapSchema,
+  // collectionStatisticsSchema,
   createCommonFields,
   createSchemaWithCommonFields,
   updateTotals,

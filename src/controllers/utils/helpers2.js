@@ -78,7 +78,7 @@ function transformSetData(set, index, { cardModel, cardId }) {
   return { ...set, set_price: setPrice, cardModel, cardId };
 }
 async function createCardSets(cardSetsData, cardModel, cardId) {
-  logger.info(`Creating ${cardSetsData} ${CardSet.modelName} entities ...`);
+  // logger.info(`Creating ${cardSetsData} ${CardSet.modelName} entities ...`);
   return Promise.all(
     cardSetsData
       ?.map((set, index) => transformSetData(set, index, { cardModel, cardId }))

@@ -20,16 +20,43 @@ const { validateEntityPresence } = require('../middleware/errorHandling/validato
  * @param {NextFunction} next - The next middleware function.
  */
 exports.getAllCollectionsForUser = async (req, res, next) => {
-  const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
-  validateEntityPresence(populatedUser, 'User not found', 404, res);
+  try {
+    const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
+    validateEntityPresence(populatedUser, 'User not found', 404, res);
 
-  sendJsonResponse(
-    res,
-    200,
-    `Fetched collections for user ${req.params.userId}`,
-    populatedUser.allCollections,
-  );
+    // let collectionsFromModel = await Collection.find({ owner: populatedUser._id });
+
+    // for (let collection of collectionsFromModel) {
+    //   collection.allDataMap = undefined;
+    //   collection.collectionPriceChangeHistory = undefined;
+    //   // collection.collectionStatisticsAtRanges = undefined;
+    //   collection.collectionStatistics = undefined;
+    //   collection.newNivoChartData = undefined;
+    //   collection.nivoChartData = undefined;
+
+    //   collection.markModified('allDataMap');
+    //   collection.markModified('collectionPriceChangeHistory');
+    //   // collection.markModified('collectionStatisticsAtRanges');
+    //   collection.markModified('collectionStatistics');
+    //   collection.markModified('newNivoChartData');
+    //   collection.markModified('nivoChartData');
+
+    //   await collection.save();
+    // }
+
+    await populatedUser.save();
+
+    sendJsonResponse(
+      res,
+      200,
+      `Fetched collections for user ${req.params.userId}`,
+      populatedUser.allCollections,
+    );
+  } catch (error) {
+    next(error); // Ensure that any errors are passed along to the error handling middleware
+  }
 };
+
 /**
  * Creates a new collection for a user.
  * @param {Request} req - The request object
@@ -65,16 +92,14 @@ exports.updateExistingCollection = async (req, res, next) => {
   if (!collection) {
     return res.status(404).json({ error: 'Collection not found' });
   }
-  logger.info(`UPDATING COLLECTION VALUES: ${JSON.stringify(req.body)}`);
+  // logger.info(`UPDATING COLLECTION VALUES: ${JSON.stringify(req.body)}`);
   Object.assign(collection, req.body);
-  // const updated collection = {
-  //   name: req.body.name,
-  //   description: req.body.description,
-  //   cards: req.body.cards,
-  //   selectedChartData: req.body.selectedChartData,
-  //   selectedChartDataKey: req.body.selectedChartDataKey,
-  // };
-  // collection = Object.assign(collection, 
+  // collection.allDataMap = undefined;
+  // collection.collectionPriceChangeHistory = undefined;
+  // collection.collectionStatisticsAtRanges = undefined;
+  // collection.collectionStatistics = undefined;
+  // collection.newNivoChartData = undefined;
+  // collection.nivoChartData = undefined;
   await collection.save();
 
   await populatedUser.save();
