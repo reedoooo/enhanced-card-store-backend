@@ -13,13 +13,13 @@ async function removeFromCart(user, cartItems) {
     (cardInCartId) => !cartItems.some((item) => item.id === cardInCartId),
   );
 }
-const updateCardQuantity = (card, quantity, type) => {
+const updateCardQuantity = (card, quantity, type, user) => {
   if (type === 'increment') {
     card.quantity += 1;
   } else if (type === 'decrement' && card.quantity > 1) {
     card.quantity -= 1;
-  } else if (type === 'decrement' && card.quantity === 1) {
-    card.quantity = 0;
+  } else if (type === 'decrement' && card.quantity === 1 || type === 'delete') {
+    removeFromCart(user, card._id);
   }
 };
 exports.getUserCart = async (req, res, next) => {
@@ -119,7 +119,7 @@ exports.addCardsToCart = async (req, res, next) => {
     const existingCardIndex = cart.items.findIndex((c) => c.id === update.id);
     if (existingCardIndex !== -1) {
       const existingCard = cart.items[existingCardIndex];
-      updateCardQuantity(existingCard, update.quantity, type); // Assume this is your logic to update quantity
+      updateCardQuantity(existingCard, update.quantity, type, populatedUser);
     } else {
       const reSavedCard = await reFetchForSave(update, cart?._id, 'Cart', 'CardInCart'); // Assuming this function is correctly implemented
       cart?.items?.push(reSavedCard?._id);
@@ -193,6 +193,35 @@ exports.updateCardsInCart = async (req, res, next) => {
     res.status(200).json({ message: 'Cards updated in cart successfully.', data: cart });
   } catch (error) {
     logger.error('Error updating cards in cart:', error);
+    next(error);
+  }
+};
+exports.deleteCardFromCart = async (req, res, next) => {
+  const { userId, cardId } = req.params;
+  try {
+    const user = await populateUserDataByContext(userId, ['cart']);
+    const cart = user?.cart;
+
+    if (!cart) {
+      return res.status(404).json({ message: 'Cart not found.' });
+    }
+
+    const cardInCart = cart.items.find((item) => item._id.toString() === cardId);
+
+    if (!cardInCart) {
+      return res.status(404).json({ message: 'Card not found in cart.' });
+    }
+    // FIND AND DELETE
+    await CardInCart.findByIdAndDelete(cardInCart._id);
+    // FIND AND REMOVE FROM CART
+    cart.items = cart.items.filter((item) => item.id.toString() !== cardId);
+    // SAVE CHANGES
+    await cart.save();
+    await user.save();
+
+    res.status(200).json({ message: 'Card removed from cart successfully.', data: cart });
+  } catch (error) {
+    logger.error('Error deleting card from cart:', error);
     next(error);
   }
 };

@@ -13,14 +13,12 @@ require('colors');
 const logger = require('../configs/winston');
 const { CardInCollection } = require('./Card');
 const {
-  generateCardDataPoints,
-  recalculatePriceHistory,
-  createNewPriceEntry,
-} = require('../utils/dataUtils.js');
-const {
   convertToDataPoints,
   processDataForRanges,
   generateStatisticsForRanges,
+  calculateValueHistory,
+  createNewPriceEntry,
+  generateCardDataPoints,
 } = require('../utils/dateUtils.js');
 
 const lineStyleSchema = new Schema(
@@ -30,37 +28,6 @@ const lineStyleSchema = new Schema(
   },
   { _id: false },
 );
-// const statSchema = new Schema(
-//   {
-//     name: {
-//       type: String,
-//       enum: [
-//         'highPoint',
-//         'lowPoint',
-//         'average',
-//         'percentageChange',
-//         'priceChange',
-//         'avgPrice',
-//         'volume',
-//         'volatility',
-//       ],
-//       required: false,
-//     },
-//     id: { type: String, required: false },
-//     label: { type: String, required: false },
-//     statKey: { type: String, required: false },
-//     value: { type: Number, min: 0, required: false },
-//     color: { type: String, required: false },
-//     axis: { type: String, required: false },
-//     lineStyle: lineStyleSchema,
-//     legend: { type: String, required: false },
-//     legendOrientation: {
-//       type: String,
-//       required: false,
-//     },
-//   },
-//   { _id: false },
-// ); // Disable _id for each statData
 const statDataMapSchema = new Schema({
   type: Map,
   of: {
@@ -242,7 +209,7 @@ CollectionSchema.pre('save', async function (next) {
         });
         const cardDataPoints = generateCardDataPoints([...cardsInCollection]);
         this.collectionPriceHistory = cardDataPoints;
-        const cumulativeDataPoints = recalculatePriceHistory(cardDataPoints);
+        const cumulativeDataPoints = calculateValueHistory(cardDataPoints);
         this.collectionValueHistory = cumulativeDataPoints;
         const formattedDataPoints = convertToDataPoints(cumulativeDataPoints);
         this.allDataPoints = formattedDataPoints;
@@ -251,7 +218,8 @@ CollectionSchema.pre('save', async function (next) {
         const generatedStatistics = generateStatisticsForRanges(
           formattedDataPoints,
           this.selectedChartDataKey,
-          newTotalPrice,
+          this.totalPrice,
+          this.totalQuantity,
         );
         this.selectedChartData = averageData[this.selectedChartDataKey];
         // logger.info(`[GENERATING STATISTICS] `.green + `[${generatedStatistics}]`.green);

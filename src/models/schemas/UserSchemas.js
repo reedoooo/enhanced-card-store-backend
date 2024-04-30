@@ -31,7 +31,7 @@ const wishlistSchema = new Schema(
     cards: [
       {
         cardId: { type: Schema.Types.ObjectId, ref: 'Card', required: true },
-        addedAt: { type: Date, default: Date.now },
+        addedAt: { type: Date, default: new Date(Date.now()) },
       },
     ],
   },

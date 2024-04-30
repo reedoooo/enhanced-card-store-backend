@@ -11,7 +11,7 @@ const { CardInCollection } = require('../models/Card');
 const { User } = require('../models/User');
 const moment = require('moment-timezone');
 const { extendMoment } = require('moment-range');
-const { createNewPriceEntry } = require('../utils/dataUtils');
+const { createNewPriceEntry } = require('../utils/dateUtils');
 const { differenceInHours } = require('date-fns');
 const {
   greenLogBracks,
@@ -25,7 +25,6 @@ const {
 const momentWithRange = extendMoment(moment);
 momentWithRange.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
 const timezone = 'America/Seattle';
-const now = momentWithRange().tz(timezone);
 moment.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
 const findDocumentById = async (id) => {
   try {
@@ -50,6 +49,7 @@ const processCardPriceChange = async (cardData, collectionName, username) => {
     logger.error(`Invalid ID format: ${cardData?._id}`);
     return null;
   }
+  const now = moment().tz(timezone);
   const card = await findDocumentById(cardData._id);
   if (!card) {
     logger.warn(`Card not found: ${cardData?._id}`);
@@ -63,9 +63,7 @@ const processCardPriceChange = async (cardData, collectionName, username) => {
   const currentPrice = parseFloat(card.price);
   const newPrice = parseFloat(apiPricesArray[0]?.tcgplayer_price);
   const differenceDeteced = newPrice !== currentPrice;
-  const addedMessage = differenceDeteced
-    ? `[PRICE CHANGE]`.green
-    : `[NO PRICE CHANGE]`.red;
+  const addedMessage = differenceDeteced ? `[PRICE CHANGE]`.green : `[NO PRICE CHANGE]`.red;
   logger.info(
     `[CHECKING PRICES]` +
       `[` +
@@ -115,8 +113,9 @@ const processCardPriceChange = async (cardData, collectionName, username) => {
           `[DAILY PRICE HISTORY UPDATED] ${card.name} [DAILY PRICE HISTORY UPDATED]`.green,
         );
       }
-      await card.save(); // Assuming card.save() is a valid method to persist changes
+      // await card.save(); // Assuming card.save() is a valid method to persist changes
     }
+    // await card.save(); // Assuming card.save() is a valid method to persist changes
     return {
       changeStatus: true,
       oldPrice: oldPrice,
@@ -136,6 +135,7 @@ const updatedCollectionCron = async () => {
   logger.info(greenLogBracks('STARTING COLLECTION UPDATE CRON JOB...'));
   let globalPriceChanges = []; // To store all changes for logging later
   const users = await User.find({});
+  const now = moment().tz(timezone);
   logFunctionSteps('1', `${users.length} users found`);
   for (const user of users) {
     const userPopulated = await populateUserDataByContext(user?._id, ['collections']);
@@ -174,6 +174,7 @@ const updatedCollectionCron = async () => {
             message: message,
           }); // Format and add to global changes
         }
+        await card.save(); // Assuming card.save() is a valid method to persist changes
       }
       if (collectionPriceChanges.length > 0) {
         const lastUpdate = collection?.collectionPriceChangeHistory?.slice(-1)?.[0]?.timestamp;
@@ -201,6 +202,7 @@ const updatedCollectionCron = async () => {
         logger.info(`No price changes detected for collection: ${collection.name}`.red);
       }
     }
+    await user.save(); // Assuming user.save() is a valid method to persist changes
   }
 
   if (globalPriceChanges.length > 0) {
@@ -208,9 +210,8 @@ const updatedCollectionCron = async () => {
     logFunctionSteps(
       '[X]',
       ' | '.green +
-        `PRICE CHANGES DETECTED  ${
-          globalPriceChanges?.length > 1 ? globalPriceChanges?.length : globalPriceChanges[0]
-        }` +
+        `PRICE CHANGES DETECTED `.blue +
+        `${globalPriceChanges?.length > 1 ? globalPriceChanges?.length : globalPriceChanges[0]}` +
         ' | '.green,
     );
     logPriceChangesToFile(globalPriceChanges);

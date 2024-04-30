@@ -1,6 +1,12 @@
 const logger = require('../configs/winston');
 const { RandomCard } = require('../models/Card');
 const { axiosInstance, fetchCardPrices, queryBuilder, generateFluctuatingPriceData } = require('../utils/utils');
+const moment = require('moment-timezone');
+const { extendMoment } = require('moment-range');
+const momentWithRange = extendMoment(moment);
+momentWithRange.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
+const timezone = 'America/Seattle';
+moment.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
 async function fetchAndGenerateRandomCardData() {
   const endpoint = 'randomcard.php';
   const response = await axiosInstance.get(endpoint);
@@ -90,23 +96,13 @@ const cardController = {
    * @returns {array} - The transformed card data.
    */
   fetchAndTransformCardData: async (data) => {
-    // const response = await axiosInstance.get(
-    //   `/cardinfo.php?${queryBuilder(data.name, data.race, data.type, data.level, data.attribute)}`,
-    // );
+    const now = moment().tz(timezone);
     logger.info(`RAW INCOMING DATA: ${data}`);
     const response = await axiosInstance.get(`/cardinfo.php?${queryBuilder(data)}`);
     const fetchedCards = response?.data?.data?.slice(0, 90); // Limiting to 30 cards
     const cardNames = fetchedCards?.map((card) => card.name);
     logger.info('FETCHED CARDS', cardNames);
     const transformedCards = fetchedCards?.map((card) => {
-      // const rawData = extractRawTCGPlayerData(card);
-      // const initialConstructionData = constructInitialCardData(rawData);
-      // return {
-      //   ...initialConstructionData,
-      //   ...rawData,
-      // };
-      // const tcgplayerPrice = card?.card_prices[0]?.tcgplayer_price || 0;
-
       const tcgplayerPrice = card?.card_prices[0]?.tcgplayer_price || 0;
       const image = card?.card_images.length > 0 ? card.card_images[0].image_url : '';
       let card_set = null;
@@ -124,21 +120,17 @@ const cardController = {
         watchList: false,
         rarity: rarity,
         card_set: card_set ? card_set : {},
-        chart_datasets: [
-          {
-            x: Date.now(),
-            y: tcgplayerPrice,
-          },
-        ],
         lastSavedPrice: {
           num: 0,
           timestamp: Date.now(),
         },
         latestPrice: {
           num: tcgplayerPrice,
-          timestamp: Date.now(),
+          timestamp: moment().tz(timezone),
         },
         priceHistory: [],
+        valueHistory: [],
+        priceChangeHistory: [],
         dailyPriceHistory: [],
         id: card.id.toString(),
         name: card.name,

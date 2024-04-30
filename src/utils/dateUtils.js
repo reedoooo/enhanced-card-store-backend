@@ -1,152 +1,186 @@
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../configs/winston');
-const {
-  addDays,
-  subMonths,
-  differenceInDays,
-  differenceInHours,
-  parse,
-  format,
-  getYear,
-  getMonth,
-  getDate,
-  eachDayOfInterval,
-  subDays,
-  subHours,
-  parseISO,
-} = require('date-fns');
-
-const {
-  DATE_TIME_RANGES,
-  generateRangeStatConfigWithLabels,
-  BASE_STAT_CONFIGS,
-} = require('../configs/constants');
+const { DATE_TIME_RANGES, BASE_STAT_CONFIGS } = require('../configs/constants');
 
 const moment = require('moment-timezone');
 const { extendMoment } = require('moment-range');
-
 const momentWithRange = extendMoment(moment);
 momentWithRange.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
 const timezone = 'America/Seattle';
-const now = momentWithRange().tz(timezone);
 moment.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
 
-// ! STEP ONE: Convert data from timestamp/num format to data point format.
-/**
- * Converts an array of data with 'timestamp' and 'num' properties to a specified data point format.
- * @param {Array} data - The input data array, each object should have 'timestamp' and 'num' properties.
- * @param {string} type - The type of data point format ('date' or 'time').
- * @returns {Array} An array of data points formatted according to the specified type.
- */
-function convertToDataPoints(data) {
-  return data.map((item) => {
-    const itemMoment = momentWithRange(item.timestamp).tz(timezone);
-    const isWithin24Hours = now.diff(itemMoment, 'hours') <= 24;
-    const labelFormat = isWithin24Hours ? 'HH:mm' : 'YYYY-MM-DD';
+const createNewPriceEntry = (price, time) => {
+  const newTimeStampValue = moment().tz(timezone).toISOString();
+  const stampValue = time ? moment(time).tz(timezone).toISOString() : newTimeStampValue;
+  return {
+    num: price,
+    timestamp: stampValue,
+  };
+};
+
+const generateSingleCardPriceEntries = (card) => {
+  return Array.from({ length: card.quantity }, (_, index) => ({
+    num: card.price,
+    timestamp: moment(card.addedAt).tz(timezone).toISOString(),
+  }));
+};
+
+const generateCardDataPoints = (cards, timezone) => {
+  return cards
+    .sort((a, b) => new Date(a.addedAt) - new Date(b.addedAt))
+    .flatMap((card) => generateSingleCardPriceEntries(card));
+};
+
+const calculateValueHistory = (cardDataPoints) => {
+  let totalValue = 0;
+  return cardDataPoints.map((dataPoint) => {
+    const pointMoment = moment(dataPoint.timestamp).tz(timezone);
+    totalValue += dataPoint.num;
     return {
-      label: itemMoment.format(labelFormat),
-      id: uuidv4(),
-      x: itemMoment.toISOString(),
-      y: item.num,
+      num: totalValue,
+      timestamp: pointMoment.toISOString(),
     };
   });
+};
+function convertSingleDataPoint(item, now) {
+  const pointMoment = moment(item.timestamp).tz(timezone);
+  const isWithin24Hours = pointMoment.isAfter(now.clone().subtract(24, 'hours'));
+  const labelFormat = isWithin24Hours ? 'HH:mm' : 'YYYY-MM-DD';
+  const label = pointMoment.format(labelFormat);
+  const xValue = pointMoment.toISOString();
+
+  return {
+    label: label,
+    id: uuidv4(),
+    x: xValue,
+    y: item.num,
+  };
 }
+function convertToDataPoints(data) {
+  const now = moment().tz(timezone);
+  return data.map((item) => convertSingleDataPoint(item, now));
+}
+
+// function convertToDataPoints(data) {
+//   const now = moment().tz(timezone);
+//   return data.map((item) => {
+//     const pointMoment = moment(item.timestamp).tz(timezone);
+//     const isWithin24Hours = pointMoment.isAfter(now.clone().subtract(24, 'hours'));
+//     const labelFormat = isWithin24Hours ? 'HH:mm' : 'YYYY-MM-DD';
+//     const label = pointMoment.format(labelFormat);
+//     const xValue = pointMoment.toISOString();
+//     // if (isWithin24Hours) {
+//     //   logger.info(
+//     //     `[Hour Point][${pointMoment.format('YYYY-MM-DD')}][${pointMoment.format('HH:mm')}][${item.num}]`,
+//     //   );
+//     // } else {
+//     //   logger.info(
+//     //     `[Day Point][${pointMoment.format('YYYY-MM-DD')}][${pointMoment.format('HH:mm')}][${item.num}]`,
+//     //   );
+//     // }
+//     return {
+//       label: label,
+//       id: uuidv4(),
+//       x: xValue,
+//       y: item.num,
+//     };
+//   });
+// }
 function mapDataByDateOrTime(data, type) {
   const formatString = type === 'date' ? 'YYYY-MM-DD' : 'HH:mm';
   let dataMap = new Map();
-
   data.forEach((item) => {
-    const itemMoment = momentWithRange(item.x).tz(timezone).format(formatString);
+    const itemMoment = moment(item.x).tz(timezone).format(formatString);
     if (!dataMap.has(itemMoment)) {
       dataMap.set(itemMoment, []);
     }
     dataMap.get(itemMoment).push(item);
   });
-
   return Array.from(dataMap, ([key, value]) => ({ date: key, data: value }));
 }
 function processDataForRanges(data) {
   const results = {};
+  const now = moment().tz(timezone);
 
   DATE_TIME_RANGES.forEach((range) => {
-    const { id, points, color, type } = range;
-    // const type = id.endsWith('d') ? 'date' : 'time';
-    let startRange = now.clone().subtract(points, type === 'date' ? 'days' : 'hours');
-    let endRange = now.clone();
+    const timeFormat = range.type === 'date' ? 'YYYY-MM-DD' : 'HH:mm';
 
-    const timeFormat = type === 'date' ? 'YYYY-MM-DD' : 'HH:mm';
+    const startRange = now.clone().subtract(range.points, range.type === 'date' ? 'days' : 'hours');
+    const endRange = now.clone();
+    logger.info(`[START RANGE: ${startRange}][END RANGE: ${endRange}]`);
     let allTimes = Array.from(
-      momentWithRange.range(startRange, endRange).by(type === 'date' ? 'day' : 'hour'),
+      momentWithRange.range(startRange, endRange).by(range.type === 'date' ? 'day' : 'hour'),
     );
-    let lastY = null; // Variable to hold the last known Y value
-    let lastX = null; // Variable to hold the last known X value
-    let initialYFound = false;
-    let newpoint = false;
+    let mappedData = allTimes.map((time) => ({
+      label: time.format(timeFormat),
+      id: uuidv4(),
+      x: time.toISOString(),
+      y: 0,
+    }));
+    let dataInRange = data
+      .filter((d) => {
+        const dataMoment = moment(d.x).tz(timezone);
+        return dataMoment.isBetween(startRange, endRange, null, '[]');
+      })
+      .sort((a, b) => moment(a.x).valueOf() - moment(b.x).valueOf());
+    if (dataInRange.length > 0) {
+      mappedData.forEach((slot, index) => {
+        const closestData = dataInRange.find((d) => {
+          const slotMoment = moment(slot.x);
+          const dataMoment = moment(d.x)
+            .tz(timezone)
+            .startOf(range.type === 'date' ? 'day' : 'hour');
+          return dataMoment.isSame(slotMoment, range.type === 'date' ? 'day' : 'hour');
+        });
 
-    let mappedData = allTimes.map((time) => {
-      const timeStr = time.format(timeFormat);
-      const found = data.find(
-        (d) => momentWithRange(d.x).tz(timezone).format(timeFormat) === timeStr,
-      );
-      if (found) {
-        lastY = found.y; // Update lastY with the found value
-        lastX = found.x; // Update lastX with the found value
-        initialYFound = true;
-        newpoint = true;
-        return { ...found };
-      } else {
-        if (!initialYFound && lastY === null) {
-          // Find the first available y value if not already set
-          const firstDataWithY = data.find((d) => d.y != null);
-          lastY = firstDataWithY ? firstDataWithY.y : 0;
+        if (closestData) {
+          slot.y = closestData.y;
+          // logger.info(`[CLOSEST DATA][${closestData.y}]`);
+        } else {
+          const lastKnownY = index > 0 ? mappedData[index - 1].y : 0;
+          slot.y = lastKnownY;
         }
-        newpoint = false;
-        return {
-          label: timeStr,
-          id: uuidv4(),
-          x: time.toISOString(),
-          y: lastY || 0,
-        };
-      }
-    });
-
-    results[id] = {
-      id: id,
-      color: '#2e7c67', // You might want to set color based on specific conditions
-      name: `Last ${points} ${type === 'date' ? 'Days' : 'Hours'}`,
+      });
+    }
+    results[range.id] = {
+      id: range.id,
+      color: '#2e7c67', // Placeholder color, set according to your application's needs
+      name: `Last ${range.points} ${range.type === 'date' ? 'Days' : 'Hours'}`,
       data: mappedData,
     };
   });
 
   return results;
 }
-const findStatsInRange = (dataInRange, totalPrice, firstNonZeroY, indexOfFirstNonZeroY) => {
+
+const findStatsInRange = (dataInRange, totalPrice, totalQuantity) => {
   if (!dataInRange.length) {
     logger.info(`[NO DATA FOUND IN RANGE]`.red);
     return new Map(); // Return an empty Map if no data
   }
-  // logger.info(`[DATA] ${JSON.stringify(dataInRange)}`);
   const totalY = dataInRange.reduce((acc, item) => acc + item.y, 0);
-  logger.info(`[TOTAL Y] ${totalY}`);
-  const initialY = dataInRange[1].y;
-  logger.info(`[INITIAL Y] ${initialY}`);
-  logger.info(`[FIRST NON ZERO Y] ${firstNonZeroY}`);
-  logger.info(`[INDEX OF FIRST NON ZERO Y] ${indexOfFirstNonZeroY}`);
-  const priceChange = totalY - initialY;
-  logger.info(`[PRICE CHANGE] ${priceChange}`);
-  logger.info(`[PERCENTAGE CHANGE] ${totalPrice / priceChange}`);
+  const finalY = dataInRange[dataInRange.length - 1].y;
+  const initialY = dataInRange[0].y;
+  const indexOfFirstNonZeroY = dataInRange.findIndex((item) => item.y !== 0);
+  const firstNonZeroY = dataInRange[indexOfFirstNonZeroY].y;
+  const priceChange = totalPrice - firstNonZeroY;
+  // logger.info(`[TOTAL Y] ${totalY}`);
+  // logger.info(`[INITIAL Y] ${initialY}`);
+  // logger.info(`[FINAL Y] ${finalY}`);
+  // logger.info(`[FIRST NON ZERO Y] ${firstNonZeroY}`);
   const statsMap = new Map([
     ['highPoint', Math.max(...dataInRange.map((item) => item.y))],
     ['lowPoint', Math.min(...dataInRange.map((item) => item.y))],
     ['average', totalY / dataInRange.length],
     ['priceChange', priceChange],
-    ['percentageChange', totalPrice / priceChange],
-    ['volume', totalY],
+    ['percentageChange', (totalPrice / priceChange) * 100],
+    ['volume', totalQuantity],
     ['volatility', dataInRange.reduce((acc, item) => acc + Math.abs(item.y - initialY), 0)],
-    ['avgPrice', totalY / dataInRange.length],
+    ['avgPrice', totalPrice / totalQuantity],
   ]);
   return statsMap;
 };
+
 const mapStatisticsToFormat = (stats, config) => {
   if (!stats || !stats.has(config.statKey)) {
     logger.info(`[NO STATS FOUND] [${config.statKey}]`.red);
@@ -168,47 +202,53 @@ const mapStatisticsToFormat = (stats, config) => {
     legendOrientation: 'horizontal',
   };
 };
-const generateStatisticsForRanges = (dataPoints, chartKey, totalPrice) => {
-  if (chartKey === undefined) {
-    chartKey = '24hr';
-  }
-  // if (!dataPoints || !dataPoints.length || !chartKey) {
-  //   logger.info(`[NO DATA OR NO CHART KEY PROVIDED] [${dataPoints.length}][${chartKey}]`.red);
-  //   return new Map(); // Return an empty Map if no data or no chartKey
-  // }
+
+const generateStatisticsForRanges = (dataPoints, chartKey, totalPrice, totalQuantity) => {
   const results = new Map(); // Use a Map to store results
-  // logger.info(`[KEY] ${chartKey}`);
   const range = DATE_TIME_RANGES.find((r) => r.id === chartKey);
-  if (!range) {
-    logger.error(`No range found for the provided key: ${chartKey}`.red);
-    return results; // Exit if no range matches the chartKey
-  }
+  const now = moment().tz(timezone);
   const startRange = now.clone().subtract(range.points, range.type === 'date' ? 'days' : 'hours');
   const endRange = now.clone();
   let allTimes = Array.from(
     momentWithRange.range(startRange, endRange).by(range.type === 'date' ? 'day' : 'hour'),
   );
-  let firstNonZeroY = null;
-  let indexOfFirstNonZeroY = null;
-  const dataInRange = allTimes.map((time) => {
-    const timeStr = time.format(range.format);
-    const found = dataPoints.find(
-      (d) => momentWithRange(d.x).tz(timezone).format(range.format) === timeStr,
-    );
+  let dataWithDefaults = allTimes.map((time) => {
+    // Prepare a default structure for each slot
+    return {
+      label: time.format(range.type === 'date' ? 'YYYY-MM-DD' : 'HH:mm'),
+      id: uuidv4(),
+      x: time.toISOString(),
+      y: 0, // Default y value
+    };
+  });
+  dataPoints.forEach((dataPoint) => {
+    const pointMoment = moment(dataPoint.x).tz(timezone);
+    const closestSlot = dataWithDefaults.find((slot) => {
+      return moment(slot.x)
+        .tz(timezone)
+        .isSame(pointMoment, range.type === 'date' ? 'day' : 'hour');
+    });
 
-    if (found && found.y !== 0 && firstNonZeroY === null) {
-      firstNonZeroY = found.y; // Set firstNonZeroY if not already set and current y is non-zero
-      indexOfFirstNonZeroY = allTimes.indexOf(time);
+    if (closestSlot) {
+      closestSlot.y = dataPoint.y; // Assign data point y to the closest slot
     }
-
-    return found ? { ...found } : { label: timeStr, id: uuidv4(), x: time.toISOString(), y: 0 };
+  });
+  let finalY = null;
+  let lastKnownY = 0;
+  dataWithDefaults.forEach((slot) => {
+    if (slot.y !== 0) {
+      lastKnownY = slot.y;
+    } else {
+      slot.y = lastKnownY; // Carry forward the last known y value if no new value is present
+    }
   });
   BASE_STAT_CONFIGS.forEach((config) => {
-    const formattedStat = mapStatisticsToFormat(findStatsInRange(dataInRange, totalPrice, firstNonZeroY, indexOfFirstNonZeroY), config);
-    // logger.info(
-    //   `[FORMATTED STAT][${formattedStat.label}]` + `[` + `${formattedStat.value}`.green + `]`,
-    // );
+    const formattedStat = mapStatisticsToFormat(
+      findStatsInRange(dataWithDefaults, totalPrice, totalQuantity),
+      config,
+    );
     if (formattedStat) {
+      logger.info(`[STAT FOUND] [${config.name}] [${formattedStat.value}]`.green);
       results.set(config.name, formattedStat);
     }
   });
@@ -216,8 +256,13 @@ const generateStatisticsForRanges = (dataPoints, chartKey, totalPrice) => {
 };
 
 module.exports = {
+  generateCardDataPoints,
+  calculateValueHistory,
+  convertSingleDataPoint,
   convertToDataPoints,
   mapDataByDateOrTime,
   processDataForRanges,
   generateStatisticsForRanges,
+  createNewPriceEntry,
+  generateSingleCardPriceEntries,
 };

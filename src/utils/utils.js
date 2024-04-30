@@ -1,7 +1,7 @@
 // const { default: axios } = require('axios');
 const axios = require('axios'); // Additional axios import
 const logger = require('../configs/winston');
-const { createNewPriceEntry } = require('./dataUtils');
+const { createNewPriceEntry } = require('./dateUtils');
 const axiosInstance = axios.create({
   baseURL: 'https://db.ygoprodeck.com/api/v7/',
 });
@@ -36,7 +36,7 @@ function generateFluctuatingPriceData(days, basePrice) {
 
     priceData.push({
       x: new Date(currentDate),
-      y: price,
+      y: Math.round(price * 100) / 100,
     });
 
     currentDate.setDate(currentDate.getDate() + 1);
@@ -62,35 +62,6 @@ async function fetchCardPrices(cardName) {
 function sendJsonResponse(res, status, message, data) {
   res.status(status).json({ message, data });
 }
-/**
- * Formats a date object with previous format "DD/MM, HH:MMam/pm" and returns new formatted date string in the format "DD/MM, HH:MMam/pm".
- * @param {Date} date - The date object to be formatted.
- * @returns {string} - The formatted date string.
- * */
-const formatDateTime = (date) => {
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const year = date.getFullYear();
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-
-  return `${day}/${month}/${year}, ${hours}:${minutes}`;
-};
-/**
- * Formats a date object to the format "DD/MM, HH:MMam/pm".
- * @param {Date} date - The date object to be formatted.
- * @returns {string} - The formatted date string.
- * */
-const formatDate = (date) => {
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  let hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  const ampm = hours >= 12 ? 'pm' : 'am';
-  hours = hours % 12;
-  hours = hours ? hours.toString().padStart(2, '0') : '12'; // the hour '0' should be '12'
-  return `${day}/${month}, ${hours}:${minutes}${ampm}`;
-};
 /**
  * Removes duplicate price history entries from a collection of cards.
  * @param {object[]} cards - The collection of cards to be deduplicated.
@@ -139,25 +110,6 @@ const getCardInfo = async (cardName) => {
     logger.error(`Error fetching card info for card NAME ${cardName}:`, error);
     throw error;
   }
-};
-/**
- * Extracts the data from the request body.
- * @param {object} req - The request object.
- * @returns {object} - The extracted data.
- * */
-const extractData = ({ body }) => {
-  const { userSecurityData, userBasicData } = body;
-  const { username, password, email, role_data } = userSecurityData;
-  const { firstName, lastName } = userBasicData || {};
-
-  return {
-    username,
-    password,
-    email,
-    role_data,
-    firstName,
-    lastName,
-  };
 };
 /**
  * Calculates the total value of the collection.
@@ -323,15 +275,6 @@ function constructCardDataObject(cardData, additionalData) {
   };
 }
 // Assuming `collectionStatistics` is a Map
-const logMapData = (map) => {
-  if (map instanceof Map) {
-    map.forEach((value, key) => {
-      logger.info(`[Map Key: ${key}] [Map Value: ${JSON.stringify(value)}]`);
-    });
-  } else {
-    logger.error(`[ERROR] Invalid collectionStatistics type: ${typeof collectionStatistics}`.red);
-  }
-};
 
 // To log `collectionStatistics`
 // logMapData(this.collectionStatistics);
@@ -341,11 +284,7 @@ const logMapData = (map) => {
 
 module.exports = {
   getCardInfo,
-  extractData,
-  formatDateTime,
   calculateCollectionValue,
-  formatDate,
-  // removeDuplicatePriceHistoryFromCollection,
   constructCardDataObject,
   sendJsonResponse,
   extractRawTCGPlayerData,
@@ -353,6 +292,5 @@ module.exports = {
   queryBuilder,
   generateFluctuatingPriceData,
   fetchCardPrices,
-  logMapData,
   axiosInstance,
 };

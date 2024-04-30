@@ -275,7 +275,7 @@ let BASE_STAT_CONFIGS = [
 ];
 const DATE_RANGES = [
   {
-    label: '24hr',
+    id: '24hr',
     points: 24,
     color: '#FF8473',
     type: 'time',

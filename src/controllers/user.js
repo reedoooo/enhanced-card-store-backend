@@ -92,23 +92,31 @@ exports.signup = async (req, res, next) => {
   }
 };
 exports.signin = async (req, res, next) => {
-  const { username, password } = req.body.userSecurityData;
-  validateUserCredentials(username, password);
-  const user = await findAndValidateUser(username, password);
-  const populatedUser = await populateUserDataByContext(user._id, ['decks', 'collections', 'cart']);
-  const accessToken = await generateToken(populatedUser._id, false);
-  const refreshToken = await generateRefreshToken(populatedUser._id); // New refresh token
-  await saveTokens(populatedUser._id, accessToken, refreshToken);
+  try {
+    const { username, password } = req.body.userSecurityData;
+    validateUserCredentials(username, password);
+    const user = await findAndValidateUser(username, password);
+    const populatedUser = await populateUserDataByContext(user._id, [
+      'decks',
+      'collections',
+      'cart',
+    ]);
+    const accessToken = await generateToken(populatedUser._id, false);
+    const refreshToken = await generateRefreshToken(populatedUser._id); // New refresh token
+    await saveTokens(populatedUser._id, accessToken, refreshToken);
 
-  res.status(200).json({
-    message: 'Sign in successful: Fetched user data successfully',
-    data: {
-      accessToken: accessToken,
-      refreshToken: refreshToken,
-      user: populatedUser,
-      userId: populatedUser._id,
-    },
-  });
+    res.status(200).json({
+      message: 'Sign in successful: Fetched user data successfully',
+      data: {
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        user: populatedUser,
+        userId: populatedUser._id,
+      },
+    });
+  } catch (error) {
+    next(error); // Pass errors to error handling middleware
+  }
 };
 exports.signout = async (req, res, next) => {
   const { userId, refreshToken } = req.body;

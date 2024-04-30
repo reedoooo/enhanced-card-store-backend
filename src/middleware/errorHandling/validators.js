@@ -17,18 +17,26 @@ const validateUserCredentials = (username, password, email = '') => {
   if (email) validatePresence(email, 'Email');
 };
 async function findAndValidateUser(username, password) {
-  const user = await User.findOne({ username })
-    .populate('userSecurityData')
-    .populate('userBasicData');
-  if (!user) {
-    throw new Error('User not found');
-  }
-  const isPasswordValid = await bcrypt.compare(password, user.userSecurityData.password);
-  if (!isPasswordValid) {
-    throw new Error('Invalid password');
-  }
+  try {
+    const user = await User.findOne({ username })
+      .populate('userSecurityData')
+      .populate('userBasicData');
+    if (!user) {
+      throw new Error('User not found');
+    }
+    const isPasswordValid = await bcrypt.compare(password, user.userSecurityData.password);
+    if (!isPasswordValid) {
+      throw new Error('Invalid password');
+    }
 
-  return user;
+    if (!user && !isPasswordValid) {
+      throw new Error('Invalid username or password');
+    }
+    return user;
+  } catch (error) {
+    logger.error(`Error finding user: ${error}`);
+    throw error;
+  }
 }
 async function checkForExistingUser(username, email) {
   const existingUser = await User.findOne({
@@ -44,9 +52,19 @@ async function checkForExistingUser(username, email) {
     throw new Error(errorMsg);
   }
 }
+const validate = (schema) => async (req, res, next) => {
+  try {
+    const parseBody = await schema.parseAsync(req.body);
+    req.body = parseBody;
+    next();
+  } catch (err) {
+    res.status(400).json({ msg: err.issues[0].message });
+  }
+};
 module.exports = {
   validateUserCredentials,
   validateEntityPresence,
   checkForExistingUser,
   findAndValidateUser,
+  validate,
 };

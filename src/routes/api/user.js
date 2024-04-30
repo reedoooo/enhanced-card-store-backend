@@ -32,6 +32,7 @@ const {
   addCardsToCart,
   removeCardsFromCart,
   updateCardsInCart,
+  deleteCardFromCart,
 } = cartController;
 // async function fetchAndValidateUser(req, res, next) {
 //   try {
@@ -97,7 +98,8 @@ router.put(
 router.get('/:userId/cart/all', getUserCart);
 router.post('/:userId/cart/create', createEmptyCart);
 router.post('/:userId/cart/cards/add', addCardsToCart);
-router.delete('/:userId/cart/cards/remove', removeCardsFromCart);
+router.put('/:userId/cart/cards/remove', removeCardsFromCart);
+router.delete('/:userId/cart/cards/delete', deleteCardFromCart);
 router.put('/:userId/cart/cards/update', updateCardsInCart);
 
 module.exports = router;
