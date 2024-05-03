@@ -1,9 +1,5 @@
 const { User } = require('../../models/User');
 
-/**
- * Returns an array of fields to be populated when deep populating card data.
- * @returns {Array} An array of fields to be populated.
- */
 function deepPopulateCardFields() {
   return [
     { path: 'card_sets', model: 'CardSet' },
@@ -18,13 +14,6 @@ function deepPopulateCardFields() {
     { path: 'variant', model: 'CardVariant' },
   ];
 }
-/**
- * Returns the populate path for a given context.
- *
- * @param {string} context - The context for which to get the populate path.
- * @returns {Object} - The populate path object.
- * @throws {Error} - If an invalid context is provided.
- */
 function getPopulatePathForContext(context) {
   switch (context) {
     case 'decks':
@@ -58,12 +47,6 @@ function getPopulatePathForContext(context) {
       throw new Error('Invalid context');
   }
 }
-/**
- * Populate the user's data based on context
- * @param {string} userId - The ID of the user to populate data for
- * @param {string} context - The context to populate (decks, collections, cart)
- * @returns Populated user data
- */
 async function populateUserDataByContext(userId, contexts) {
   let query = User.findById(userId).populate('userSecurityData').populate('userBasicData');
   // .populate('userSecurityData', 'username email role_data')

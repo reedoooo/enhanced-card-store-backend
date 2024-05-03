@@ -13,13 +13,13 @@ async function removeFromCart(user, cartItems) {
     (cardInCartId) => !cartItems.some((item) => item.id === cardInCartId),
   );
 }
-const updateCardQuantity = (card, quantity, type) => {
+const updateCardQuantity = (card, quantity, type, user) => {
   if (type === 'increment') {
     card.quantity += 1;
   } else if (type === 'decrement' && card.quantity > 1) {
     card.quantity -= 1;
-  } else if (type === 'decrement' && card.quantity === 1) {
-    card.quantity = 0;
+  } else if ((type === 'decrement' && card.quantity === 1) || type === 'delete') {
+    removeFromCart(user, card._id);
   }
 };
 exports.getUserCart = async (req, res, next) => {
@@ -76,23 +76,19 @@ exports.createEmptyCart = async (req, res, next) => {
   return res.status(201).json({ message: 'Cart created', data: user.cart });
 };
 exports.removeCardsFromCart = async (req, res, next) => {
-  const { userId, cartId } = req.params;
+  const { userId } = req.params;
   const { cards, type } = req.body;
 
   try {
-    let user = await populateUserDataByContext(userId, ['cart']);
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+    const user = await populateUserDataByContext(userId, ['cart']);
+    for (const cardId of cards) {
+      // updateCardQuantity(existingCard, card.quantity, type, populatedUser);
+      const existingCardIndex = user.cart.items.findIndex((c) => c.id === cardId);
+      if (existingCardIndex !== -1) {
+        const existingCard = user.cart.items[existingCardIndex];
+        updateCardQuantity(existingCard, existingCard.quantity, type, populatedUser);
+      }
     }
-
-    if (!user.cart) {
-      return res.status(404).json({ error: 'User does not have a cart' });
-    }
-
-    await removeFromCart(user, cards);
-
-    user = await populateUserDataByContext(userId, ['cart']);
     res.status(200).json({ message: 'Cards removed from cart', data: user.cart });
   } catch (error) {
     logger.error(error);
@@ -100,34 +96,39 @@ exports.removeCardsFromCart = async (req, res, next) => {
   }
 };
 exports.addCardsToCart = async (req, res, next) => {
-  const { items, type } = req.body; // Assuming cartUpdates contains the updates for the cart
-  // logger.info('cartUpdates', cartUpdates);
-
-  if (!Array.isArray(items)) {
-    return res.status(400).json({ error: 'Cart updates must be an array' });
-  }
-
+  const { cards, type } = req.body; // Assuming cartUpdates contains the updates for the cart
+  const cardsArray = Array.isArray(cards) ? cards : [cards];
   const populatedUser = await populateUserDataByContext(req.params.userId, ['cart']);
-  if (!populatedUser || !populatedUser.cart) {
-    return res.status(404).json({ error: 'Cart not found' });
+  // Check if the user exists
+  if (!populatedUser) {
+    return res.status(404).json({ error: 'User not found' });
   }
 
+  // Check if the user has a cart, if not, create a new one
+  if (!populatedUser.cart) {
+    const newCart = new Cart({
+      userId: populatedUser._id,
+      totalPrice: 0,
+      totalQuantity: 0,
+      items: [],
+    });
+    await newCart.save();
+    populatedUser.cart = newCart;
+  }
   let { cart } = populatedUser; // Using let since we might modify the cart
   logger.info('cart', cart);
-  for (const update of items) {
-    logger.info('CART ITEM TO UPDATE: ' + `${update.name}`.yellow);
-    const existingCardIndex = cart.items.findIndex((c) => c.id === update.id);
+  for (const card of cardsArray) {
+    logger.info('CART ITEM TO UPDATE: ' + `${card.name}`.yellow);
+    const existingCardIndex = cart.items.findIndex((c) => c.id === card.id);
     if (existingCardIndex !== -1) {
       const existingCard = cart.items[existingCardIndex];
-      updateCardQuantity(existingCard, update.quantity, type); // Assume this is your logic to update quantity
+      updateCardQuantity(existingCard, card.quantity, type, populatedUser);
     } else {
-      const reSavedCard = await reFetchForSave(update, cart?._id, 'Cart', 'CardInCart'); // Assuming this function is correctly implemented
+      const reSavedCard = await reFetchForSave(card, cart?._id, 'Cart', 'CardInCart'); // Assuming this function is correctly implemented
       cart?.items?.push(reSavedCard?._id);
     }
   }
-
   await cart.save();
-
   await populatedUser.save(); // Saving after all updates to cart
   await populatedUser.populate({
     path: 'cart.items',
@@ -139,60 +140,32 @@ exports.addCardsToCart = async (req, res, next) => {
     data: populatedUser.cart,
   });
 };
-exports.updateCardsInCart = async (req, res, next) => {
-  const { cartId } = req.params;
-  const { userId, cartUpdates, method, type } = req.body;
-
-  if (!Array.isArray(cartUpdates)) {
-    return res.status(400).json({ message: 'Invalid card data, expected an array.' });
-  }
-
+exports.deleteCardFromCart = async (req, res, next) => {
+  const { userId, cardId } = req.params;
   try {
-    const populatedUser = await populateUserDataByContext(userId, ['cart']);
-    const cart = populatedUser?.cart; // Assuming a user has a single cart referenced directly
+    const user = await populateUserDataByContext(userId, ['cart']);
+    const cart = user?.cart;
 
-    if (!cart || cart._id.toString() !== cartId) {
+    if (!cart) {
       return res.status(404).json({ message: 'Cart not found.' });
     }
 
-    for (const cardData of cart) {
-      const cardInCart = cart?.cart?.find((item) => item._id.toString() === cardData?._id);
+    const cardInCart = cart.items.find((item) => item._id.toString() === cardId);
 
-      if (cardInCart) {
-        logger.info('Updating existing card in cart:', cardInCart.name.blue);
-        // Adjust the card's quantity in the cart
-        if (type === 'increment') {
-          cardInCart.quantity += 1;
-        } else if (type === 'decrement' && cardInCart.quantity > 1) {
-          cardInCart.quantity -= 1;
-        } else if (type === 'decrement' && cardInCart.quantity === 1) {
-          // Remove the card from the cart if the quantity becomes 0
-          const index = cart.items.indexOf(cardInCart);
-          if (index > -1) {
-            cart.items.splice(index, 1);
-          }
-        } else if (type === 'update' && cardData.quantity) {
-          // Update directly to a specific quantity
-          cardInCart.quantity = cardData.quantity;
-        }
-        logger.info('Card quantity in cart:', cardInCart.quantity);
-      } else {
-        logger.info(`Card not found in cart: ${cardData._id}`);
-      }
+    if (!cardInCart) {
+      return res.status(404).json({ message: 'Card not found in cart.' });
     }
+    // FIND AND DELETE
+    await CardInCart.findByIdAndDelete(cardInCart._id);
+    // FIND AND REMOVE FROM CART
+    cart.items = cart.items.filter((item) => item.id.toString() !== cardId);
+    // SAVE CHANGES
+    await cart.save();
+    await user.save();
 
-    await cart.save(); // Assuming 'cart' is a document that can be saved directly
-    await populatedUser.save(); // Save changes to the user document as well
-
-    // Optionally, repopulate the cart items if necessary for the response
-    // await cart.populate({
-    //   path: "cart",
-    //   model: "CardInCart",
-    // });
-
-    res.status(200).json({ message: 'Cards updated in cart successfully.', data: cart });
+    res.status(200).json({ message: 'Card removed from cart successfully.', data: cart });
   } catch (error) {
-    logger.error('Error updating cards in cart:', error);
+    logger.error('Error deleting card from cart:', error);
     next(error);
   }
 };

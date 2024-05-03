@@ -13,14 +13,12 @@ require('colors');
 const logger = require('../configs/winston');
 const { CardInCollection } = require('./Card');
 const {
-  generateCardDataPoints,
-  recalculatePriceHistory,
-  createNewPriceEntry,
-} = require('../utils/dataUtils.js');
-const {
   convertToDataPoints,
   processDataForRanges,
   generateStatisticsForRanges,
+  calculateValueHistory,
+  createNewPriceEntry,
+  generateCardDataPoints,
 } = require('../utils/dateUtils.js');
 
 const lineStyleSchema = new Schema(
@@ -30,37 +28,6 @@ const lineStyleSchema = new Schema(
   },
   { _id: false },
 );
-// const statSchema = new Schema(
-//   {
-//     name: {
-//       type: String,
-//       enum: [
-//         'highPoint',
-//         'lowPoint',
-//         'average',
-//         'percentageChange',
-//         'priceChange',
-//         'avgPrice',
-//         'volume',
-//         'volatility',
-//       ],
-//       required: false,
-//     },
-//     id: { type: String, required: false },
-//     label: { type: String, required: false },
-//     statKey: { type: String, required: false },
-//     value: { type: Number, min: 0, required: false },
-//     color: { type: String, required: false },
-//     axis: { type: String, required: false },
-//     lineStyle: lineStyleSchema,
-//     legend: { type: String, required: false },
-//     legendOrientation: {
-//       type: String,
-//       required: false,
-//     },
-//   },
-//   { _id: false },
-// ); // Disable _id for each statData
 const statDataMapSchema = new Schema({
   type: Map,
   of: {
@@ -95,12 +62,6 @@ const statDataMapSchema = new Schema({
 });
 const DeckSchema = createSchemaWithCommonFields('cards', 'CardInDeck');
 const CartSchema = createSchemaWithCommonFields('items', 'CardInCart');
-// const collectionStatisticsSchema = new Schema({
-//   stats: {
-//     type: Map,
-//     of: statDataMapSchema,
-//   },
-// });
 const CollectionSchema = new Schema(
   {
     ...createCommonFields(),
@@ -229,12 +190,9 @@ CollectionSchema.pre('save', async function (next) {
     this.averagedChartData = new Map();
     this.collectionStatistics = {}
     if (Array.isArray(this.cards) && this.cards.length > 0) {
-      // let newTotalPrice = 0;
-      // let newTotalQuantity = 0;
       const cardsInCollection = await CardInCollection.find({
         _id: { $in: this.cards.map((id) => id) },
       });
-      // this.selectedChartDataKey = '7d';
       if (Array.isArray(cardsInCollection) && cardsInCollection.length > 0) {
         cardsInCollection.forEach((card) => {
           newTotalQuantity += card.quantity;
@@ -242,7 +200,7 @@ CollectionSchema.pre('save', async function (next) {
         });
         const cardDataPoints = generateCardDataPoints([...cardsInCollection]);
         this.collectionPriceHistory = cardDataPoints;
-        const cumulativeDataPoints = recalculatePriceHistory(cardDataPoints);
+        const cumulativeDataPoints = calculateValueHistory(cardDataPoints);
         this.collectionValueHistory = cumulativeDataPoints;
         const formattedDataPoints = convertToDataPoints(cumulativeDataPoints);
         this.allDataPoints = formattedDataPoints;
@@ -251,18 +209,15 @@ CollectionSchema.pre('save', async function (next) {
         const generatedStatistics = generateStatisticsForRanges(
           formattedDataPoints,
           this.selectedChartDataKey,
-          newTotalPrice,
+          this.totalPrice,
+          this.totalQuantity,
         );
         this.selectedChartData = averageData[this.selectedChartDataKey];
-        // logger.info(`[GENERATING STATISTICS] `.green + `[${generatedStatistics}]`.green);
         for (const [key, value] of generatedStatistics.entries()) {
           this.collectionStatistics[key] = value;
-          // logger.info(`[GENERATING STATISTICS] `.green + `[${generatedStatistics[key]}][${generatedStatistics[key].value}]`.green);
         }
         this.selectedStatData = generatedStatistics[this.selectedStatDataKey];
         this.selectedThemeData = this.selectedThemeDataKey;
-        // this.markModified('collectionStatistics');
-        // console.log('Final collectionStatistics Object before save:', this.collectionStatistics[]
       }
     }
     this.totalPrice = newTotalPrice;

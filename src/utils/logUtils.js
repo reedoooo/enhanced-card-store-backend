@@ -8,6 +8,15 @@ const blueLogBracks = (message) => `[`.blue + `${message}` + `]`.blue;
 const orangeLogBracks = (message) => `[`.orange + `${message}` + `]`.orange;
 const purpleLogBracks = (message) => `[`.purple + `${message}` + `]`.purple;
 const whiteLogBracks = (message) => `[`.white + `${message}` + `]`.white;
+const logMapData = (map) => {
+  if (map instanceof Map) {
+    map.forEach((value, key) => {
+      logger.info(`[Map Key: ${key}] [Map Value: ${JSON.stringify(value)}]`);
+    });
+  } else {
+    logger.error(`[ERROR] Invalid collectionStatistics type: ${typeof collectionStatistics}`.red);
+  }
+};
 module.exports = {
 	greenLogBracks,
   redLogBracks,
@@ -16,4 +25,5 @@ module.exports = {
   orangeLogBracks,
   purpleLogBracks,
 	whiteLogBracks,
+	logMapData,
 };

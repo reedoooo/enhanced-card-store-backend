@@ -6,21 +6,26 @@ const {
   cardPriceSchema,
   cardVariantSchema,
   cardSetSchema,
-  averagedDataSchema,
-  chartDatasetEntrySchema,
+  // averagedDataSchema,
+  // chartDatasetEntrySchema,
   dataPointSchema,
+  chartDataSchema,
 } = require('./schemas/CommonSchemas');
 const logger = require('../configs/winston');
 const moment = require('moment-timezone');
 const { extendMoment } = require('moment-range');
-const { generateSingleCardDataPoints, createNewPriceEntry } = require('../utils/dataUtils');
+const {
+  generateSingleCardPriceEntries,
+  createNewPriceEntry,
+  convertToDataPoints,
+  calculateValueHistory,
+} = require('../utils/dateUtils');
+const { purpleLogBracks, blueLogBracks } = require('../utils/logUtils');
 
 const momentWithRange = extendMoment(moment);
 momentWithRange.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
 const timezone = 'America/Seattle';
-const now = momentWithRange().tz(timezone);
 moment.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');
-// COMMON FIELD SCHEMAS: this data comes straight from the API
 const commonFields_API_Data = {
   name: { type: String, required: false }, // AUTOSET: false || required: true
   id: { type: String, required: false, unique: false }, // AUTOSET: false || required: true
@@ -37,15 +42,11 @@ const commonFields_API_Data = {
   card_images: [cardImageSchema], // AUTOSET: false
   card_prices: [cardPriceSchema], // AUTOSET: false
 };
-// COMMON FIELD SCHEMAS: this data is set by the user
-// SAVE FUNCTION: fetchAndTransformCardData
 const tag_Data = {
   tag: String, // AUTOSET: false
   watchlist: Boolean, // AUTOSET: false
   updatedFromCron: Boolean, // AUTOSET: false
 };
-// COMMON FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
-// SAVE FUNCTION: fetchAndTransformCardData
 const commonFields_Custom_Dynamic_Data = {
   price: Number, // AUTOSET: false
   quantity: Number, // AUTOSET: false
@@ -61,32 +62,20 @@ const commonFields_Custom_Dynamic_Data = {
   },
   totalPrice: { type: Number, default: 0 }, // AUTOSET: true
 };
-// UNIQUE FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
-// SAVE FUNCTION: fetchAndTransformCardData
 const uniqueFields_Custom_Dynamic_Data = {
   latestPrice: priceEntrySchema, // AUTOSET: true
   lastSavedPrice: priceEntrySchema, // AUTOSET: true
-  priceHistory: [priceEntrySchema], // AUTOSET: true
   dailyPriceHistory: [priceEntrySchema], // AUTOSET: false
-  priceChangeHistory: [
-    {
-      timestamp: Date,
-      previousPrice: Number,
-      updatedPrice: Number,
-      priceDifference: Number,
-      increased: Boolean,
-      decreasded: Boolean,
-    },
-  ],
-  chart_datasets: [chartDatasetEntrySchema],
-  nivoChartData: {
-    id: String,
-    color: String,
-    data: [{ x: Date, y: Number }],
-  },
+  priceHistory: [priceEntrySchema],
+  valueHistory: [priceEntrySchema],
+  priceChangeHistory: [dataPointSchema],
+  allDataPoints: [dataPointSchema],
+  // nivoChartData: {
+  //   id: String,
+  //   color: String,
+  //   data: [{ x: Date, y: Number }],
+  // },
 };
-// UNIQUE FIELD SCHEMAS: this data is set initially by server (cardVariants) and then updated by user (variant), but the default value is automatically set to first cardVariant
-// SAVE FUNCTION: fetchAndTransformCardData
 const uniqueVariantFields = {
   cardVariants: [{ type: Schema.Types.ObjectId, ref: 'CardVariant' }], // Reference to CardSet
   cardModel: String, // AUTOSET: true
@@ -105,12 +94,10 @@ const uniqueVariantFields = {
     Cart: Number,
   }, // AUTOSET: true
 };
-// UNIQUE FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
 const referenceSchema = new Schema({
   refId: { type: Schema.Types.ObjectId, required: true },
   quantity: { type: Number, required: true },
 });
-// UNIQUE FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
 const allRefsSchema = new Schema({
   decks: [referenceSchema],
   collections: [referenceSchema],
@@ -120,7 +107,6 @@ const allRefsSchema = new Schema({
     of: referenceSchema,
   },
 });
-// UNIQUE FIELD SCHEMAS: this data is set, tracked and often updated by the server using data from the API
 const randomCardSchema = new Schema({
   name: { type: String, required: false }, // AUTOSET: false || required: true
   id: { type: String, required: false, unique: false }, // AUTOSET: false || required: true
@@ -136,27 +122,18 @@ const randomCardSchema = new Schema({
   dailyPriceChange: Number,
   dailyPercentageChange: String,
   refs: allRefsSchema, // AUTOSET: false
-  priceHistory: [priceEntrySchema],
-  valueHistory: [priceEntrySchema],
-  nivoValueHistory: [dataPointSchema],
   averagedChartData: {
     type: Map,
-    of: averagedDataSchema,
-  },
-  nivoChartData: {
-    id: String,
-    color: String,
-    data: [{ x: Date, y: Number }],
+    of: chartDataSchema,
   },
   price: Number, // AUTOSET: false
   quantity: Number, // AUTOSET: false
   totalPrice: { type: Number, default: 0 }, // AUTOSET: true
-  addedAt: { type: Date, default: Date.now }, // AUTOSET: true
-  updatedAt: { type: Date, default: Date.now }, // AUTOSET: true
+  addedAt: { type: Date }, // AUTOSET: true
+  updatedAt: { type: Date }, // AUTOSET: true
 });
 
 const RandomCard = model('RandomCard', randomCardSchema);
-const RandomCardData = model('RandomCardData', randomCardSchema);
 const genericCardSchema = new Schema(
   {
     ...commonFields_API_Data,
@@ -164,7 +141,6 @@ const genericCardSchema = new Schema(
     ...tag_Data,
     ...uniqueFields_Custom_Dynamic_Data,
     ...uniqueVariantFields,
-    // Unified refs field to store all references
     refs: allRefsSchema,
     dateAdded: { type: Date },
   },
@@ -172,42 +148,55 @@ const genericCardSchema = new Schema(
 );
 genericCardSchema.pre('save', async function (next) {
   logger.info(`[Pre-save hook for card: `.red + `${this.name}`.white + `]`.red);
+  const now = moment().tz(timezone);
+  logger.info(blueLogBracks(`CURRENT DATE: ${now}`));
   if (this.updatedFromCron) {
     logger.info(`[UPDATING CARD FROM CRON] `.green + `[${this.name}`.white + `]`.yellow);
     this.updatedFromCron = false;
   }
   if (this.isNew) {
     logger.info(`[NEW CARD] `.green + `[${this.name}`.white + `]`.green);
-    this.addedAt = now.toDate();
-    this.dateAdded = now.toDate();
+    this.addedAt = now;
+    this.dateAdded = now;
     this.quantity = 1;
     this.lastSavedPrice = createNewPriceEntry(this.price); // Your existing function
     this.latestPrice = createNewPriceEntry(this.price); // Your existing function
     this.totalPrice = this.quantity * this.price;
-    const newDataPoint = generateSingleCardDataPoints(this);
-    this.valueHistory = [createNewPriceEntry(this.price)];
-    logger.info(`[NEW DATAPOINT] `.green + `[${newDataPoint[0]}`.white);
+
+    const newPriceEntry = generateSingleCardPriceEntries(this);
+    const newDataPoints = convertToDataPoints([this]);
+    this.valueHistory = [newPriceEntry];
+    this.priceHistory = [newPriceEntry];
+    this.allDataPoints = [newDataPoints];
+    this.priceChangeHistory = [newDataPoints];
+    logger.info(`[NEW DATAPOINT] `.green + `[${newDataPoints[0]}`.white);
   }
   if (!this.isNew) {
     logger.info(`[UPDATED CARD] `.blue + `[${this.name}`.white + `]`.blue);
-    this.updatedAt = now.toDate();
+    this.updatedAt = now;
     this.refId = this._id;
+    const newDataPoints = generateSingleCardPriceEntries(this);
+    this.priceHistory = newDataPoints;
+    const newValueDataPoints = calculateValueHistory(newDataPoints);
+    this.valueHistory = newValueDataPoints;
+    const formattedDataPoints = convertToDataPoints(newValueDataPoints);
+    this.allDataPoints = formattedDataPoints;
+    this.totalPrice = this.quantity * this.price;
   }
-  if (!this.cardModel) {
-    logger.info(`[MISSING MODEL REQUIRES SET] ${this.cardModel}`.red);
-    this.cardModel = this.constructor.modelName;
+  if (!this.priceChangeHistory) {
+    this.priceChangeHistory = [];
+    logger.info(`[PRICE CHANGE HISTORY REQUIRES ADD] `.red + `[${this.priceChangeHistory}`.white);
   }
-  if (!this.image) {
-    logger.info(`[MISSING IMAGE REQUIRES SET] ${this.image}`.red);
-    this.image = this.card_images[0]?.image_url || '';
+  if (!this.priceHistory) {
+    this.priceHistory = [];
+    logger.info(`[PRICE HISTORY REQUIRES ADD] `.red + `[${this.priceHistory}`.white);
+  }
+  if (!this.valueHistory) {
+    this.valueHistory = [];
+    logger.info(`[VALUE HISTORY REQUIRES ADD] `.red + `[${this.valueHistory}`.white);
   }
   if (this.isModified('quantity')) {
-    let valHist = [];
     logger.info(`[NEW QUANTITY] ${this.quantity}`.green);
-    this.totalPrice = this.quantity * this.price;
-    const valueEntry = createNewPriceEntry(this.totalPrice); // Your existing function
-    valHist.push(valueEntry);
-    this.valueHistory = valHist;
     const contextTypeMap = {
       CardInDeck: 'Deck',
       CardInCollection: 'Collection',
@@ -224,13 +213,10 @@ genericCardSchema.pre('save', async function (next) {
   }
   if (this.isModified('price')) {
     logger.info(`[CARD PRICE MODIFIED] ${this.price}`.green); // this?.chart_datasets?.data?.push(
-    this.lastSavedPrice = createNewPriceEntry(this.latestPrice); // Your existing function
+    this.lastSavedPrice = createNewPriceEntry(this.latestPrice.num, this.latestPrice.timestamp);
     this.latestPrice = createNewPriceEntry(this.price); // Your existing function
-    this.totalPrice = this.quantity * this.price;
-    // const valueEntry = createNewPriceEntry(this.totalPrice); // Your existing function
-    // this.valueHistory.push(valueEntry);
-    const newPriceEntry = createNewPriceEntry(this.price); // Your existing function
-    this.priceHistory.push(newPriceEntry);
+    const newDataPoints = convertToDataPoints([this]);
+    this.priceChangeHistory = newDataPoints;
   }
   if (this.isModified('watchlist')) {
     logger.info(`[WATCHLIST MODIFIED] ${this.watchlist}`.red); // this?.chart_datasets?.data?.push(
@@ -257,7 +243,6 @@ genericCardSchema.pre('save', async function (next) {
 });
 
 const CardSet = model('CardSet', cardSetSchema);
-// const Variant = model('Variant', variantSchema);
 const CardVariant = model('CardVariant', cardVariantSchema);
 const CardInCollection = model('CardInCollection', genericCardSchema);
 const CardInDeck = model('CardInDeck', genericCardSchema);
@@ -270,7 +255,6 @@ module.exports = {
   CardSet,
   CardVariant,
   RandomCard,
-  RandomCardData,
 };
 // if (this.updateRefs) {
 //   // Handle deck references

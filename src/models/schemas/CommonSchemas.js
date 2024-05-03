@@ -12,7 +12,7 @@ const requiredObjectId = (refPath) => ({
   required: true,
 });
 const createPriceFields = () => ({
-  cardmarket_price: requiredDecimal128,
+  cardmarket_price: Types.Decimal128,
   tcgplayer_price: Types.Decimal128,
   ebay_price: Types.Decimal128,
   amazon_price: Types.Decimal128,
@@ -66,13 +66,17 @@ const createSchemaWithCommonFields = (cardsRef, schemaName) => {
       [cardsRef]: [{ type: Schema.Types.ObjectId, ref: schemaName }],
       tags: {
         type: Array,
-        of: String,
-        default: ['tags'],
+        of: Object,
+        default: [
+          {
+            id: uuidv4(),
+            label: 'defaultTag',
+          },
+        ],
       },
-      selectedTags: {
-        type: Array,
-        of: String,
-        default: ['tags'],
+      selectedTagValue: {
+        type: String,
+        default: 'defaultTag',
       },
       color: {
         type: String,
@@ -85,14 +89,23 @@ const createSchemaWithCommonFields = (cardsRef, schemaName) => {
 
   schema.pre('save', async function (next) {
     await updateTotals.call(this, mongoose.model(schemaName), cardsRef);
+    if (schemaName === 'Deck') { 
+      if (!this.tags[0].label) {
+        this.tags[0] = {
+          id: uuidv4(),
+          label: 'defaultTag',
+        };
+        this.selectedTag = 'defaultTag';
+      }
+    }
     next();
   });
 
   return schema;
 };
 const priceEntrySchema = createSchema({
-  num: { type: Number, min: 0 },
-  timestamp: { type: Date, default: Date.now },
+  num: { type: Number },
+  timestamp: { type: Date },
 });
 const cardImageSchema = createSchema({
   // id: { type: String, required: true },
@@ -102,19 +115,6 @@ const cardImageSchema = createSchema({
   image_url_cropped: String,
 });
 const cardPriceSchema = createSchema(createPriceFields());
-const chartDatasetEntrySchema = new Schema(
-  {
-    label: String,
-    data: [
-      {
-        id: String,
-        x: Date,
-        y: Number,
-      },
-    ],
-  },
-  { _id: false },
-);
 const cardSetSchema = new Schema(
   {
     set_name: String,
@@ -176,77 +176,6 @@ const chartDataSchema = new Schema({
     validate: [arrayLimit, `{PATH} exceeds the limit of {VALUE}`],
   },
 });
-// const lineStyleSchema = new Schema(
-//   {
-//     stroke: { type: String, required: true },
-//     strokeWidth: { type: Number, required: true },
-//   },
-//   { _id: false },
-// );
-// const statSchema = new Schema(
-//   {
-//     name: {
-//       type: String,
-//       enum: [
-//         'highPoint',
-//         'lowPoint',
-//         'average',
-//         'percentageChange',
-//         'priceChange',
-//         'avgPrice',
-//         'volume',
-//         'volatility',
-//       ],
-//       required: false,
-//     },
-//     id: { type: String, required: false },
-//     label: { type: String, required: false },
-//     statKey: { type: String, required: false },
-//     value: { type: Number, min: 0, required: false },
-//     color: { type: String, required: false },
-//     axis: { type: String, required: false },
-//     lineStyle: lineStyleSchema,
-//     legend: { type: String, required: false },
-//     legendOrientation: {
-//       type: String,
-//       required: false,
-//     },
-//   },
-//   { _id: false },
-// ); // Disable _id for each statData
-// const statDataMapSchema = new Schema({
-//   type: Map,
-//   of: statSchema,
-//   _id: false,
-// });
-//   {
-//     type: Map,
-//     of: statSchema,
-//   },
-//   { _id: false },
-// );
-
-// const collectionStatisticsSchema = new Schema({
-//   stats: {
-//     type: Map,
-//     of: statDataMapSchema,
-//   },
-// });
-
-const averagedDataSchema = new Schema(
-  {
-    id: String,
-    color: String,
-    data: [
-      {
-        id: String,
-        x: Date,
-        y: Number,
-      },
-    ],
-  },
-  { _id: false },
-);
 module.exports = {
   priceEntrySchema,
   commonSchemaOptions,
@@ -255,8 +184,8 @@ module.exports = {
   cardPriceSchema,
   cardVariantSchema,
   collectionPriceChangeHistorySchema,
-  averagedDataSchema,
-  chartDatasetEntrySchema,
+  // averagedDataSchema,
+  // chartDatasetEntrySchema,
   chartDataSchema,
   dataPointSchema,
   // lineStyleSchema,
@@ -264,5 +193,5 @@ module.exports = {
   // collectionStatisticsSchema,
   createCommonFields,
   createSchemaWithCommonFields,
-  updateTotals,
+  // updateTotals,
 };

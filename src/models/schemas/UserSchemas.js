@@ -31,20 +31,36 @@ const wishlistSchema = new Schema(
     cards: [
       {
         cardId: { type: Schema.Types.ObjectId, ref: 'Card', required: true },
-        addedAt: { type: Date, default: Date.now },
+        addedAt: { type: Date, default: new Date(Date.now()) },
       },
     ],
   },
   { timestamps: true },
 );
+const userSettingsSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  settings: [
+    {
+      emailWhenNewFollower: { type: Boolean, required: false, default: false },
+      emailWhenMentioned: { type: Boolean, required: false, default: false },
+      emailWhenReplyToComment: { type: Boolean, required: false, default: false },
+      subscribeMonthlyProducts: { type: Boolean, required: false, default: false },
+      subscribeNewProjects: { type: Boolean, required: false, default: false },
+      subscribeNewsLetter: { type: Boolean, required: false, default: false },
+    },
+  ],
+});
 const userBasicDataSchema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: false },
   firstName: { type: String },
   lastName: { type: String },
+  email: { type: String },
+  profileImage: { type: String },
+  profileDescription: { type: String },
   gender: { type: String },
   dateOfBirth: { type: Date },
+  settings: [userSettingsSchema],
   // Contact Information
-  email: { type: String },
   phone: { type: String },
   address: {
     line1: { type: String },

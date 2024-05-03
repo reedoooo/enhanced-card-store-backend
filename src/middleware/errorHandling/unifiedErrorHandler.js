@@ -1,7 +1,6 @@
 // src/middleware/errorHandlers.js
 const logger = require('../../configs/winston');
 require('colors');
-// Mapping of error types to corresponding log levels
 const errorTypes = {
   ValidationError: 'warn',
   AuthError: 'error',
@@ -20,47 +19,60 @@ const errorTypes = {
 };
 function serializeError(error) {
   if (process.env.NODE_ENV !== 'production') {
-    return JSON.parse(JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    const errorDetails = {
+      message: error.message, // Standard error message
+      name: error.name, // Type of error (e.g., TypeError)
+      stack: error.stack, // Stack trace for debugging
+      status: error.status || 500, // HTTP status code (default to 500)
+      functionName: error.stack.split('\n')[1].trim().split(' ')[1], // Function name, if applicable
+    };
+
+    Object.getOwnPropertyNames(error).forEach((key) => {
+      errorDetails[key] = error[key];
+    });
+    return JSON.stringify(errorDetails);
   }
-  return error.message;
+  return { message: error.message };
 }
 const logErrors = (err, req, res, next) => {
   const errorType = err.constructor.name;
   logger.error(
-    `[[ERROR]` + `${errorType}] ${err.status || 500} - ${serializeError(err)} - ${req.originalUrl} - ${req.method} - ${req.ip}`
+    `[`.red +
+      `${errorType}` +
+      `]`.red +
+      `[`.red +
+      `${err.status || 500}` +
+      `]`.red +
+      `[`.red +
+      `${req.originalUrl}` +
+      `]`.red +
+      `[`.red +
+      `${req.method}` +
+      `]`.red +
+      `[`.red +
+      `${req.ip}` +
+      `]`.red,
   );
-  // const logLevel = errorTypes[errorType] || 'info';
-  // logger[logLevel](
-  //   `[[ERROR]`.red + `${errorType}] ${err.status || 500} - ${serializeError(err)} - ${req.originalUrl} - ${req.method} - ${req.ip}`
-  // );
-  next(err); // Pass the error to the next middleware
+  // next(err); // Pass the error to the next middleware
+  res.status(err.status || 500).json(serializeError(err));
+  
 };
 function developmentErrors(err, req, res, next) {
   logErrors(err, req, res, next);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Internal Server Error',
-		// data: err.message || 'Internal Server Error',
-    error: err
-  });
 }
 function productionErrors(err, req, res, next) {
-  // if (handleDuplicateKeyError(err, req, res)) return;
   logErrors(err, req, res, next);
-  res.status(err.status || 500).json({
-    success: false,
-    message: 'Error occurred',
-		// data: err.message || 'Internal Server Error',
-		error: err,
-  });
 }
 function unifiedErrorHandler(err, req, res, next) {
   if (res.headersSent) {
+    logger.warn(`[HEADERS SENT] ${res.headersSent}`);
     return next(err);
   }
   if (process.env.NODE_ENV === 'development') {
+    logger.warn(`[ERROR IN DEVELOPMENT]`.yellow);
     developmentErrors(err, req, res, next);
   } else {
+    logger.warn(`[ERROR IN PRODUCTION]`.yellow);
     productionErrors(err, req, res, next);
   }
 }
