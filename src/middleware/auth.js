@@ -29,6 +29,12 @@ async function generateToken(userId, isRefreshToken = false) {
       userId: user._id,
       username: user.username, // Assuming username is directly under user
       role_data: user.userSecurityData.role_data,
+      profileImage:
+        user.userBasicData.profileImage ||
+        `https://images.ygoprodeck.com/images/cards/79279397.jpg`,
+      profileDescription:
+        user.userBasicData.profileDescription ||
+        'Default Profile Description, Please update your profile',
     };
 
     if (!isRefreshToken) {
