@@ -4,17 +4,14 @@ const userController = require('../../controllers/user.js');
 const cartController = require('../../controllers/cart.js');
 const deckController = require('../../controllers/deck.js');
 const collectionController = require('../../controllers/collection.js');
-const { signin, signup, signout, checkToken, getUserData, updateUserData } =
-  userController;
+const { signin, signup, signout, checkToken, getUserData, updateUserData } = userController;
 const {
   getAllDecksForUser,
   updateDeckDetails,
   createNewDeck,
   deleteDeck,
   addCardsToDeck,
-  removeCardsFromDeck,
   getDeckById,
-  getCardsFromDeck,
 } = deckController;
 const {
   getAllCollectionsForUser,
@@ -23,16 +20,12 @@ const {
   deleteExistingCollection,
   addCardsToCollection,
   removeCardsFromCollection,
-  deleteCardFromCollection,
-  decrementCardQuantityInCollection,
 } = collectionController;
 const {
   getUserCart,
   createEmptyCart,
   addCardsToCart,
   removeCardsFromCart,
-  updateCardsInCart,
-  deleteCardFromCart,
 } = cartController;
 // async function fetchAndValidateUser(req, res, next) {
 //   try {
@@ -61,45 +54,21 @@ router.post('/:userId/decks/create', createNewDeck);
 router.put('/:userId/decks/update/:deckId', updateDeckDetails);
 router.delete('/:userId/decks/delete/:deckId', deleteDeck);
 router.post('/:userId/decks/:deckId/cards/add', addCardsToDeck);
-router.put('/:userId/decks/:deckId/cards/remove', removeCardsFromDeck);
-router.get('/:userId/decks/:deckId/cards/get', getCardsFromDeck);
 
 // COLLECTION ROUTES
 router.get('/:userId/collections/all', getAllCollectionsForUser);
 router.post('/:userId/collections/create', createNewCollection);
-router.put(
-  '/:userId/collections/update/:collectionId',
-  updateExistingCollection,
-);
-router.delete(
-  '/:userId/collections/delete/:collectionId',
-  deleteExistingCollection,
-);
+router.put('/:userId/collections/update/:collectionId', updateExistingCollection);
+router.delete('/:userId/collections/delete/:collectionId', deleteExistingCollection);
 
 // COLLECTION DATA ROUTES
-router.post(
-  '/:userId/collections/:collectionId/cards/add',
-  addCardsToCollection,
-);
-router.put(
-  '/:userId/collections/:collectionId/cards/remove',
-  removeCardsFromCollection,
-);
-router.put(
-  '/:userId/collections/:collectionId/cards/:cardId/deleteCardFromCollection',
-  deleteCardFromCollection,
-);
-router.put(
-  '/:userId/collections/:collectionId/cards/:cardId/decrementCardQuantity',
-  decrementCardQuantityInCollection,
-);
+router.post('/:userId/collections/:collectionId/cards/add', addCardsToCollection);
+router.put('/:userId/collections/:collectionId/cards/:cardId/remove', removeCardsFromCollection);
 
 // CART ROUTES
 router.get('/:userId/cart/all', getUserCart);
 router.post('/:userId/cart/create', createEmptyCart);
 router.post('/:userId/cart/cards/add', addCardsToCart);
-router.put('/:userId/cart/cards/remove', removeCardsFromCart);
-router.delete('/:userId/cart/cards/delete', deleteCardFromCart);
-router.put('/:userId/cart/cards/update', updateCardsInCart);
+router.put('/:userId/cart/cards/:cardId/remove', removeCardsFromCart);
 
 module.exports = router;

@@ -1,17 +1,12 @@
 // !--------------------! Dependencies !--------------------!
 const { default: mongoose } = require('mongoose');
 const { getCardInfo, axiosInstance } = require('../../utils/utils.js');
-const { User } = require('../../models/User.js');
-
-const {
-  createAndSaveCardInContext,
-  createAndSaveCard,
-  // selectFirstVariant,
-} = require('./helpers2.js');
+const { createAndSaveCard } = require('./helpers2.js');
 const logger = require('../../configs/winston.js');
 const { Collection, Deck, Cart } = require('../../models/Collection.js');
 const { cardController } = require('../card.js');
-const { RandomCard } = require('../../models/Card.js');
+const { CardInCart, CardInCollection, CardInDeck } = require('../../models/Card.js');
+const { fetchPopulatedUserContext } = require('./dataUtils.js');
 // !--------------------! Data Models !--------------------!
 async function setCollectionModel(Model, collectionName, userId, collectionData = {}) {
   const collection = new Model({
@@ -23,7 +18,6 @@ async function setCollectionModel(Model, collectionName, userId, collectionData 
   return collection;
 }
 async function createDefaultCollectionsAndCards(userId) {
-  // Collection types remain unchanged
   const collectionTypes = [
     { type: Collection, name: 'My First Collection', typeName: 'Collection' },
     { type: Deck, name: 'My First Deck', typeName: 'Deck' },
@@ -33,27 +27,21 @@ async function createDefaultCollectionsAndCards(userId) {
   const updatedCollectionTypes = [];
 
   for (const collectionType of collectionTypes) {
-    // Unchanged collection creation logic
     const collection = await setCollectionModel(collectionType.type, collectionType.name, userId);
     updatedCollectionTypes.push(collection);
-
-    // Fetch default card data and create cards in context
     const defaultCards = await cardController.fetchAndTransformCardData('dark magician');
     logger.info(`Fetched default card data: ${defaultCards[0].name}`);
-
-    const { cardInstance, collectionInstance } = await createAndSaveCardInContext(
+    const { cardInstance, collectionInstance } = await createAndSaveCard(
       defaultCards[0],
-      collection,
-      `CardIn${collectionType.typeName}`,
-      `${collectionType.typeName}`,
-      collection._id,
-      // collection.name,
+      {
+        collectionId: collection._id,
+        collectionModel: `${collectionType.typeName}`,
+        cardModel: `CardIn${collectionType.typeName}`,
+        tag: 'default',
+        collectionData: collection,
+      },
     );
     logger.info(`Created default card for ${collectionInstance.name}: ${cardInstance.name}`);
-
-    // Push card ID to collection and save
-    // collection.cards.push(cardInContext._id);
-    // await collection.save();
     logger.info(`Saved updated ${collection.name}`);
   }
 
@@ -68,14 +56,6 @@ async function reFetchForSave(card, collectionId, collectionModel, cardModel) {
     throw new Error('Card is required in reFetchForSave');
   }
   const response = await getCardInfo(card?.name);
-  // const cardData = response.data;
-  // return await createAndSaveCard(response, collectionId, collectionModel, cardModel, 'refetch');
-  // return await createAndSaveCardInContext(
-  //   response,
-  //   collectionId,
-  //   cardModel,
-  //   collectionModel, // Ensures contextual data is passed
-  // );
   return await createAndSaveCard(response, {
     collectionId,
     collectionModel,
@@ -87,7 +67,6 @@ async function fetchAndSaveRandomCard(collectionId, collectionModel, cardModel) 
   const endpoint = 'randomcard.php';
   const response = await axiosInstance.get(endpoint);
   const cardData = response.data;
-  // const cardData = response.data;
   return await createAndSaveCard(cardData, {
     collectionId,
     collectionModel,
@@ -96,10 +75,7 @@ async function fetchAndSaveRandomCard(collectionId, collectionModel, cardModel) 
   });
 }
 async function deDuplicate(entity, cardModel) {
-  // Create a map to track occurrences of card ids
   const cardOccurrenceMap = new Map();
-
-  // Iterate in reverse to prioritize older cards over newer duplicates
   for (let i = entity?.cards?.length - 1; i >= 0; i--) {
     const cardId = entity?.cards[i]?.id?.toString();
     if (cardOccurrenceMap.has(cardId)) {
@@ -113,53 +89,80 @@ async function deDuplicate(entity, cardModel) {
     }
   }
 }
-/**
- * Adds or updates cards for an entity.
- *
- * @param {Object} entity - The entity to add or update cards for.
- * @param {Array} cards - The array of card data to add or update.
- * @param {string} entityId - The ID of the entity.
- * @param {string} entityType - The type of the entity.
- * @param {Object} cardModel - The card model to use for querying and updating cards.
- * @returns {Promise<Object>} - The updated entity.
- */
-async function addOrUpdateCards(entity, cards, entityId, entityType, cardModel) {
+const updateCardQuantity = async (card, quantity, type, user, entityName, entityId) => {
+  if (type === 'increment') {
+    card.quantity += 1;
+  } else if (type === 'decrement' && card.quantity > 1) {
+    card.quantity -= 1;
+  } else if ((type === 'decrement' && card.quantity === 1) || type === 'delete') {
+    switch (entityName) {
+      case 'Collection':
+        await CardInCollection.findOneAndRemove({ cardId: item.id, userId: user._id });
+        const collectionToEdit = user.allCollections.find(
+          (collection) => collection._id === entityId,
+        );
+        collectionToEdit.cards = collectionToEdit.cards.filter(
+          (card) => card.id.toString() !== card.id.toString(),
+        );
+        break;
+      case 'Deck':
+        await CardInDeck.findOneAndRemove({ cardId: item.id, userId: user._id });
+        const deckToEdit = user.allDecks.find((deck) => deck._id === entityId);
+        deckToEdit.cards = deckToEdit.cards.filter(
+          (card) => card.id.toString() !== card.id.toString(),
+        );
+        break;
+      case 'Cart':
+        await CardInCart.findOneAndRemove({ cardId: item.id, userId: user._id });
+        user.cart.items = user.cart.items.filter(
+          (card) => card.id.toString() !== card.id.toString(),
+        );
+        break;
+      default:
+        break;
+    }
+  }
+};
+async function addOrUpdateCards(
+  entity,
+  cards,
+  entityId,
+  entityType,
+  cardModel,
+  updateType,
+  userId,
+) {
   try {
+    const populatedUser = await fetchPopulatedUserContext(userId, ['collections']);
     for (const cardData of cards) {
       let foundCard = entity?.cards?.find((c) => c.id.toString() === cardData.id);
-
       if (foundCard) {
         let cardInEntity = await cardModel.findById(foundCard._id);
-        if (cardModel === 'CardInDeck' && cardInEntity.quantity === 3) {
-          throw new Error(
-            `Cannot add card ${cardInEntity?.name} to deck ${target.name} as this card is already at max quantity.`,
-          );
-        }
-        if (cardInEntity) {
+        if (cardInEntity && updateType === 'increment') {
           logger.info(
             `[UPDATING EXISTING CARD] ${cardInEntity.name} with quantity: ${cardInEntity.quantity}`
               .yellow,
             cardInEntity,
           );
-          cardInEntity.quantity = cardInEntity.quantity + 1;
+          await updateCardQuantity(
+            cardInEntity,
+            cardData.quantity,
+            updateType,
+            populatedUser,
+            entityType,
+            entityId,
+          );
+          // cardInEntity.quantity = cardInEntity.quantity + 1;
           // cardInEntity.quantity ++;
           cardInEntity.totalPrice = cardInEntity.quantity * cardInEntity.price;
           await cardInEntity.save();
-          logger.info(
-            `[OLD QUANTITY] ${cardData.quantity}`.yellow,
-            cardData.quantity,
-          );
-          entity.totalQuantity += cardData.quantity;
-          entity.totalPrice += cardData.quantity * cardInEntity.price;
+          logger.info(`[OLD QUANTITY] ${cardData.quantity}`.yellow, cardData.quantity);
+          // entity.totalQuantity += cardData.quantity;
+          // entity.totalPrice += cardData.quantity * cardInEntity.price;
         } else {
           logger.info(`Card not found in ${entityType}:`, foundCard._id);
         }
       } else {
-        if (!cardData.price) {
-          cardData.price = cardData.card_prices[0]?.tcgplayer_price;
-        }
-
-        // Assuming reFetchForSave is a utility that creates or updates a card instance based on the provided data
         const reSavedCard = await reFetchForSave(
           cardData,
           entityId,
@@ -170,9 +173,6 @@ async function addOrUpdateCards(entity, cards, entityId, entityType, cardModel) 
       }
     }
     await deDuplicate(entity, cardModel);
-    // entity.collectionStatistics = new Map(
-    // logger.info(`ENTITY ${entity}`);
-    // logger.info(`Updated ${entityType} ${entity.name} with ${entity.cards.length} cards`);
     await entity?.save();
     logger.info(`Saved ${entityType} ${entity.name}`);
     return entity;
@@ -181,36 +181,34 @@ async function addOrUpdateCards(entity, cards, entityId, entityType, cardModel) 
     throw error;
   }
 }
-async function removeCards(target, entityId, cardsToRemove, context, cardModel) {
-  if (!Array.isArray(cardsToRemove)) {
-    throw new Error('Invalid card data, expected an array.');
+async function removeCards(
+  entity,
+  entityId,
+  cardToRemoveId,
+  context,
+  cardModel,
+  updateType,
+  userId,
+  validId,
+) {
+  let foundCard = entity?.cards?.find((c) => c.id.toString() === cardToRemoveId);
+  const populatedUser = await fetchPopulatedUserContext(userId, ['collections']);
+  if (foundCard) {
+    let cardInEntity = await cardModel.findById(validId);
+    await updateCardQuantity(
+      cardInEntity,
+      cardInEntity.quantity,
+      updateType,
+      populatedUser,
+      context,
+      entityId,
+    );
+  } else {
+    logger.info(`Card not found in ${context}:`, foundCard._id);
   }
-  logger.info(`Removing ${cardsToRemove.length} cards from ${context} ${target.name}`);
-
-  // Extract card IDs to be removed.
-  const cardIdsToRemove = cardsToRemove.map((card) => card._id);
-
-  // Filter out the cards to be removed from the target (deck or collection).
-  // target.cards = target.cards.filter((card) => !cardIdsToRemove.includes(card.id.toString()));
-
-  // Perform the deletion in the corresponding card model.
-  await cardModel.deleteMany({
-    _id: { $in: cardIdsToRemove },
-    [`${context}Id`]: target._id,
-  });
-
-  // Save the changes to the target (deck or collection).
-  await target.save();
-  return target;
+  await entity.save();
+  return entity;
 }
-/**
- * Sets up default collections and cards for a user.
- *
- * @param {Object} user - The user object.
- * @param {Object} collectionModel - The collection model object.
- * @param {Object} collectionData - The collection data object.
- * @returns {Promise<Object>} - The newly created collection object.
- */
 const setupDefaultCollectionsAndCards = async (user, collectionModel, collectionData) => {
   if (collectionModel && collectionModel !== '') {
     const newCollection = await setCollectionModel(
@@ -219,16 +217,13 @@ const setupDefaultCollectionsAndCards = async (user, collectionModel, collection
       user._id,
       collectionData,
     );
-
     const randomCardData = await fetchAndSaveRandomCard(
       newCollection._id,
       collectionModel,
       `CardIn${collectionModel}`,
     );
-
     newCollection.cards.push(randomCardData._id);
     await newCollection.save();
-    logger.info('[SECTION X-0] COMPLETE: CREATE DEFAULT COLLECTIONS AND CARDS');
     return newCollection;
   } else {
     const { defaultCollection, defaultDeck, defaultCart } = await createDefaultCollectionsAndCards(
@@ -237,90 +232,12 @@ const setupDefaultCollectionsAndCards = async (user, collectionModel, collection
     user.allCollections.push(defaultCollection._id);
     user.allDecks.push(defaultDeck._id);
     user.cart = defaultCart._id;
-
-    logger.info('[SECTION X-1] COMPLETE: PUSH DEFAULT COLLECTIONS AND CARDS TO USER');
-    // logger.info('User: ', user);
-    logger.info('[SECTION X-2] COMPLETE: SAVE USER');
   }
 };
-async function fetchUserIdsFromUserSecurityData() {
-  // logger.info('SECTION X-3: FETCH USER IDS');
-  const users = await User.find({}).select('_id'); // This query retrieves all users but only their _id field
-  const allUserIds = [];
-  const userIds = users.map((user) => user._id); // Extract the _id field from each user document
-  allUserIds.push(...userIds);
-
-  logger.info('SECTION X-4: COMPLETE'.yellow);
-
-  return { userIdData: users, allUserIds };
-}
-const fetchAllCollectionIds = async (userId) => {
-  const user = await User.findById(userId).populate('allCollections');
-  const allIds = [];
-  logger.info(`${user.allCollections}`.yellow);
-  user.allCollections.forEach((collection) => {
-    allIds.push(collection._id);
-  });
-
-  logger.info(`${allIds}`.yellow, allIds);
-  return allIds;
-};
-// async function fetchAndGenerateRandomCardData() {
-//   const endpoint = 'randomcard.php';
-//   const response = await axiosInstance.get(endpoint);
-//   const tcgplayerPrice = response?.data?.card_prices[0]?.tcgplayer_price || 0;
-//   const chartData24h = {
-//     id: '24h',
-//     color: '#00f00f',
-//     data: generateFluctuatingPriceData(1, 100), // Assuming this function generates your chart data
-//   };
-//   const chartData7d = {
-//     id: '7d',
-//     color: '#bb0000',
-//     data: generateFluctuatingPriceData(8, 100), // Assuming this function generates your chart data
-//   };
-//   const chartData30d = {
-//     id: '30d',
-//     color: '#0000ff',
-//     data: generateFluctuatingPriceData(31, 100), // Assuming this function generates your chart data
-//   };
-//   let newCardData = {
-//     image: response?.data?.card_images.length > 0 ? response?.data.card_images[0].image_url : '',
-//     quantity: 1,
-//     price: tcgplayerPrice,
-//     totalPrice: tcgplayerPrice,
-//     id: response?.data?.id?.toString() || '',
-//     name: response?.data?.name,
-//     priceHistory: [],
-//     dailyPriceHistory: [],
-//     type: response?.data?.type,
-//     frameType: response?.data?.frameType,
-//     desc: response?.data?.desc,
-//     atk: response?.data?.atk,
-//     def: response?.data?.def,
-//     level: response?.data?.level,
-//     race: response?.data?.race,
-//     attribute: response?.data?.attribute,
-//     averagedChartData: {},
-//   };
-//   newCardData.averagedChartData['30d'] = chartData30d;
-//   newCardData.averagedChartData['7d'] = chartData7d;
-//   newCardData.averagedChartData['24h'] = chartData24h;
-//   const newCard = new RandomCard(newCardData);
-//   await newCard.save();
-//   return newCard; // Return the saved card data
-// }
 module.exports = {
   createDefaultCollectionsAndCards,
-  // selectFirstVariant,
   setupDefaultCollectionsAndCards,
-  fetchUserIdsFromUserSecurityData,
   reFetchForSave,
-  fetchAllCollectionIds,
   addOrUpdateCards,
   removeCards,
-  // fetchAndGenerateRandomCardData,
-  // fetchAndSaveRandomCard,
-  // fetchAndSaveRandomDeck,
-  // fetchAndSaveRandomCollection,
 };

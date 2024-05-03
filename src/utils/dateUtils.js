@@ -61,31 +61,6 @@ function convertToDataPoints(data) {
   return data.map((item) => convertSingleDataPoint(item, now));
 }
 
-// function convertToDataPoints(data) {
-//   const now = moment().tz(timezone);
-//   return data.map((item) => {
-//     const pointMoment = moment(item.timestamp).tz(timezone);
-//     const isWithin24Hours = pointMoment.isAfter(now.clone().subtract(24, 'hours'));
-//     const labelFormat = isWithin24Hours ? 'HH:mm' : 'YYYY-MM-DD';
-//     const label = pointMoment.format(labelFormat);
-//     const xValue = pointMoment.toISOString();
-//     // if (isWithin24Hours) {
-//     //   logger.info(
-//     //     `[Hour Point][${pointMoment.format('YYYY-MM-DD')}][${pointMoment.format('HH:mm')}][${item.num}]`,
-//     //   );
-//     // } else {
-//     //   logger.info(
-//     //     `[Day Point][${pointMoment.format('YYYY-MM-DD')}][${pointMoment.format('HH:mm')}][${item.num}]`,
-//     //   );
-//     // }
-//     return {
-//       label: label,
-//       id: uuidv4(),
-//       x: xValue,
-//       y: item.num,
-//     };
-//   });
-// }
 function mapDataByDateOrTime(data, type) {
   const formatString = type === 'date' ? 'YYYY-MM-DD' : 'HH:mm';
   let dataMap = new Map();
@@ -107,7 +82,7 @@ function processDataForRanges(data) {
 
     const startRange = now.clone().subtract(range.points, range.type === 'date' ? 'days' : 'hours');
     const endRange = now.clone();
-    logger.info(`[START RANGE: ${startRange}][END RANGE: ${endRange}]`);
+    // logger.info(`[START RANGE: ${startRange}][END RANGE: ${endRange}]`);
     let allTimes = Array.from(
       momentWithRange.range(startRange, endRange).by(range.type === 'date' ? 'day' : 'hour'),
     );
@@ -248,7 +223,7 @@ const generateStatisticsForRanges = (dataPoints, chartKey, totalPrice, totalQuan
       config,
     );
     if (formattedStat) {
-      logger.info(`[STAT FOUND] [${config.name}] [${formattedStat.value}]`.green);
+      // logger.info(`[STAT FOUND] [${config.name}] [${formattedStat.value}]`.green);
       results.set(config.name, formattedStat);
     }
   });

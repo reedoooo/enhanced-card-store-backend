@@ -66,13 +66,17 @@ const createSchemaWithCommonFields = (cardsRef, schemaName) => {
       [cardsRef]: [{ type: Schema.Types.ObjectId, ref: schemaName }],
       tags: {
         type: Array,
-        of: String,
-        default: ['tags'],
+        of: Object,
+        default: [
+          {
+            id: uuidv4(),
+            label: 'defaultTag',
+          },
+        ],
       },
-      selectedTags: {
-        type: Array,
-        of: String,
-        default: ['tags'],
+      selectedTagValue: {
+        type: String,
+        default: 'defaultTag',
       },
       color: {
         type: String,
@@ -85,6 +89,15 @@ const createSchemaWithCommonFields = (cardsRef, schemaName) => {
 
   schema.pre('save', async function (next) {
     await updateTotals.call(this, mongoose.model(schemaName), cardsRef);
+    if (schemaName === 'Deck') { 
+      if (!this.tags[0].label) {
+        this.tags[0] = {
+          id: uuidv4(),
+          label: 'defaultTag',
+        };
+        this.selectedTag = 'defaultTag';
+      }
+    }
     next();
   });
 

@@ -6,7 +6,7 @@ const {
   fetchPopulatedUserContext,
   findUserContextItem,
 } = require('./utils/dataUtils');
-const { setupDefaultCollectionsAndCards, fetchAllCollectionIds } = require('./utils/helpers');
+const { setupDefaultCollectionsAndCards } = require('./utils/helpers');
 const logger = require('../configs/winston');
 const { sendJsonResponse } = require('../utils/utils');
 const { addOrUpdateCards, removeCards } = require('./utils/helpers');
@@ -23,27 +23,6 @@ exports.getAllCollectionsForUser = async (req, res, next) => {
   try {
     const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
     validateEntityPresence(populatedUser, 'User not found', 404, res);
-
-    // let collectionsFromModel = await Collection.find({ owner: populatedUser._id });
-
-    // for (let collection of collectionsFromModel) {
-    //   collection.allDataMap = undefined;
-    //   collection.collectionPriceChangeHistory = undefined;
-    //   // collection.collectionStatisticsAtRanges = undefined;
-    //   collection.collectionStatistics = undefined;
-    //   collection.newNivoChartData = undefined;
-    //   collection.nivoChartData = undefined;
-
-    //   collection.markModified('allDataMap');
-    //   collection.markModified('collectionPriceChangeHistory');
-    //   // collection.markModified('collectionStatisticsAtRanges');
-    //   collection.markModified('collectionStatistics');
-    //   collection.markModified('newNivoChartData');
-    //   collection.markModified('nivoChartData');
-
-    //   await collection.save();
-    // }
-
     await populatedUser.save();
 
     sendJsonResponse(
@@ -56,7 +35,6 @@ exports.getAllCollectionsForUser = async (req, res, next) => {
     next(error); // Ensure that any errors are passed along to the error handling middleware
   }
 };
-
 /**
  * Creates a new collection for a user.
  * @param {Request} req - The request object
@@ -92,14 +70,7 @@ exports.updateExistingCollection = async (req, res, next) => {
   if (!collection) {
     return res.status(404).json({ error: 'Collection not found' });
   }
-  // logger.info(`UPDATING COLLECTION VALUES: ${JSON.stringify(req.body)}`);
   Object.assign(collection, req.body);
-  // collection.allDataMap = undefined;
-  // collection.collectionPriceChangeHistory = undefined;
-  // collection.collectionStatisticsAtRanges = undefined;
-  // collection.collectionStatistics = undefined;
-  // collection.newNivoChartData = undefined;
-  // collection.nivoChartData = undefined;
   await collection.save();
 
   await populatedUser.save();
@@ -127,9 +98,6 @@ exports.deleteExistingCollection = async (req, res, next) => {
   await populatedUser.save();
 
   logger.info('Collection deleted successfully:', req.params.collectionId);
-  // const { collectionIds } = fetchAllCollectionIds(populatedUser._id);
-  // logger.info(`All Collection IDS: ${collectionIds}`, collectionIds);
-  // sendJsonResponse(res, 200, 'Collection deleted successfully', collectionIds);
   sendJsonResponse(res, 200, 'Collection deleted successfully', {
     data: req.params.collectionId,
   });
@@ -145,7 +113,7 @@ exports.deleteExistingCollection = async (req, res, next) => {
  */
 exports.addCardsToCollection = async (req, res, next) => {
   const { userId, collectionId } = req.params;
-  const { cards } = req.body;
+  const { cards, type } = req.body;
   const cardsArray = Array.isArray(cards) ? cards : [cards];
   const populatedUser = await fetchPopulatedUserContext(userId, ['collections']);
   const collection = findUserContextItem(populatedUser, 'allCollections', collectionId);
@@ -155,10 +123,10 @@ exports.addCardsToCollection = async (req, res, next) => {
     collectionId,
     'Collection',
     CardInCollection,
+    type,
+    populatedUser._id,
   );
   await populatedUser.save();
-  // await collection.populate({ path: 'cards', model: 'CardInCollection' });
-
   sendJsonResponse(res, 200, 'Cards added to collection successfully.', {
     data: updatedCollection,
   });
@@ -177,20 +145,22 @@ exports.removeCardsFromCollection = async (req, res) => {
   const cardsArray = Array.isArray(cards) ? cards : [cards];
   const populatedUser = await populateUserDataByContext(req.params.userId, ['collections']);
   const collection = findUserContextItem(populatedUser, 'allCollections', req.params.collectionId);
-  if (!collection) {
-    return res.status(404).json({ message: 'Collection not found.' });
-  }
+  const tcgId = cardsArray[0];
+  const validId = collection.cards.find((card) => card.id === tcgId)._id;
   if (['decrement', 'delete'].includes(type)) {
     const updatedCollection = await removeCards(
       collection,
       req.params.collectionId,
-      cardsArray,
-      'collection',
+      tcgId,
+      'Collection',
       CardInCollection,
+      type,
+      populatedUser._id,
+      validId,
     );
-    logger.info(`COLLECTION: ${req.params.collectionId} CARDS: ${updatedCollection.cards}`);
+    logger.info(`COLLECTION: ${req.params.collectionId} CARDS: ${updatedCollection.name}`);
   } else {
-    return res.status(400).json({ message: 'Invalid type specified.' });
+    throw new Error('Invalid type');
   }
 
   await collection.save();
@@ -198,110 +168,8 @@ exports.removeCardsFromCollection = async (req, res) => {
   const updatedCollection = populatedUser.allCollections.find(
     (coll) => coll._id.toString() === req.params.collectionId,
   );
-  logger.info(`COLLECTION: ${req.params.collectionId} CARDS: ${updatedCollection.cards}`);
   res.status(200).json({
-    message: `Cards ${type === 'delete' ? 'removed' : 'updated'} from collection successfully.`,
+    message: `Cards removed from collection successfully.`,
     data: updatedCollection,
   });
-};
-/**
- * Deletes a specific card from a collection for a user.
- * @param {Request} req - The request object
- * @param {Response} res - The response object
- * @param {NextFunction} next - The next middleware function
- * @returns {Promise<Response>} A promise that resolves to a response object
- */
-exports.deleteCardFromCollection = async (req, res, next) => {
-  const { userId, collectionId, cardId } = req.params;
-  // Fetch the user and the specified collection
-  const populatedUser = await fetchPopulatedUserContext(userId, ['collections']);
-  const collection = findUserContextItem(populatedUser, 'allCollections', collectionId);
-
-  if (!collection) {
-    return res.status(404).json({ message: 'Collection not found.' });
-  }
-
-  // Assuming cards are stored as an array of references or subdocuments in the collection
-  const cardIndex = collection.cards.findIndex((c) => c._id.toString() === cardId);
-  if (cardIndex === -1) {
-    return res.status(404).json({ message: 'Card not found in collection.' });
-  }
-
-  // Remove the card from the collection
-  collection.cards.splice(cardIndex, 1);
-  await collection.save();
-
-  // Optionally, you might want to delete the card from the CardInCollection model as well
-  await CardInCollection.findByIdAndDelete(cardId);
-
-  // Log the operation
-  logger.info(`Card ${cardId} removed from collection ${collectionId} for user ${userId}`);
-
-  return res.status(200).json({
-    message: 'Card deleted from collection successfully.',
-    data: { collectionId, cardId },
-  });
-};
-/**
- * Decrements the quantity of a specific card in a collection for a user.
- * If the quantity reaches 0, the card may be optionally removed from the collection.
- * @param {Request} req - The request object
- * @param {Response} res - The response object
- * @param {NextFunction} next - The next middleware function
- * @returns {Promise<Response>} A promise that resolves to a response object
- */
-exports.decrementCardQuantityInCollection = async (req, res, next) => {
-  try {
-    const { userId, collectionId, cardId } = req.params;
-    // Assuming `fetchPopulatedUserContext` populates the collections along with their cards
-    const populatedUser = await fetchPopulatedUserContext(userId, ['collections']);
-    const collection = findUserContextItem(populatedUser, 'allCollections', collectionId);
-
-    if (!collection) {
-      return res.status(404).json({ message: 'Collection not found.' });
-    }
-
-    // Find the card in the collection
-    const card = collection.cards.find((c) => c._id.toString() === cardId);
-    if (!card) {
-      return res.status(404).json({ message: 'Card not found in collection.' });
-    }
-
-    // Decrement the card's quantity
-    if (card.quantity > 1) {
-      card.quantity -= 1;
-      await CardInCollection.findByIdAndUpdate(cardId, { quantity: card.quantity });
-
-      await collection.save(); // Save the collection with the updated card quantity
-      await populatedUser.save(); // Save the user with the updated collection
-
-      logger.info(
-        `Card ${cardId} quantity decremented in collection ${collectionId} for user ${userId}`,
-      );
-      res.status(200).json({
-        message: 'Card quantity decremented successfully.',
-        data: { collectionId, cardId, newQuantity: card.quantity },
-      });
-    } else {
-      // Optionally remove the card if its quantity reaches 0
-      const cardIndex = collection.cards.findIndex((c) => c._id.toString() === cardId);
-      collection.cards.splice(cardIndex, 1);
-      await CardInCollection.findByIdAndDelete(cardId);
-
-      await collection.save(); // Save the collection without the removed card
-
-      await populatedUser.save(); // Save the user with the updated collection
-      // Optionally, remove the card from CardInCollection if needed
-      logger.info(
-        `Card ${cardId} removed from collection ${collectionId} after decrementing to zero for user ${userId}`,
-      );
-      res.status(200).json({
-        message: 'Card removed from collection after decrementing quantity to zero.',
-        data: { collectionId, cardId },
-      });
-    }
-  } catch (error) {
-    handleError(error, res);
-    next(error);
-  }
 };

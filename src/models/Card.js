@@ -122,18 +122,9 @@ const randomCardSchema = new Schema({
   dailyPriceChange: Number,
   dailyPercentageChange: String,
   refs: allRefsSchema, // AUTOSET: false
-  priceHistory: [priceEntrySchema],
-  valueHistory: [priceEntrySchema],
-  priceChangeHistory: [dataPointSchema],
-  allDataPoints: [dataPointSchema],
   averagedChartData: {
     type: Map,
     of: chartDataSchema,
-  },
-  nivoChartData: {
-    id: String,
-    color: String,
-    data: [{ x: Date, y: Number }],
   },
   price: Number, // AUTOSET: false
   quantity: Number, // AUTOSET: false
@@ -143,7 +134,6 @@ const randomCardSchema = new Schema({
 });
 
 const RandomCard = model('RandomCard', randomCardSchema);
-const RandomCardData = model('RandomCardData', randomCardSchema);
 const genericCardSchema = new Schema(
   {
     ...commonFields_API_Data,
@@ -253,7 +243,6 @@ genericCardSchema.pre('save', async function (next) {
 });
 
 const CardSet = model('CardSet', cardSetSchema);
-// const Variant = model('Variant', variantSchema);
 const CardVariant = model('CardVariant', cardVariantSchema);
 const CardInCollection = model('CardInCollection', genericCardSchema);
 const CardInDeck = model('CardInDeck', genericCardSchema);
@@ -266,7 +255,6 @@ module.exports = {
   CardSet,
   CardVariant,
   RandomCard,
-  RandomCardData,
 };
 // if (this.updateRefs) {
 //   // Handle deck references

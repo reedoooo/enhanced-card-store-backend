@@ -62,12 +62,6 @@ const statDataMapSchema = new Schema({
 });
 const DeckSchema = createSchemaWithCommonFields('cards', 'CardInDeck');
 const CartSchema = createSchemaWithCommonFields('items', 'CardInCart');
-// const collectionStatisticsSchema = new Schema({
-//   stats: {
-//     type: Map,
-//     of: statDataMapSchema,
-//   },
-// });
 const CollectionSchema = new Schema(
   {
     ...createCommonFields(),
@@ -196,12 +190,9 @@ CollectionSchema.pre('save', async function (next) {
     this.averagedChartData = new Map();
     this.collectionStatistics = {}
     if (Array.isArray(this.cards) && this.cards.length > 0) {
-      // let newTotalPrice = 0;
-      // let newTotalQuantity = 0;
       const cardsInCollection = await CardInCollection.find({
         _id: { $in: this.cards.map((id) => id) },
       });
-      // this.selectedChartDataKey = '7d';
       if (Array.isArray(cardsInCollection) && cardsInCollection.length > 0) {
         cardsInCollection.forEach((card) => {
           newTotalQuantity += card.quantity;
@@ -222,15 +213,11 @@ CollectionSchema.pre('save', async function (next) {
           this.totalQuantity,
         );
         this.selectedChartData = averageData[this.selectedChartDataKey];
-        // logger.info(`[GENERATING STATISTICS] `.green + `[${generatedStatistics}]`.green);
         for (const [key, value] of generatedStatistics.entries()) {
           this.collectionStatistics[key] = value;
-          // logger.info(`[GENERATING STATISTICS] `.green + `[${generatedStatistics[key]}][${generatedStatistics[key].value}]`.green);
         }
         this.selectedStatData = generatedStatistics[this.selectedStatDataKey];
         this.selectedThemeData = this.selectedThemeDataKey;
-        // this.markModified('collectionStatistics');
-        // console.log('Final collectionStatistics Object before save:', this.collectionStatistics[]
       }
     }
     this.totalPrice = newTotalPrice;
