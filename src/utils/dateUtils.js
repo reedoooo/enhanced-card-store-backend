@@ -73,7 +73,7 @@ function mapDataByDateOrTime(data, type) {
   });
   return Array.from(dataMap, ([key, value]) => ({ date: key, data: value }));
 }
-function processDataForRanges(data) {
+function processDataForRanges(data, totalPrice) {
   const results = {};
   const now = moment().tz(timezone);
 
@@ -117,6 +117,9 @@ function processDataForRanges(data) {
         }
       });
     }
+    if (mappedData.length > 0) {
+      mappedData[mappedData.length - 1].y = totalPrice;
+    }
     results[range.id] = {
       id: range.id,
       color: '#2e7c67', // Placeholder color, set according to your application's needs
@@ -133,11 +136,11 @@ const findStatsInRange = (dataInRange, totalPrice, totalQuantity) => {
     logger.info(`[NO DATA FOUND IN RANGE]`.red);
     return new Map(); // Return an empty Map if no data
   }
-  const totalY = dataInRange.reduce((acc, item) => acc + item.y, 0);
-  const finalY = dataInRange[dataInRange.length - 1].y;
-  const initialY = dataInRange[0].y;
-  const indexOfFirstNonZeroY = dataInRange.findIndex((item) => item.y !== 0);
-  const firstNonZeroY = dataInRange[indexOfFirstNonZeroY].y;
+  const totalY = dataInRange.reduce((acc, item) => acc + item?.y, 0);
+  const finalY = dataInRange[dataInRange.length - 1]?.y || 0; // Ensure we handle undefined
+  const initialY = dataInRange[0]?.y || 0; // Ensure we handle undefined
+  const indexOfFirstNonZeroY = dataInRange?.findIndex((item) => item?.y !== 0);
+  const firstNonZeroY = dataInRange[indexOfFirstNonZeroY]?.y;
   const priceChange = totalPrice - firstNonZeroY;
   // logger.info(`[TOTAL Y] ${totalY}`);
   // logger.info(`[INITIAL Y] ${initialY}`);
@@ -147,8 +150,9 @@ const findStatsInRange = (dataInRange, totalPrice, totalQuantity) => {
     ['highPoint', Math.max(...dataInRange.map((item) => item.y))],
     ['lowPoint', Math.min(...dataInRange.map((item) => item.y))],
     ['average', totalY / dataInRange.length],
-    ['priceChange', priceChange],
-    ['percentageChange', (totalPrice / priceChange) * 100],
+    ['priceChange', finalY - initialY],
+    ['percentageChange', ((finalY - initialY) / initialY) * 100], // Corrected formula
+    // ['percentageChange', (totalPrice / priceChange) * 100],
     ['volume', totalQuantity],
     ['volatility', dataInRange.reduce((acc, item) => acc + Math.abs(item.y - initialY), 0)],
     ['avgPrice', totalPrice / totalQuantity],

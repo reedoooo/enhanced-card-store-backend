@@ -60,8 +60,8 @@ const statDataMapSchema = new Schema({
   },
   _id: false,
 });
-const DeckSchema = createSchemaWithCommonFields('cards', 'CardInDeck');
-const CartSchema = createSchemaWithCommonFields('items', 'CardInCart');
+const DeckSchema = createSchemaWithCommonFields('cards', 'CardInDeck', 'Deck');
+const CartSchema = createSchemaWithCommonFields('items', 'CardInCart', 'Cart');
 const CollectionSchema = new Schema(
   {
     ...createCommonFields(),
@@ -165,7 +165,7 @@ CollectionSchema.pre('save', async function (next) {
         // VALUE TYPES: STRING, NUMBER, PERCENTAGE
         value: 0,
         legend: `High Point`,
-        legendOrientation:'vertical',
+        legendOrientation: 'vertical',
       };
       this.selectedThemeDataKey = 'blue';
       this.selectedThemeData = 'blue';
@@ -188,7 +188,8 @@ CollectionSchema.pre('save', async function (next) {
     this.dailyCollectionPriceHistory = [];
     this.allDataPoints = [];
     this.averagedChartData = new Map();
-    this.collectionStatistics = {}
+    this.selectedChartData = {};
+    this.collectionStatistics = {};
     if (Array.isArray(this.cards) && this.cards.length > 0) {
       const cardsInCollection = await CardInCollection.find({
         _id: { $in: this.cards.map((id) => id) },
@@ -204,7 +205,7 @@ CollectionSchema.pre('save', async function (next) {
         this.collectionValueHistory = cumulativeDataPoints;
         const formattedDataPoints = convertToDataPoints(cumulativeDataPoints);
         this.allDataPoints = formattedDataPoints;
-        const averageData = processDataForRanges(formattedDataPoints);
+        const averageData = processDataForRanges(formattedDataPoints, this.totalPrice);
         this.averagedChartData = averageData;
         const generatedStatistics = generateStatisticsForRanges(
           formattedDataPoints,

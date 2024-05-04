@@ -31,16 +31,13 @@ async function createDefaultCollectionsAndCards(userId) {
     updatedCollectionTypes.push(collection);
     const defaultCards = await cardController.fetchAndTransformCardData('dark magician');
     logger.info(`Fetched default card data: ${defaultCards[0].name}`);
-    const { cardInstance, collectionInstance } = await createAndSaveCard(
-      defaultCards[0],
-      {
-        collectionId: collection._id,
-        collectionModel: `${collectionType.typeName}`,
-        cardModel: `CardIn${collectionType.typeName}`,
-        tag: 'default',
-        collectionData: collection,
-      },
-    );
+    const { cardInstance, collectionInstance } = await createAndSaveCard(defaultCards[0], {
+      collectionId: collection._id,
+      collectionModel: `${collectionType.typeName}`,
+      cardModel: `CardIn${collectionType.typeName}`,
+      tag: 'default',
+      collectionData: collection,
+    });
     logger.info(`Created default card for ${collectionInstance.name}: ${cardInstance.name}`);
     logger.info(`Saved updated ${collection.name}`);
   }
@@ -51,7 +48,7 @@ async function createDefaultCollectionsAndCards(userId) {
     defaultCart: updatedCollectionTypes[2],
   };
 }
-async function reFetchForSave(card, collectionId, collectionModel, cardModel) {
+async function reFetchForSave(card, collectionId, collectionModel, cardModelName) {
   if (!card) {
     throw new Error('Card is required in reFetchForSave');
   }
@@ -59,7 +56,7 @@ async function reFetchForSave(card, collectionId, collectionModel, cardModel) {
   return await createAndSaveCard(response, {
     collectionId,
     collectionModel,
-    cardModel,
+    cardModelName,
     tag: 'random',
   });
 }
@@ -127,10 +124,11 @@ async function addOrUpdateCards(
   entity,
   cards,
   entityId,
-  entityType,
-  cardModel,
+  collectionModelName,
+  cardModelName,
   updateType,
   userId,
+  cardModel,
 ) {
   try {
     const populatedUser = await fetchPopulatedUserContext(userId, ['collections']);
@@ -149,35 +147,33 @@ async function addOrUpdateCards(
             cardData.quantity,
             updateType,
             populatedUser,
-            entityType,
+            collectionModelName,
             entityId,
           );
-          // cardInEntity.quantity = cardInEntity.quantity + 1;
-          // cardInEntity.quantity ++;
           cardInEntity.totalPrice = cardInEntity.quantity * cardInEntity.price;
           await cardInEntity.save();
           logger.info(`[OLD QUANTITY] ${cardData.quantity}`.yellow, cardData.quantity);
-          // entity.totalQuantity += cardData.quantity;
-          // entity.totalPrice += cardData.quantity * cardInEntity.price;
         } else {
-          logger.info(`Card not found in ${entityType}:`, foundCard._id);
+          logger.info(`Card not found in ${collectionModelName}:`, foundCard._id);
         }
       } else {
+        logger.info(`MODEL NAME: ${cardModelName}`);
         const reSavedCard = await reFetchForSave(
           cardData,
           entityId,
-          entityType,
-          cardModel.modelName,
+          collectionModelName,
+          cardModelName,
         );
+
         entity?.cards?.push(reSavedCard?._id);
       }
     }
     await deDuplicate(entity, cardModel);
     await entity?.save();
-    logger.info(`Saved ${entityType} ${entity.name}`);
+    logger.info(`Saved ${collectionModelName} ${entity.name}`);
     return entity;
   } catch (error) {
-    logger.error(error);
+    logger.error(`ERROR IN addOrUpdateCards: ${error.message}`);
     throw error;
   }
 }

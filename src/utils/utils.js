@@ -106,7 +106,7 @@ function constructCardDataObject(cardData, additionalData) {
     tag: additionalData.tag || '',
     collectionId: additionalData.collectionId,
     collectionModel: additionalData.collectionModel,
-    cardModel: additionalData.cardModel,
+    cardModel: additionalData.cardModelName,
     watchList: false,
     card_set: cardSet ? cardSet : {},
     card_sets: cardData?.card_sets,
@@ -114,15 +114,6 @@ function constructCardDataObject(cardData, additionalData) {
     card_prices: cardData?.card_prices,
     id: cardData?.id?.toString() || '',
     name: cardData?.name,
-    // create map for chart_datasets organized by date
-    // chart_datasets: cardData?.card_prices?.reduce((acc, price) => {
-    //   if (!acc[addedAtFormatted]) acc[addedAtFormatted] = [];
-    //   acc[addedAtFormatted].push({
-    //     x: new Date(price.timestamp).getTime(),
-    //     y: tcgplayerPrice,
-    //   });
-    //   return acc;
-    // }, {}),
 
     lastSavedPrice: defaultPriceObj,
     latestPrice: defaultPriceObj,
