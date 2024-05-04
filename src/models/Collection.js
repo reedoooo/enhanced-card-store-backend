@@ -60,8 +60,8 @@ const statDataMapSchema = new Schema({
   },
   _id: false,
 });
-const DeckSchema = createSchemaWithCommonFields('cards', 'CardInDeck');
-const CartSchema = createSchemaWithCommonFields('items', 'CardInCart');
+const DeckSchema = createSchemaWithCommonFields('cards', 'CardInDeck', 'Deck');
+const CartSchema = createSchemaWithCommonFields('items', 'CardInCart', 'Cart');
 const CollectionSchema = new Schema(
   {
     ...createCommonFields(),

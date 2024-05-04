@@ -122,9 +122,11 @@ exports.addCardsToCollection = async (req, res, next) => {
     cardsArray,
     collectionId,
     'Collection',
-    CardInCollection,
+    'CardInCollection',
+    // CardInCollection,
     type,
     populatedUser._id,
+    CardInCollection,
   );
   await populatedUser.save();
   sendJsonResponse(res, 200, 'Cards added to collection successfully.', {

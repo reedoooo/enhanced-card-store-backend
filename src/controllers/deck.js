@@ -42,12 +42,12 @@ exports.createNewDeck = async (req, res, next) => {
     });
   }
   const newDeck = new Deck({
-    userId,
-    name,
-    description,
+    userId: userId,
+    name: name || 'New Deck',
+    description: description || 'New deck description',
     tags: tags || [{ id: uuidv4(), label: 'newDeckTag' }],
     color: color || 'blue',
-    cards,
+    cards: cards || [],
     collectionModel: 'Deck',
   });
   await newDeck.save();
@@ -75,8 +75,9 @@ exports.deleteDeck = async (req, res, next) => {
   }
 };
 exports.addCardsToDeck = async (req, res, next) => {
-  let cardsArray = [];
-  !Array.isArray(req.body.cards) ? cardsArray.push(req.body.cards) : (cardsArray = req.body.cards);
+  const { cards, type } = req.body;
+
+  const cardsArray = Array.isArray(cards) ? cards : [cards];
   const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['decks']);
   const deck = findUserDeck(populatedUser, req.params.deckId);
   const updatedDeck = await addOrUpdateCards(
@@ -84,9 +85,11 @@ exports.addCardsToDeck = async (req, res, next) => {
     cardsArray,
     req.params.deckId,
     'Deck',
-    CardInDeck,
-    req.body.type,
+    // CardInDeck,
+    'CardInDeck',
+    type,
     populatedUser._id,
+    CardInDeck,
   );
   await updatedDeck.save();
   await populatedUser.save();

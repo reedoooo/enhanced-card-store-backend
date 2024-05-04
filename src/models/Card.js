@@ -6,8 +6,6 @@ const {
   cardPriceSchema,
   cardVariantSchema,
   cardSetSchema,
-  // averagedDataSchema,
-  // chartDatasetEntrySchema,
   dataPointSchema,
   chartDataSchema,
 } = require('./schemas/CommonSchemas');
@@ -20,7 +18,7 @@ const {
   convertToDataPoints,
   calculateValueHistory,
 } = require('../utils/dateUtils');
-const { purpleLogBracks, blueLogBracks } = require('../utils/logUtils');
+const { blueLogBracks } = require('../utils/logUtils');
 
 const momentWithRange = extendMoment(moment);
 momentWithRange.tz.add('America/Seattle|PST PDT|80 70|0101|1Lzm0 1zb0 Op0');

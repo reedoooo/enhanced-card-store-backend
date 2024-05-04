@@ -43,11 +43,20 @@ async function registerUser(username, password, email, firstName, lastName) {
   await newUser.save();
   return newUser;
 }
+function parseCardSetData(cardSetsString) {
+  try {
+    return JSON.parse(cardSetsString);
+  } catch (error) {
+    logger.error(`Error parsing card sets data: ${error.message}`);
+    throw new Error('Invalid card sets data format.');
+  }
+}
 async function saveModel(Model, data) {
   const modelInstance = new Model(data);
   await modelInstance.save();
   return modelInstance;
 }
+
 async function createCardVariants(sets, cardModel, cardId) {
   return Promise.all(
     sets.map(async (setId, index) => {
@@ -76,7 +85,7 @@ function transformSetData(set, index, { cardModel, cardId }) {
   return { ...set, set_price: setPrice, cardModel, cardId };
 }
 async function createCardSets(cardSetsData, cardModel, cardId) {
-  // logger.info(`Creating ${cardSetsData} ${CardSet.modelName} entities ...`);
+  logger.info(`CARDID: ${cardId}`);
   return Promise.all(
     cardSetsData
       ?.map((set, index) => transformSetData(set, index, { cardModel, cardId }))
@@ -88,14 +97,24 @@ async function createCardSets(cardSetsData, cardModel, cardId) {
       }),
   );
 }
-async function createCardSetsAndVariants(cardInstance, cardData, cardModel) {
-  if (!cardData || !cardInstance || !cardModel) {
+async function createCardSetsAndVariants(cardInstance, cardData, cardModelName) {
+  if (!cardData || !cardInstance || !cardModelName) {
     throw new Error('Invalid input for creating sets and variants.');
   }
-  const cardSetIds = await createCardSets(cardData?.card_sets, cardModel, cardInstance._id);
-  cardInstance.card_sets = cardSetIds;
-  const cardVariantIds = await createCardVariants(cardSetIds, cardModel, cardInstance._id); // This might need adjustment based on your data structure.
-  cardInstance.cardVariants = cardVariantIds;
+  try {
+    const cardSetIds = await createCardSets(cardData?.card_sets, cardModelName, cardInstance._id);
+    logger.info(`SETIDS TYPE: ${typeof cardSetIds}`);
+    logger.info(`Created ${cardSetIds.length} sets for card ${cardInstance._id}`);
+
+    cardInstance.card_sets = cardSetIds;
+    const cardVariantIds = await createCardVariants(cardSetIds, cardModelName, cardInstance._id); // This might need adjustment based on your data structure.
+    logger.info(`Created ${cardVariantIds.length} variants for card ${cardInstance._id}`);
+
+    cardInstance.cardVariants = cardVariantIds;
+  } catch (error) {
+    logger.error(`Error in createCardSetsAndVariants: ${error.message}`);
+    throw error;
+  }
 }
 function setAltArtDetails(card) {
   const altArtImage = card.card_images.find((img) => img.id === card.id + 1);
@@ -104,8 +123,8 @@ function setAltArtDetails(card) {
   }
   card.alt_art_ids = card.card_images.filter((img) => img.id !== card.id).map((img) => img.id);
 }
-function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardModel) {
-  if (!cardData || !collectionId || !collectionModel || !cardModel) {
+function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardModelName) {
+  if (!cardData || !collectionId || !collectionModel || !cardModelName) {
     throw new Error('Invalid input for mapping card data.');
   }
 
@@ -113,7 +132,7 @@ function mapCardDataToModelFields(cardData, collectionId, collectionModel, cardM
   return constructCardDataObject(cardData, {
     collectionId,
     collectionModel,
-    cardModel,
+    cardModelName,
     contextualFields,
   });
 }
@@ -121,28 +140,41 @@ async function createAndSaveCard(cardData, additionalData) {
   if (!cardData || !additionalData) {
     throw new Error('Missing required parameters for creating a card in context.');
   }
-  const { collectionId, collectionModel, cardModel, tag, collectionData } = additionalData;
-  const mappedData = mapCardDataToModelFields(cardData, collectionId, collectionModel, cardModel);
-  const CardModel = mongoose.model(cardModel);
-  const cardInstance = new CardModel(mappedData);
-  await createCardSetsAndVariants(cardInstance, cardData, cardModel);
-  setAltArtDetails(cardInstance);
-  cardInstance.variant = cardInstance.cardVariants.length > 0 ? cardInstance.cardVariants[0] : null;
-  await cardInstance.populate('variant');
-  cardInstance.rarity = cardInstance.variant?.rarity;
-  await saveModel(CardModel, cardInstance);
-  if (!collectionData) {
-    return cardInstance;
-  } else {
-    const CollectionModel = mongoose.model(collectionModel);
-    const collectionInstance = new CollectionModel(collectionData);
-    if (collectionModel === 'Cart') {
-      collectionInstance.items.push(cardInstance._id);
+  try {
+    const { collectionId, collectionModel, cardModelName, tag, collectionData } = additionalData;
+    logger.info(`Creating ${cardModelName} ${cardData.name} ...`);
+    const mappedData = mapCardDataToModelFields(
+      cardData,
+      collectionId,
+      collectionModel,
+      cardModelName,
+    );
+    const Model = mongoose.model(cardModelName);
+    const cardInstance = new Model(mappedData);
+    // await cardInstance.save();
+    await createCardSetsAndVariants(cardInstance, cardData, cardModelName);
+    setAltArtDetails(cardInstance);
+    cardInstance.variant =
+      cardInstance.cardVariants.length > 0 ? cardInstance.cardVariants[0] : null;
+    await cardInstance.populate('variant');
+    cardInstance.rarity = cardInstance.variant?.rarity;
+    await saveModel(Model, cardInstance);
+    if (!collectionData) {
+      return cardInstance;
     } else {
-      collectionInstance.cards.push(cardInstance._id);
+      const CollectionModel = mongoose.model(collectionModel);
+      const collectionInstance = new CollectionModel(collectionData);
+      if (collectionModel === 'Cart') {
+        collectionInstance.items.push(cardInstance._id);
+      } else {
+        collectionInstance.cards.push(cardInstance._id);
+      }
+      await saveModel(CollectionModel, collectionInstance);
+      return { cardInstance, collectionInstance };
     }
-    await saveModel(CollectionModel, collectionInstance);
-    return { cardInstance, collectionInstance };
+  } catch (error) {
+    logger.error(`Error creating in createandsavecard: ${error.message}`);
+    throw new Error(error);
   }
 }
 
