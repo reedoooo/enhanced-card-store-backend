@@ -31,25 +31,6 @@ const createImageFields = () => ({
   image_url_small: String,
   image_url_cropped: String,
 });
-const createCardSetFields = () => ({
-  set_name: String,
-  set_code: requiredString,
-  set_rarity: String,
-  set_rarity_code: String,
-  set_price: requiredDecimal128,
-  ...createReferenceFields(['CardInCollection', 'CardInDeck', 'CardInCart']),
-});
-const createCardVariantFields = () => ({
-  set_name: String,
-  set_code: String,
-  rarity: String,
-  rarity_code: String,
-  alt_art_image_url: String,
-  price: { type: Decimal128, default: 0 },
-  selected: { type: Boolean, default: false },
-  set: requiredObjectId('CardSet'),
-  ...createReferenceFields(['CardInCollection', 'CardInDeck', 'CardInCart']),
-});
 const createCollectionPriceChangesFields = () => ({
   timestamp: Date,
   difference: Number,
@@ -139,9 +120,6 @@ const createSchemaWithCommonFields = (cardsRef, schemaName, context) => {
 const priceEntrySchema = createSchema({ num: Number, timestamp: Date });
 const cardImageSchema = createSchema(createImageFields());
 const cardPriceSchema = createSchema(createPriceFields());
-// const cardSetSchema = createSchema(createCardSetFields());
-// cardSetSchema.index({ set_code: 1 }); // Index for performance
-// const cardVariantSchema = createSchema(createCardVariantFields());
 const collectionPriceChangeHistorySchema = createSchema(createCollectionPriceChangesFields());
 const dataPointSchema = createSchema(
   {
@@ -162,12 +140,6 @@ const chartDataSchema = new Schema({
     validate: [arrayLimit, `{PATH} exceeds the limit of {VALUE}`],
   },
 });
-// const cardImageSchema = createSchema({
-//   id: { type: Number },
-//   image_url: requiredString,
-//   image_url_small: String,
-//   image_url_cropped: String,
-// });
 const cardSetSchema = new Schema(
   {
     set_name: String,
@@ -194,22 +166,6 @@ const cardVariantSchema = new Schema(
   },
   { timestamps: true },
 );
-// const collectionPriceChangeHistorySchema = new Schema({
-//   timestamp: Date,
-//   difference: Number,
-//   priceChanges: [
-//     {
-//       timestamp: Date,
-//       difference: Number,
-//       collectionName: String,
-//       cardName: String,
-//       oldPrice: Number,
-//       newPrice: Number,
-//       priceDifference: Number,
-//       message: String,
-//     },
-//   ],
-// });
 module.exports = {
   priceEntrySchema,
   commonSchemaOptions,
@@ -218,14 +174,8 @@ module.exports = {
   cardPriceSchema,
   cardVariantSchema,
   collectionPriceChangeHistorySchema,
-  // averagedDataSchema,
-  // chartDatasetEntrySchema,
   chartDataSchema,
   dataPointSchema,
-  // lineStyleSchema,
-  // statDataMapSchema,
-  // collectionStatisticsSchema,
   createCommonFields,
   createSchemaWithCommonFields,
-  // updateTotals,
 };

@@ -68,11 +68,6 @@ const uniqueFields_Custom_Dynamic_Data = {
   valueHistory: [priceEntrySchema],
   priceChangeHistory: [dataPointSchema],
   allDataPoints: [dataPointSchema],
-  // nivoChartData: {
-  //   id: String,
-  //   color: String,
-  //   data: [{ x: Date, y: Number }],
-  // },
 };
 const uniqueVariantFields = {
   cardVariants: [{ type: Schema.Types.ObjectId, ref: 'CardVariant' }], // Reference to CardSet
