@@ -23,7 +23,7 @@ exports.getAllCollectionsForUser = async (req, res, next) => {
   try {
     const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['collections']);
     validateEntityPresence(populatedUser, 'User not found', 404, res);
-    await populatedUser.save();
+    // await populatedUser.save();
 
     sendJsonResponse(
       res,
