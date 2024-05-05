@@ -6221,3 +6221,13 @@ undefined
 
 [32m-------------------[39m Collection: adsfdsf | Card: Dark Magician Girl, Old Price: 0.31, New Price: 0.29 Difference: -0.02 [32m-------------------[39m
 
+[32m-------------------[39m Collection: adsfdsf | Card: Accel Synchro Stardust Dragon, Old Price: 28.57, New Price: 26.58 Difference: -1.99 [32m-------------------[39m
+[32m-------------------[39m Collection: adsfdsf | Card: Absorouter Dragon, Old Price: 0.92, New Price: 0.88 Difference: -0.04 [32m-------------------[39m
+
+
+
+
+[32m-------------------[39m Collection: adsfdsf | Card: Marincess Springirl, Old Price: 3.65, New Price: 3.68 Difference: 0.03 [32m-------------------[39m
+
+
+[32m-------------------[39m Collection: adsfdsf | Card: Kiwi Magician Girl, Old Price: 0.86, New Price: 0.91 Difference: 0.05 [32m-------------------[39m
