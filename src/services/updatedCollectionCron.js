@@ -65,22 +65,33 @@ const processCardPriceChange = async (cardData, collectionName, username) => {
   const differenceDeteced = newPrice !== currentPrice;
   const addedMessage = differenceDeteced ? `[PRICE CHANGE]`.green : `[NO PRICE CHANGE]`.red;
   logger.info(
-    `[CHECKING PRICES]` +
-      `[` +
+    `[` +
       `${username}`.yellow +
       `]` +
       `[` +
       `${collectionName}`.yellow +
       `]` +
       `[${card.name}]` +
-      `[CURRENT PRICE: ` +
-      `$${currentPrice}`.yellow +
-      `]` +
-      `[FETCHED PRICE: ` +
-      `$${newPrice}`.yellow +
       `]` +
       addedMessage,
   );
+  // logger.info(
+  //   `[CHECKING PRICES]` +
+  //     `[` +
+  //     `${username}`.yellow +
+  //     `]` +
+  //     `[` +
+  //     `${collectionName}`.yellow +
+  //     `]` +
+  //     `[${card.name}]` +
+  //     `[CURRENT PRICE: ` +
+  //     `$${currentPrice}`.yellow +
+  //     `]` +
+  //     `[FETCHED PRICE: ` +
+  //     `$${newPrice}`.yellow +
+  //     `]` +
+  //     addedMessage,
+  // );
   if (differenceDeteced) {
     let messageCover = '';
     let message = '';
@@ -188,7 +199,7 @@ const updatedCollectionCron = async () => {
         collection.updatedFromCron = true;
         await collection.save(); // Assuming collection.save() is a valid method to persist changes
       } else {
-        logger.info(`No price changes detected for collection: ${collection.name}`.red);
+        // logger.info(`No price changes detected for collection: ${collection.name}`.red);
       }
     }
     await user.save();
@@ -198,7 +209,7 @@ const updatedCollectionCron = async () => {
     logger.info(greenLogBracks(`[PRICE CHANGES DETECTED] ${globalPriceChanges?.length}`).green);
     logPriceChangesToFile(globalPriceChanges);
   } else {
-    logger.info(whiteLogBracks('No price changes detected'.red));
+    // logger.info(whiteLogBracks('No price changes detected'.red));
   }
 };
 exports.updatedCollectionCron = updatedCollectionCron;

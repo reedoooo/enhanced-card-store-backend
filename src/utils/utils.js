@@ -69,10 +69,9 @@ function sendJsonResponse(res, status, message, data) {
 const getCardInfo = async (cardName) => {
   try {
     const { data } = await axiosInstance.get(`/cardinfo.php?name=${encodeURIComponent(cardName)}`);
-    logger.info('Card info:', data?.data[0]);
     return data?.data[0];
   } catch (error) {
-    logger.error(`Error fetching card info for card NAME ${cardName}:`, error);
+    logger.error(`Error in function getCardInfo ${cardName}: ${error.message}`);
     throw error;
   }
 };

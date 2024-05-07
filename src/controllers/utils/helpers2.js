@@ -58,44 +58,55 @@ async function saveModel(Model, data) {
 }
 
 async function createCardVariants(sets, cardModel, cardId) {
-  return Promise.all(
-    sets.map(async (setId, index) => {
-      const set = await CardSet.findById(setId);
-      if (!set) throw new Error(`CardSet not found for ID: ${setId}`);
-      const cardVariant = new CardVariant({
-        ...set.toObject(),
-        selected: false,
-        alt_art_image_url: '',
-        set: setId,
-        cardModel,
-        cardId,
-        variant: index + 1,
-        price: set.set_price,
-        rarity: set.set_rarity,
-        rarity_code: set?.set_rarity_code,
-      });
+  logger.info(`CREATING CARD VARIANTS FOR ${cardId}`);
+  try {
+    return Promise.all(
+      sets.map(async (setId, index) => {
+        const set = await CardSet.findById(setId);
+        if (!set) throw new Error(`CardSet not found for ID: ${setId}`);
+        const cardVariant = new CardVariant({
+          ...set.toObject(),
+          selected: false,
+          alt_art_image_url: '',
+          set: setId,
+          cardModel,
+          cardId,
+          variant: index + 1,
+          price: set.set_price,
+          rarity: set.set_rarity,
+          rarity_code: set?.set_rarity_code,
+        });
 
-      await cardVariant.save();
-      return cardVariant._id;
-    }),
-  );
+        await cardVariant.save();
+        return cardVariant._id;
+      }),
+    );
+  } catch (error) {
+    logger.error(`Error in createCardVariants: ${error.message}`);
+    throw error;
+  }
 }
 function transformSetData(set, index, { cardModel, cardId }) {
   const setPrice = mongoose.Types.Decimal128.fromString(set.set_price.replace(/^\$/, ''));
   return { ...set, set_price: setPrice, cardModel, cardId };
 }
 async function createCardSets(cardSetsData, cardModel, cardId) {
-  logger.info(`CARDID: ${cardId}`);
-  return Promise.all(
-    cardSetsData
-      ?.map((set, index) => transformSetData(set, index, { cardModel, cardId }))
-      ?.map(async (set) => {
-        // Now that set is prepared, create and save the CardSet document.
-        const cardSet = new CardSet(set);
-        await cardSet.save();
-        return cardSet._id;
-      }),
-  );
+  try {
+    logger.info(`CARDID: ${cardId}`);
+    return Promise.all(
+      cardSetsData
+        ?.map((set, index) => transformSetData(set, index, { cardModel, cardId }))
+        ?.map(async (set) => {
+          // Now that set is prepared, create and save the CardSet document.
+          const cardSet = new CardSet(set);
+          await cardSet.save();
+          return cardSet._id;
+        }),
+    );
+  } catch (error) {
+    logger.error(`Error in createCardSets: ${error.message}`);
+    throw error;
+  }
 }
 async function createCardSetsAndVariants(cardInstance, cardData, cardModelName) {
   if (!cardData || !cardInstance || !cardModelName) {
@@ -174,7 +185,8 @@ async function createAndSaveCard(cardData, additionalData) {
     }
   } catch (error) {
     logger.error(`Error creating in createandsavecard: ${error.message}`);
-    throw new Error(error);
+    throw error;
+    // throw new Error(error);
   }
 }
 

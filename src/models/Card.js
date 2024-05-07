@@ -162,7 +162,7 @@ genericCardSchema.pre('save', async function (next) {
     this.priceHistory = [newPriceEntry];
     this.allDataPoints = [newDataPoints];
     this.priceChangeHistory = [newDataPoints];
-    logger.info(`[NEW DATAPOINT] `.green + `[${newDataPoints[0]}`.white);
+    logger.info(`[NEW DATAPOINT] `.green + `[${JSON.stringify(newDataPoints[0])}`.white);
   }
   if (!this.isNew) {
     logger.info(`[UPDATED CARD] `.blue + `[${this.name}`.white + `]`.blue);

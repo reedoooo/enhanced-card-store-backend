@@ -5,7 +5,7 @@ require('colors');
 
 updatedCollectionCron();
 // Run every 1 minutes
-cron.schedule('1 * * * *', async () => {
+cron.schedule('5 * * * *', async () => {
   logger.info('------------------------'.green);
   logger.info('⏲️ RUNNING THE CRON');
   logger.info('------------------------'.green);

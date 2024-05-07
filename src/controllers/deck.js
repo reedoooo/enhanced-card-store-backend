@@ -20,17 +20,36 @@ exports.getDeckById = async (req, res, next) => {
   validateEntityPresence(deck, 'Deck not found', 404, res);
   sendJsonResponse(res, 200, `Fetched deck for user ${req.params.userId}`, deck);
 };
+function removeDuplicates(arr) {
+  return arr.filter((item, index) => arr.indexOf(item) === index);
+}
 exports.updateDeckDetails = async (req, res, next) => {
   const { name, description, tags, color } = req.body;
-  const parsedTags = JSON.stringify(tags);
-  const populatedUser = await fetchPopulatedUserContext(req.params.userId, ['decks']);
-  const deck = findUserDeck(populatedUser, req.params.deckId);
-  validateEntityPresence(deck, 'Deck not found', 404, res);
-  deck.tags = tags;
-  Object.assign(deck, { name, description, parsedTags, color });
+  const deckId = req.params.deckId;
+  const userId = req.params.userId;
+  const populatedUser = await fetchPopulatedUserContext(userId, ['decks']);
+  const deck = populatedUser.allDecks.find((d) => d.id.toString() === deckId.toString());
+  if (!deck) {
+    return res.status(404).json({ message: 'Deck not found' });
+  }
+  logger.info(`[RECEIVED TAGS]: ${JSON.stringify(tags)} Length: ${tags.length}`);
+  const existingTagMap = new Map(deck.tags.map((tag) => [tag.id, tag]));
+  logger.info(`[Existing tags]: ${existingTagMap} Length: ${existingTagMap.size}`);
+  const updatedTags = [...tags];
+  const updatedTagMap = new Map(updatedTags.map((tag) => [tag.id, tag]));
+  logger.info(
+    `[updatedTagMap tags]: ${JSON.stringify(updatedTagMap)} Length: ${updatedTagMap.size}`,
+  );
+  logger.info(`[Updated tags]: ${JSON.stringify(updatedTags)} Length: ${updatedTags.length}`);
+  deck.tags = new Array(...updatedTagMap.values());
+  deck.name = name;
+  deck.description = description;
+  deck.color = color;
+
   await deck.save();
   await populatedUser.save();
-  sendJsonResponse(res, 200, `Deck updated successfully.`, deck);
+  logger.info(`[DECK]: ${deck.tags}`);
+  return res.status(200).json({ message: 'Deck updated successfully.', deck });
 };
 exports.createNewDeck = async (req, res, next) => {
   const { userId } = req.params;
@@ -54,21 +73,17 @@ exports.createNewDeck = async (req, res, next) => {
   user.allDecks.push(newDeck._id);
   await user.save();
 
-  sendJsonResponse(res, 201, 'New deck created successfully', { data: newDeck });
+  sendJsonResponse(res, 201, 'New deck created successfully', newDeck);
 };
 exports.deleteDeck = async (req, res, next) => {
   const { userId, deckId } = req.params;
   try {
     const user = await fetchPopulatedUserContext(userId, ['decks']);
     const deckIndex = user.allDecks.findIndex((d) => d._id.toString() === deckId);
-    // validateEntityPresence(deckIndex !== -1, 'Deck not found', 404, res);
-
     user.allDecks.splice(deckIndex, 1);
     await user.save();
 
-    sendJsonResponse(res, 200, 'Deck deleted successfully', {
-      data: deckId,
-    });
+    sendJsonResponse(res, 200, 'Deck deleted successfully', deckId);
   } catch (error) {
     logger.error('Error deleting deck:', error);
     next(error);
@@ -91,11 +106,9 @@ exports.addCardsToDeck = async (req, res, next) => {
     populatedUser._id,
     CardInDeck,
   );
-  await updatedDeck.save();
+  // await updatedDeck.save();
   await populatedUser.save();
-  sendJsonResponse(res, 200, 'Cards added to deck successfully.', {
-    data: updatedDeck,
-  });
+  sendJsonResponse(res, 200, 'Cards added to deck successfully.', updatedDeck);
 };
 exports.removeCardsFromDeck = async (req, res, next) => {
   const { userId, deckId } = req.params;
@@ -106,8 +119,6 @@ exports.removeCardsFromDeck = async (req, res, next) => {
   const validId = deck.cards.find((c) => c.id === cards)._id;
   validateEntityPresence(deck, 'Deck not found', 404, res);
   await removeCards(deck, deck._id, cards[0], 'deck', CardInDeck, type, populatedUser._id, validId);
-  sendJsonResponse(res, 200, 'Cards removed from deck successfully.', {
-    data: deck,
-  });
+  sendJsonResponse(res, 200, 'Cards removed from deck successfully.', deck);
 };
 // !--------------------------! DECKS !--------------------------!

@@ -170,7 +170,7 @@ async function addOrUpdateCards(
     }
     await deDuplicate(entity, cardModel);
     await entity?.save();
-    logger.info(`Saved ${collectionModelName} ${entity.name}`);
+    // logger.info(`Saved ${collectionModelName} ${entity.name}`);
     return entity;
   } catch (error) {
     logger.error(`ERROR IN addOrUpdateCards: ${error.message}`);

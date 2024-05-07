@@ -95,7 +95,7 @@ const createSchemaWithCommonFields = (cardsRef, schemaName, context) => {
         type: [
           {
             id: { type: String, default: uuidv4 },
-            label: { type: String, default: 'defaultTag' },
+            label: { type: String, default: 'defaultTag', unique: true },
           },
         ],
         default: [{}],
@@ -112,6 +112,7 @@ const createSchemaWithCommonFields = (cardsRef, schemaName, context) => {
   );
 
   schema.pre('save', async function () {
+    logger.info(`[Pre-save hook for ${context} `.red + `${this.name}`.white + `]`.red);
     await updateTotals.call(this, model(schemaName), cardsRef);
   });
 
